@@ -1,0 +1,193 @@
+// User service for managing user profiles and authentication.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+import "transcodely/v1/membership.proto";
+
+// UserService manages user profiles and authentication context.
+// Users are authenticated via WorkOS JWTs and provisioned JIT on first login.
+service UserService {
+  // Get the currently authenticated user.
+  // Returns the user profile along with their organization memberships.
+  // Does not require X-Organization-ID header.
+  rpc GetMe(GetMeRequest) returns (GetMeResponse);
+
+  // Get a user by ID.
+  // Requires admin permission or the user to be requesting their own profile.
+  rpc Get(GetUserRequest) returns (GetUserResponse);
+
+  // Update the currently authenticated user's profile.
+  // Note: Email and core profile info are synced from WorkOS, so only
+  // display preferences can be updated here.
+  // Does not require X-Organization-ID header.
+  rpc UpdateMe(UpdateMeRequest) returns (UpdateMeResponse);
+
+  // List users in an organization.
+  // Requires admin permission on the organization.
+  rpc List(ListUsersRequest) returns (ListUsersResponse);
+}
+
+// User account status.
+enum UserStatus {
+  // Default value, should not be used.
+  USER_STATUS_UNSPECIFIED = 0;
+
+  // Normal operation.
+  USER_STATUS_ACTIVE = 1;
+
+  // Account is suspended by admin.
+  // API requests return 403.
+  USER_STATUS_SUSPENDED = 2;
+
+  // Account is soft-deleted.
+  // No access allowed.
+  USER_STATUS_DELETED = 3;
+}
+
+// User approval status. Until we have a payment gate, every new sign-up is
+// held in PENDING and must be approved by a staff member before they can use
+// the platform.
+enum UserApprovalStatus {
+  USER_APPROVAL_STATUS_UNSPECIFIED = 0;
+  USER_APPROVAL_STATUS_PENDING     = 1;
+  USER_APPROVAL_STATUS_APPROVED    = 2;
+  USER_APPROVAL_STATUS_REJECTED    = 3;
+}
+
+// A user authenticated via WorkOS.
+message User {
+  // Unique user identifier (e.g., "usr_a1b2c3d4e5").
+  // This is our internal ID, not the WorkOS ID.
+  string id = 1;
+
+  // User's email address.
+  string email = 2;
+
+  // Whether the email is verified.
+  bool email_verified = 3;
+
+  // User's first name.
+  string first_name = 4;
+
+  // User's last name.
+  string last_name = 5;
+
+  // URL to the user's profile picture.
+  optional string profile_picture_url = 6;
+
+  // User account status.
+  UserStatus status = 7;
+
+  // When the user last logged in.
+  optional google.protobuf.Timestamp last_login_at = 8;
+
+  // When the user was created (first login).
+  google.protobuf.Timestamp created_at = 9;
+
+  // When the user was last updated.
+  google.protobuf.Timestamp updated_at = 10;
+
+  // Whether this user has been approved by a staff member.
+  // New sign-ups default to PENDING.
+  UserApprovalStatus approval_status = 11;
+
+  // When approval was decided (set when status flipped from PENDING).
+  optional google.protobuf.Timestamp approval_decided_at = 12;
+
+  // The staff member's user_id who decided approval.
+  optional string approval_decided_by_user_id = 13;
+}
+
+// User with their organization memberships.
+message UserWithOrganizations {
+  // The user profile.
+  User user = 1;
+
+  // Organizations the user belongs to with their roles.
+  repeated UserOrganization organizations = 2;
+}
+
+// Summary of a user's membership in an organization.
+message UserOrganization {
+  // Organization ID.
+  string org_id = 1;
+
+  // Organization slug.
+  string org_slug = 2;
+
+  // Organization display name.
+  string org_name = 3;
+
+  // User's role in this organization.
+  MembershipRole role = 4;
+
+  // Whether this membership is active.
+  bool is_active = 5;
+}
+
+// Request to get the current user.
+message GetMeRequest {
+  // No parameters required - uses authenticated user context.
+}
+
+// Response from getting the current user.
+message GetMeResponse {
+  // The current user with their organizations.
+  UserWithOrganizations user = 1;
+}
+
+// Request to get a user by ID.
+message GetUserRequest {
+  // User ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^usr_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from getting a user.
+message GetUserResponse {
+  // The requested user.
+  User user = 1;
+}
+
+// Request to update the current user's profile.
+message UpdateMeRequest {
+  // New first name (if provided).
+  optional string first_name = 1 [
+    (buf.validate.field).string.max_len = 100
+  ];
+
+  // New last name (if provided).
+  optional string last_name = 2 [
+    (buf.validate.field).string.max_len = 100
+  ];
+}
+
+// Response from updating the current user.
+message UpdateMeResponse {
+  // The updated user.
+  User user = 1;
+}
+
+// Request to list users in an organization.
+message ListUsersRequest {
+  // Filter by status.
+  optional UserStatus status = 1;
+
+  // Pagination parameters.
+  PaginationRequest pagination = 2;
+}
+
+// Response from listing users.
+message ListUsersResponse {
+  // List of users.
+  repeated User users = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}

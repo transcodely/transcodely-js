@@ -1,0 +1,19 @@
+{
+  "name": "transcodely-examples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "create-job": "tsx 01-create-job.ts",
+    "watch-job": "tsx 02-watch-job.ts",
+    "pagination": "tsx 03-pagination.ts",
+    "errors": "tsx 04-error-handling.ts"
+  },
+  "dependencies": {
+    "transcodely": "file:.."
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0"
+  }
+}

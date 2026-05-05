@@ -1,0 +1,169 @@
+// Streaming configuration for HLS/DASH packaging.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+
+// StreamingConfig defines packaging options for HLS and DASH outputs.
+// These settings control segment duration, format, and GOP alignment.
+//
+// Best practices:
+// - Segment duration of 4-6 seconds balances latency vs efficiency
+// - GOP alignment ensures clean segment boundaries (recommended)
+// - fMP4 (CMAF) is the modern standard; TS is legacy HLS only
+message StreamingConfig {
+  // Segment duration in seconds.
+  // This controls how the video is split into chunks for streaming.
+  //
+  // Recommended values:
+  // - 2s: Low latency, more CDN requests
+  // - 4s: Good balance (Bitmovin default)
+  // - 6s: Apple recommended, fewer requests
+  // - 10s: Higher latency, most efficient
+  //
+  // Default: 6 seconds (Apple recommended)
+  // Range: 1-30 seconds
+  optional int32 segment_duration_seconds = 1 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 30
+  ];
+
+  // Segment format for HLS outputs.
+  // DASH always uses fMP4 regardless of this setting.
+  //
+  // Options:
+  // - FMP4: Fragmented MP4 (CMAF) - modern, recommended
+  // - TS: MPEG Transport Stream - legacy, wider device support
+  //
+  // Default: FMP4 (CMAF)
+  HLSSegmentFormat hls_segment_format = 2 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // GOP (Group of Pictures) alignment mode.
+  // Controls how keyframes align with segment boundaries.
+  //
+  // Options:
+  // - ALIGNED: GOP size matches segment duration (recommended)
+  // - FIXED: Use fixed GOP size regardless of segment duration
+  //
+  // Default: ALIGNED
+  GOPAlignmentMode gop_alignment = 3 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Fixed GOP size in seconds (only used when gop_alignment = FIXED).
+  // When set, keyframes are inserted at this interval regardless of segment duration.
+  //
+  // Use cases:
+  // - Ad insertion (DAI) requiring keyframes at specific intervals
+  // - Multi-bitrate encoding with fixed keyframe positions
+  //
+  // Default: 2 seconds (when gop_alignment = FIXED)
+  // Range: 1-10 seconds
+  optional int32 gop_size_seconds = 4 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 10
+  ];
+
+  // Whether to generate a master playlist that references all codec variants.
+  // When true, outputs with the same resolution but different codecs are
+  // grouped into a single adaptive manifest.
+  //
+  // Example: 1080p H.264 + 1080p H.265 + 1080p AV1 in one master.m3u8
+  //
+  // Default: true (recommended for multi-codec delivery)
+  optional bool multi_codec_master = 5;
+
+  // HLS playlist type.
+  // Controls the EXT-X-PLAYLIST-TYPE tag in HLS playlists.
+  //
+  // Options:
+  // - VOD: Complete playlist, no updates (for VOD content)
+  // - EVENT: Append-only playlist (for live-to-VOD)
+  //
+  // Default: VOD
+  HLSPlaylistType hls_playlist_type = 6 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Custom name for HLS master playlist (without extension).
+  // Must contain only alphanumeric characters, hyphens, and underscores.
+  // Do NOT include the .m3u8 extension.
+  //
+  // Example: "index" produces "index.m3u8"
+  // Default: "master" produces "master.m3u8"
+  optional string hls_master_name = 10 [
+    (buf.validate.field).string.max_len = 64,
+    (buf.validate.field).string.pattern = "^[a-zA-Z0-9_-]+$"
+  ];
+
+  // Custom name for DASH manifest (without extension).
+  // Must contain only alphanumeric characters, hyphens, and underscores.
+  // Do NOT include the .mpd extension.
+  //
+  // Example: "stream" produces "stream.mpd"
+  // Default: "manifest" produces "manifest.mpd"
+  optional string dash_manifest_name = 11 [
+    (buf.validate.field).string.max_len = 64,
+    (buf.validate.field).string.pattern = "^[a-zA-Z0-9_-]+$"
+  ];
+
+  // Pattern for HLS variant playlist names.
+  // Variables: {codec}, {resolution}, {bitrate}, {index}
+  //
+  // Example: "video_{resolution}" produces "video_1080p.m3u8"
+  // Default: "{codec}_{resolution}" produces "h264_1080p.m3u8"
+  optional string hls_variant_pattern = 12 [
+    (buf.validate.field).string.max_len = 128
+  ];
+}
+
+// HLS segment format options.
+enum HLSSegmentFormat {
+  // Default: use system default (fMP4)
+  HLS_SEGMENT_FORMAT_UNSPECIFIED = 0;
+
+  // Fragmented MP4 (CMAF) segments.
+  // Modern format, efficient, supports HEVC/AV1.
+  // File extension: .m4s with .mp4 init segment
+  HLS_SEGMENT_FORMAT_FMP4 = 1;
+
+  // MPEG Transport Stream segments.
+  // Legacy format, widest device compatibility.
+  // File extension: .ts
+  // Note: Does not support HEVC well on some devices.
+  HLS_SEGMENT_FORMAT_TS = 2;
+}
+
+// GOP alignment mode options.
+enum GOPAlignmentMode {
+  // Default: use system default (aligned)
+  GOP_ALIGNMENT_MODE_UNSPECIFIED = 0;
+
+  // GOP size equals segment duration.
+  // Ensures clean segment boundaries with one keyframe per segment.
+  // Recommended for most use cases.
+  GOP_ALIGNMENT_MODE_ALIGNED = 1;
+
+  // Fixed GOP size independent of segment duration.
+  // Use gop_size_seconds to specify the interval.
+  // Useful for ad insertion or specific keyframe requirements.
+  GOP_ALIGNMENT_MODE_FIXED = 2;
+}
+
+// HLS playlist type options.
+enum HLSPlaylistType {
+  // Default: use system default (VOD)
+  HLS_PLAYLIST_TYPE_UNSPECIFIED = 0;
+
+  // VOD playlist - complete, immutable.
+  // Contains EXT-X-PLAYLIST-TYPE:VOD and EXT-X-ENDLIST.
+  HLS_PLAYLIST_TYPE_VOD = 1;
+
+  // Event playlist - append-only.
+  // Contains EXT-X-PLAYLIST-TYPE:EVENT.
+  // Useful for live-to-VOD transitions.
+  HLS_PLAYLIST_TYPE_EVENT = 2;
+}

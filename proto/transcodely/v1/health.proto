@@ -1,0 +1,54 @@
+// Health check service.
+syntax = "proto3";
+
+package transcodely.v1;
+
+// HealthService provides health check endpoints.
+service HealthService {
+  // Check the health of the service.
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// Health status.
+enum HealthStatus {
+  HEALTH_STATUS_UNSPECIFIED = 0;
+
+  // Service is healthy and operational.
+  HEALTH_STATUS_HEALTHY = 1;
+
+  // Service is degraded but operational.
+  HEALTH_STATUS_DEGRADED = 2;
+
+  // Service is unhealthy and not operational.
+  HEALTH_STATUS_UNHEALTHY = 3;
+}
+
+// Request for health check.
+message HealthCheckRequest {
+  // Optional: specific service to check (empty = all).
+  optional string service = 1;
+}
+
+// Response from health check.
+message HealthCheckResponse {
+  // Overall service status.
+  HealthStatus status = 1;
+
+  // Service version.
+  string version = 2;
+
+  // Individual component statuses.
+  repeated ComponentHealth components = 3;
+}
+
+// Health status of an individual component.
+message ComponentHealth {
+  // Component name (e.g., "database", "storage", "queue").
+  string name = 1;
+
+  // Component status.
+  HealthStatus status = 2;
+
+  // Optional message with additional details.
+  optional string message = 3;
+}

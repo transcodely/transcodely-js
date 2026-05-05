@@ -1,0 +1,160 @@
+// Common types shared across services.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+
+// Pagination request parameters.
+message PaginationRequest {
+  // Maximum number of items to return (default: 20, max: 100).
+  int32 limit = 1 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 100
+  ];
+
+  // Pagination cursor from previous response.
+  string cursor = 2;
+
+  // Offset for pagination (alternative to cursor).
+  int32 offset = 3 [
+    (buf.validate.field).int32.gte = 0
+  ];
+}
+
+// Pagination response metadata.
+message PaginationResponse {
+  // Cursor for fetching the next page. Empty if no more pages.
+  string next_cursor = 1;
+
+  // Total number of items (if available).
+  optional int64 total_count = 2 [
+    (buf.validate.field).int64.gte = 0
+  ];
+}
+
+// Standard error details.
+message ErrorDetails {
+  // Machine-readable error code.
+  string code = 1;
+
+  // Human-readable error message.
+  string message = 2;
+
+  // Field-specific validation errors.
+  repeated FieldViolation field_violations = 3;
+}
+
+// Field-level validation error.
+message FieldViolation {
+  // Path to the field (e.g., "input_url" or "outputs[0].codec").
+  string field = 1;
+
+  // Description of the violation.
+  string description = 2;
+}
+
+// =============================================================================
+// Shared Enums (used by both PresetService and JobService)
+// =============================================================================
+
+// Video codec options.
+enum VideoCodec {
+  VIDEO_CODEC_UNSPECIFIED = 0;
+  VIDEO_CODEC_H264 = 1;
+  VIDEO_CODEC_H265 = 2;
+  VIDEO_CODEC_VP9 = 3;
+  VIDEO_CODEC_AV1 = 4;
+}
+
+// Audio codec options.
+enum AudioCodec {
+  AUDIO_CODEC_UNSPECIFIED = 0;
+  AUDIO_CODEC_AAC = 1;
+  AUDIO_CODEC_OPUS = 2;
+  AUDIO_CODEC_MP3 = 3;
+}
+
+// Container format options.
+enum Container {
+  CONTAINER_UNSPECIFIED = 0;
+  CONTAINER_MP4 = 1;
+  CONTAINER_WEBM = 2;
+  CONTAINER_MKV = 3;
+  CONTAINER_TS = 4;
+  CONTAINER_MOV = 5;
+}
+
+// Video resolution options.
+// These represent standard resolution tiers for pricing.
+// Custom dimensions are mapped to the nearest tier for pricing purposes.
+enum Resolution {
+  RESOLUTION_UNSPECIFIED = 0;
+  RESOLUTION_480P = 1;   // SD: up to 480p (~307k pixels)
+  RESOLUTION_720P = 2;   // HD: up to 720p (~922k pixels)
+  RESOLUTION_1080P = 3;  // Full HD: up to 1080p (~2.07M pixels)
+  RESOLUTION_1440P = 4;  // QHD: up to 1440p (~3.69M pixels)
+  RESOLUTION_2160P = 5;  // 4K UHD: up to 2160p (~8.29M pixels)
+  RESOLUTION_4320P = 6;  // 8K UHD: above 2160p
+}
+
+// Quality tier affecting encoding speed and quality.
+enum QualityTier {
+  QUALITY_TIER_UNSPECIFIED = 0;
+
+  // Fast encoding, good quality. Uses ultrafast/veryfast preset.
+  // 0.75x price multiplier.
+  QUALITY_TIER_ECONOMY = 1;
+
+  // Balanced speed and quality. Uses medium preset.
+  // 1.0x price multiplier (baseline).
+  QUALITY_TIER_STANDARD = 2;
+
+  // Best quality, slower encoding. Uses slow/veryslow preset.
+  // 2.0x price multiplier.
+  QUALITY_TIER_PREMIUM = 3;
+}
+
+// Output type (container format or streaming type).
+// Note: "format" is renamed to "type" in v1 API, but the enum keeps the same name
+// for backward compatibility in proto.
+enum OutputFormat {
+  OUTPUT_FORMAT_UNSPECIFIED = 0;
+  OUTPUT_FORMAT_MP4 = 1;
+  OUTPUT_FORMAT_WEBM = 2;
+  OUTPUT_FORMAT_MKV = 3;
+  OUTPUT_FORMAT_MOV = 4;
+  OUTPUT_FORMAT_HLS = 5;
+  OUTPUT_FORMAT_DASH = 6;
+  // Combined HLS + DASH from shared CMAF segments.
+  // Produces both master.m3u8 and manifest.mpd from the same fMP4 segments.
+  OUTPUT_FORMAT_ADAPTIVE = 7;
+}
+
+// Content type for optimizing encoder settings.
+enum ContentType {
+  CONTENT_TYPE_UNSPECIFIED = 0;
+  CONTENT_TYPE_FILM = 1;        // Natural motion, fine detail (movies, TV shows)
+  CONTENT_TYPE_ANIMATION = 2;   // Flat colors, sharp edges (anime, cartoons)
+  CONTENT_TYPE_GRAIN = 3;       // Preserve film grain texture (noir, vintage)
+  CONTENT_TYPE_GAMING = 4;      // Fast motion, screen content (game recordings)
+  CONTENT_TYPE_SPORTS = 5;      // High motion, high framerate (live sports)
+  CONTENT_TYPE_STILLIMAGE = 6;  // Mostly static frames (slideshows)
+}
+
+// Delivery format for output packaging.
+enum DeliveryFormat {
+  DELIVERY_FORMAT_UNSPECIFIED = 0;
+  DELIVERY_FORMAT_PROGRESSIVE = 1;  // Direct download, simple playback
+  DELIVERY_FORMAT_HLS = 2;          // Adaptive streaming (Apple devices, web)
+  DELIVERY_FORMAT_DASH = 3;         // Adaptive streaming (Android, web)
+  DELIVERY_FORMAT_CMAF = 4;         // Unified HLS+DASH (modern approach)
+}
+
+// Video bitrate control mode.
+enum BitrateMode {
+  BITRATE_MODE_UNSPECIFIED = 0;
+  BITRATE_MODE_CRF = 1;  // Constant Rate Factor (quality-based)
+  BITRATE_MODE_CBR = 2;  // Constant Bitrate
+  BITRATE_MODE_VBR = 3;  // Variable Bitrate
+}

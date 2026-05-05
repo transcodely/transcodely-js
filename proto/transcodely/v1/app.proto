@@ -1,0 +1,345 @@
+// App service for managing projects within organizations.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+
+// AppService manages apps (projects) within organizations.
+service AppService {
+  // Create a new app within an organization.
+  rpc Create(CreateAppRequest) returns (CreateAppResponse);
+
+  // Get an app by ID.
+  rpc Get(GetAppRequest) returns (GetAppResponse);
+
+  // Update an app's name, description, and webhook configuration.
+  rpc Update(UpdateAppRequest) returns (UpdateAppResponse);
+
+  // List apps within an organization.
+  rpc List(ListAppsRequest) returns (ListAppsResponse);
+
+  // Archive an app (soft delete).
+  // Archived apps cannot create new resources, but existing jobs continue.
+  rpc Archive(ArchiveAppRequest) returns (ArchiveAppResponse);
+
+  // Enable video hosting for an app.
+  // This is a one-way operation — once enabled, hosting cannot be disabled.
+  // Provisions managed storage bucket and prepares CDN infrastructure.
+  rpc EnableHosting(EnableHostingRequest) returns (EnableHostingResponse);
+
+  // Update hosting configuration for an app.
+  // Merges provided fields into the existing hosting config.
+  // Returns failed_precondition if hosting is not enabled.
+  rpc UpdateHostingConfig(UpdateHostingConfigRequest) returns (UpdateHostingConfigResponse);
+}
+
+// App status.
+enum AppStatus {
+  // Default value, should not be used.
+  APP_STATUS_UNSPECIFIED = 0;
+
+  // Normal operation.
+  APP_STATUS_ACTIVE = 1;
+
+  // Soft-deleted. No new resources allowed.
+  APP_STATUS_ARCHIVED = 2;
+}
+
+// An app is a project within an organization.
+// Each app has its own API keys, jobs, origins, and webhook configuration.
+message App {
+  // Unique app identifier (e.g., "app_a1b2c3d4e5").
+  string id = 1;
+
+  // Parent organization ID.
+  string org_id = 2;
+
+  // Display name (any case, 1-60 characters).
+  // Must be unique within the organization (case-insensitive).
+  string name = 3;
+
+  // Optional description.
+  optional string description = 4;
+
+  // Webhook configuration.
+  optional WebhookConfig webhook = 5;
+
+  // App status.
+  AppStatus status = 6;
+
+  // When the app was created.
+  google.protobuf.Timestamp created_at = 7;
+
+  // When the app was last updated.
+  google.protobuf.Timestamp updated_at = 8;
+
+  // When the app was archived (if applicable).
+  optional google.protobuf.Timestamp archived_at = 9;
+
+  // Hosting state (computed from infrastructure columns).
+
+  // True if hosting feature is enabled for this app.
+  optional bool hosting_enabled = 10;
+
+  // Hosting readiness: "active", "provisioning", or "not_configured".
+  optional string hosting_status = 11;
+
+  // CDN hostname (e.g., "transcodely-app-xxx.b-cdn.net"). Only set when hosting is active.
+  optional string cdn_hostname = 12;
+
+  // Hosting configuration (only set when hosting_enabled=true).
+  optional HostingConfig hosting_config = 13;
+}
+
+// Webhook configuration for an app.
+message WebhookConfig {
+  // HTTPS endpoint for receiving webhooks.
+  string url = 1;
+
+  // Secret for HMAC-SHA256 signature verification.
+  // Only the last 4 characters are shown (hint).
+  // Full secret is only returned when first configured.
+  optional string secret_hint = 2;
+
+  // Whether a secret is configured.
+  bool has_secret = 3;
+
+  // Events to send.
+  // Possible values: job.completed, job.failed, job.progress, job.canceled,
+  //                  output.completed, output.failed
+  repeated string events = 4;
+}
+
+// Request to create a new app.
+message CreateAppRequest {
+  // Parent organization ID.
+  string org_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^org_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Display name (any case, 1-60 characters).
+  string name = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 60
+  ];
+
+  // Optional description.
+  optional string description = 3 [
+    (buf.validate.field).string.max_len = 500
+  ];
+
+  // Optional webhook configuration.
+  optional CreateWebhookConfig webhook = 4;
+
+  // Enable video hosting for this app. Provisions CDN infrastructure.
+  // This cannot be disabled once enabled.
+  optional bool enable_hosting = 5;
+}
+
+// Webhook configuration for app creation.
+message CreateWebhookConfig {
+  // HTTPS endpoint for receiving webhooks.
+  string url = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.uri = true,
+    (buf.validate.field).string.prefix = "https://"
+  ];
+
+  // If true, a webhook secret will be generated.
+  // The secret is returned once in the response.
+  bool generate_secret = 2;
+
+  // Events to send.
+  // Default: ["job.completed", "job.failed"] if not specified.
+  repeated string events = 3;
+}
+
+// Response from creating an app.
+message CreateAppResponse {
+  // The created app.
+  App app = 1;
+
+  // Webhook secret (only returned if generate_secret was true).
+  // WARNING: This is the only time the secret is returned.
+  optional string webhook_secret = 2;
+}
+
+// Request to get an app.
+message GetAppRequest {
+  // App ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from getting an app.
+message GetAppResponse {
+  // The requested app.
+  App app = 1;
+}
+
+// Request to update an app.
+message UpdateAppRequest {
+  // App ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // New display name (if provided).
+  optional string name = 2 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 60
+  ];
+
+  // New description (if provided).
+  optional string description = 3 [
+    (buf.validate.field).string.max_len = 500
+  ];
+
+  // New webhook configuration (if provided).
+  // Set to empty message to clear webhook config.
+  optional UpdateWebhookConfig webhook = 4;
+}
+
+// Webhook configuration for app update.
+message UpdateWebhookConfig {
+  // New webhook URL.
+  // Set to empty string to disable webhooks.
+  optional string url = 1 [
+    (buf.validate.field).string.uri = true
+  ];
+
+  // If true, regenerate the webhook secret.
+  // The new secret is returned in the response.
+  bool regenerate_secret = 2;
+
+  // New events to send.
+  // Only applied if explicitly provided.
+  repeated string events = 3;
+}
+
+// Response from updating an app.
+message UpdateAppResponse {
+  // The updated app.
+  App app = 1;
+
+  // New webhook secret (only returned if regenerate_secret was true).
+  optional string webhook_secret = 2;
+}
+
+// Request to list apps.
+message ListAppsRequest {
+  // Parent organization ID.
+  string org_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^org_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Pagination parameters.
+  PaginationRequest pagination = 2;
+
+  // If true, include archived apps.
+  bool include_archived = 3;
+}
+
+// Response from listing apps.
+message ListAppsResponse {
+  // List of apps.
+  repeated App apps = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to archive an app.
+message ArchiveAppRequest {
+  // App ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from archiving an app.
+message ArchiveAppResponse {
+  // The archived app.
+  App app = 1;
+}
+
+// Request to enable video hosting for an app.
+message EnableHostingRequest {
+  // App ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from enabling hosting.
+message EnableHostingResponse {
+  // The updated app with hosting_enabled=true.
+  App app = 1;
+}
+
+// Hosting configuration for an app.
+// Controls CDN delivery, upload limits, and auto-transcoding defaults.
+message HostingConfig {
+  // Default visibility for new uploads: "public", "unlisted", or "private".
+  optional string default_visibility = 1;
+
+  // Max upload file size in bytes (0 = no limit).
+  optional int64 max_upload_size_bytes = 2;
+
+  // CORS allowed origins for CDN delivery.
+  // These are the domains that can embed/fetch videos from the CDN.
+  // System defaults (player base URL) are always included automatically.
+  repeated string cors_allowed_origins = 3;
+
+  // Auto-transcoding defaults when no preset is specified.
+  optional AutoProfileDefaults auto_profile_defaults = 4;
+}
+
+// Default transcoding settings when no preset is specified on upload.
+message AutoProfileDefaults {
+  // Output format: "hls", "dash", or "mp4".
+  optional string format = 1;
+
+  // Video codec: "h264", "h265", "vp9", or "av1".
+  optional string codec = 2;
+
+  // Maximum output resolution: "480p", "720p", "1080p", "1440p", or "2160p".
+  optional string max_resolution = 3;
+
+  // Quality tier: "economy", "standard", or "premium".
+  optional string quality_tier = 4;
+
+  // Encoding mode: "fixed" (default, static CRF) or "auto" (input-aware constrained CRF).
+  // In "auto" mode, the worker caps each variant's bitrate based on the input's bitrate
+  // and resolution ratio, preventing output from exceeding the input's quality ceiling.
+  optional string encoding_mode = 5;
+}
+
+// Request to update hosting configuration for an app.
+message UpdateHostingConfigRequest {
+  // App ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Hosting configuration to merge.
+  HostingConfig hosting_config = 2;
+}
+
+// Response from updating hosting configuration.
+message UpdateHostingConfigResponse {
+  // The updated app with merged hosting config.
+  App app = 1;
+}

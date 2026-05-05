@@ -1,0 +1,79 @@
+// Content-aware encoding configuration.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "transcodely/v1/common.proto";
+
+// Content-aware encoding mode.
+enum ContentAwareMode {
+  CONTENT_AWARE_MODE_UNSPECIFIED = 0;
+
+  // Optimize CRF for target VMAF on specific content.
+  CONTENT_AWARE_MODE_PER_TITLE = 1;
+
+  // Generate optimal bitrate ladder automatically.
+  CONTENT_AWARE_MODE_AUTO_ABR = 2;
+}
+
+// Auto ABR ladder generation constraints.
+message AutoABRConfig {
+  // Minimum number of variants in the ladder.
+  // Default: 2.
+  optional int32 min_variants = 1 [
+    (buf.validate.field).int32.gte = 2,
+    (buf.validate.field).int32.lte = 20
+  ];
+
+  // Maximum number of variants in the ladder.
+  // Default: 8.
+  optional int32 max_variants = 2 [
+    (buf.validate.field).int32.gte = 2,
+    (buf.validate.field).int32.lte = 20
+  ];
+
+  // Lowest resolution in the generated ladder.
+  Resolution min_resolution = 3 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Highest resolution in the generated ladder.
+  Resolution max_resolution = 4 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+}
+
+// Content-aware encoding configuration for an output.
+message ContentAwareConfig {
+  // Encoding mode (required).
+  ContentAwareMode mode = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Override VMAF target (70-99).
+  // Defaults from quality tier: economy=88, standard=93, premium=97.
+  optional double vmaf_target = 2 [
+    (buf.validate.field).double.gte = 70,
+    (buf.validate.field).double.lte = 99
+  ];
+
+  // Auto ABR constraints (only for auto_abr mode).
+  optional AutoABRConfig auto_abr = 3;
+}
+
+// Content analysis results from extended probe.
+message ContentAnalysis {
+  // Overall encoding complexity (0-1).
+  double complexity_score = 1;
+
+  // Temporal complexity - amount of motion (0-1).
+  double motion_score = 2;
+
+  // Spatial detail complexity (0-1).
+  double texture_score = 3;
+
+  // Detected content type.
+  string content_type = 4;
+}

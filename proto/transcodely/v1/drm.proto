@@ -1,0 +1,113 @@
+// DRM (Digital Rights Management) content protection configuration.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+
+// DRM system.
+enum DRMSystem {
+  DRM_SYSTEM_UNSPECIFIED = 0;
+
+  // Google Widevine (Android, Chrome, most browsers).
+  DRM_SYSTEM_WIDEVINE = 1;
+
+  // Apple FairPlay (iOS, Safari, Apple TV).
+  DRM_SYSTEM_FAIRPLAY = 2;
+
+  // Microsoft PlayReady (Windows, Xbox, Smart TVs).
+  DRM_SYSTEM_PLAYREADY = 3;
+}
+
+// Encryption scheme.
+enum EncryptionScheme {
+  ENCRYPTION_SCHEME_UNSPECIFIED = 0;
+
+  // AES-CTR mode (Widevine + PlayReady).
+  ENCRYPTION_SCHEME_CENC = 1;
+
+  // AES-CBC mode (FairPlay + Widevine).
+  ENCRYPTION_SCHEME_CBCS = 2;
+}
+
+// Bring Your Own Key configuration.
+// Client provides their own encryption keys.
+message BYOKConfig {
+  // Key identifier (32 hex characters).
+  string key_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^[0-9a-fA-F]{32}$"
+  ];
+
+  // Content encryption key (32 hex characters).
+  string key = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^[0-9a-fA-F]{32}$"
+  ];
+
+  // Widevine PSSH box (base64-encoded, optional).
+  optional string pssh_widevine = 3;
+
+  // PlayReady PSSH XML (optional).
+  optional string pssh_playready = 4;
+
+  // FairPlay initialization vector (32 hex characters).
+  optional string fairplay_iv = 5 [
+    (buf.validate.field).string.pattern = "^[0-9a-fA-F]{32}$"
+  ];
+
+  // FairPlay key server URI (skd:// scheme).
+  optional string fairplay_uri = 6 [
+    (buf.validate.field).string.max_len = 2048
+  ];
+}
+
+// Key server configuration.
+// Worker contacts the key server at encoding time.
+message KeyServerConfig {
+  // License server endpoint URL.
+  string license_server_url = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.uri = true,
+    (buf.validate.field).string.max_len = 2048
+  ];
+
+  // Authentication token for the key server.
+  optional string auth_token = 2 [
+    (buf.validate.field).string.max_len = 2048
+  ];
+
+  // Content identifier for key derivation.
+  optional string content_id = 3 [
+    (buf.validate.field).string.max_len = 256
+  ];
+}
+
+// DRM configuration for an output.
+// Only valid on streaming outputs (HLS, DASH, ADAPTIVE).
+message DRMConfig {
+  // DRM systems to apply (at least one required).
+  repeated DRMSystem systems = 1 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 3
+  ];
+
+  // Encryption scheme (required).
+  EncryptionScheme scheme = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // BYOK configuration (mutually exclusive with key_server).
+  optional BYOKConfig byok = 3;
+
+  // Key server configuration (mutually exclusive with byok).
+  optional KeyServerConfig key_server = 4;
+
+  // Unencrypted duration at start in seconds (for ad insertion).
+  // Range: 0-30. Default: 0.
+  optional double clear_lead_seconds = 5 [
+    (buf.validate.field).double.gte = 0,
+    (buf.validate.field).double.lte = 30
+  ];
+}

@@ -1,0 +1,134 @@
+// Media types for video/audio stream information and metadata.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// InputMetadata contains comprehensive information about an input media file.
+// Populated after probing with ffprobe.
+message InputMetadata {
+  // Container format (mp4, mkv, webm, mov, etc.).
+  string format = 1;
+
+  // Total duration in milliseconds.
+  int64 duration_ms = 2;
+
+  // File size in bytes.
+  int64 size_bytes = 3;
+
+  // Overall bitrate in bits/sec.
+  int64 bit_rate = 4;
+
+  // Video stream metadata (first/primary video stream).
+  VideoStreamInfo video = 5;
+
+  // Audio stream metadata (first/primary audio stream).
+  AudioStreamInfo audio = 6;
+
+  // When the input was analyzed.
+  google.protobuf.Timestamp probed_at = 7;
+}
+
+// VideoStreamInfo contains metadata about a video stream.
+message VideoStreamInfo {
+  // Codec name (h264, hevc, vp9, av1, prores, etc.).
+  string codec = 1;
+
+  // Frame width in pixels.
+  int32 width = 2;
+
+  // Frame height in pixels.
+  int32 height = 3;
+
+  // Frame rate (e.g., 23.976, 29.97, 30.0, 59.94, 60.0).
+  double frame_rate = 4;
+
+  // Video bitrate in bits/sec.
+  int64 bit_rate = 5;
+
+  // Pixel format (yuv420p, yuv422p10le, rgb24, etc.).
+  string pixel_format = 6;
+
+  // Color space (bt709, bt2020, smpte170m, etc.).
+  optional string color_space = 7;
+
+  // Color transfer function (bt709, smpte2084 for HDR10, arib-std-b67 for HLG).
+  optional string color_transfer = 8;
+
+  // Duration in milliseconds.
+  int64 duration_ms = 9;
+
+  // Color primaries (bt709, bt2020, etc.).
+  optional string color_primaries = 10;
+
+  // Chroma location (left, center, topleft, etc.).
+  optional string chroma_location = 11;
+
+  // Bit depth (8, 10, 12).
+  optional int32 bit_depth = 12;
+
+  // Whether the video is interlaced.
+  optional bool interlaced = 13;
+
+  // Total number of frames (if known).
+  optional int64 frame_count = 14;
+
+  // Display aspect ratio as string (e.g., "16:9", "2.35:1").
+  optional string display_aspect_ratio = 15;
+
+  // Sample aspect ratio as string (e.g., "1:1").
+  optional string sample_aspect_ratio = 16;
+}
+
+// AudioStreamInfo contains metadata about an audio stream.
+message AudioStreamInfo {
+  // Codec name (aac, opus, mp3, flac, ac3, eac3, etc.).
+  string codec = 1;
+
+  // Sample rate in Hz (44100, 48000, 96000, etc.).
+  int32 sample_rate = 2;
+
+  // Number of channels (1=mono, 2=stereo, 6=5.1, 8=7.1).
+  int32 channels = 3;
+
+  // Channel layout description (stereo, 5.1, 7.1, mono, etc.).
+  string channel_layout = 4;
+
+  // Audio bitrate in bits/sec.
+  int64 bit_rate = 5;
+
+  // Duration in milliseconds.
+  int64 duration_ms = 6;
+
+  // Bits per sample (16, 24, 32).
+  optional int32 bits_per_sample = 7;
+
+  // Language code (ISO 639-2, e.g., "eng", "spa", "jpn").
+  optional string language = 8;
+
+  // Whether this is the default audio track.
+  optional bool is_default = 9;
+}
+
+// SubtitleStreamInfo contains metadata about a subtitle stream.
+// For future use when we support subtitle handling.
+message SubtitleStreamInfo {
+  // Codec name (srt, ass, webvtt, dvdsub, etc.).
+  string codec = 1;
+
+  // Language code (ISO 639-2).
+  optional string language = 2;
+
+  // Title/description of the subtitle track.
+  optional string title = 3;
+
+  // Whether this is the default subtitle track.
+  optional bool is_default = 4;
+
+  // Whether this track is for hearing impaired.
+  optional bool hearing_impaired = 5;
+
+  // Whether this track contains forced subtitles.
+  optional bool forced = 6;
+}

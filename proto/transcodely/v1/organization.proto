@@ -1,0 +1,199 @@
+// Organization service for managing billing entities.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+
+// OrganizationService manages organizations (billing entities).
+service OrganizationService {
+  // Check if a slug is available for use.
+  // Use this before creating an organization to validate the slug.
+  rpc CheckSlug(CheckSlugRequest) returns (CheckSlugResponse);
+
+  // Create a new organization.
+  rpc Create(CreateOrganizationRequest) returns (CreateOrganizationResponse);
+
+  // Get an organization by ID or slug.
+  rpc Get(GetOrganizationRequest) returns (GetOrganizationResponse);
+
+  // Update an organization's display name and billing email.
+  // Note: Slug cannot be changed after creation.
+  rpc Update(UpdateOrganizationRequest) returns (UpdateOrganizationResponse);
+
+  // List organizations the authenticated user has access to.
+  rpc List(ListOrganizationsRequest) returns (ListOrganizationsResponse);
+}
+
+// Organization status.
+enum OrganizationStatus {
+  // Default value, should not be used.
+  ORGANIZATION_STATUS_UNSPECIFIED = 0;
+
+  // Normal operation.
+  ORGANIZATION_STATUS_ACTIVE = 1;
+
+  // Blocked due to billing issue or admin action.
+  // API requests return 403.
+  ORGANIZATION_STATUS_SUSPENDED = 2;
+
+  // Soft-deleted. No access allowed.
+  ORGANIZATION_STATUS_DELETED = 3;
+}
+
+// An organization is a billing entity that contains apps and users.
+message Organization {
+  // Unique organization identifier (e.g., "org_a1b2c3d4e5").
+  string id = 1;
+
+  // URL-safe slug (lowercase, immutable after creation).
+  // Example: "acme-corp"
+  string slug = 2;
+
+  // Human-friendly display name (editable).
+  // Example: "Acme Corporation"
+  string display_name = 3;
+
+  // Email for billing notifications.
+  optional string billing_email = 4;
+
+  // ISO 4217 currency code for billing.
+  // Default: "EUR"
+  string currency = 5;
+
+  // Organization status.
+  OrganizationStatus status = 6;
+
+  // When the organization was created.
+  google.protobuf.Timestamp created_at = 7;
+
+  // When the organization was last updated.
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+// Request to check if a slug is available.
+message CheckSlugRequest {
+  // The slug to check.
+  // Will be normalized to lowercase.
+  string slug = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 50
+  ];
+}
+
+// Response from checking a slug.
+message CheckSlugResponse {
+  // Whether the slug is available.
+  bool available = 1;
+
+  // The normalized version of the slug.
+  string normalized_slug = 2;
+
+  // If not available, the reason why.
+  // Values: "taken", "reserved", "invalid_format"
+  optional string reason = 3;
+
+  // Human-readable message about the slug.
+  string message = 4;
+}
+
+// Request to create a new organization.
+message CreateOrganizationRequest {
+  // URL-safe slug (lowercase, 3-50 characters).
+  // Must start with a letter, contain only lowercase letters, numbers, and hyphens.
+  // Cannot contain consecutive hyphens or end with a hyphen.
+  string slug = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 50,
+    (buf.validate.field).string.pattern = "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+  ];
+
+  // Human-friendly display name.
+  string display_name = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 100
+  ];
+
+  // Optional billing email.
+  optional string billing_email = 3 [
+    (buf.validate.field).string.email = true
+  ];
+
+  // ISO 4217 currency code for billing.
+  // Default: "EUR" if not specified.
+  optional string currency = 4 [
+    (buf.validate.field).string.len = 3
+  ];
+}
+
+// Response from creating an organization.
+message CreateOrganizationResponse {
+  // The created organization.
+  Organization organization = 1;
+}
+
+// Request to get an organization.
+message GetOrganizationRequest {
+  // Organization ID or slug.
+  // If starts with "org_", treated as ID. Otherwise treated as slug.
+  string id_or_slug = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 50
+  ];
+}
+
+// Response from getting an organization.
+message GetOrganizationResponse {
+  // The requested organization.
+  Organization organization = 1;
+}
+
+// Request to update an organization.
+message UpdateOrganizationRequest {
+  // Organization ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^org_[a-zA-Z0-9_-]+$"
+  ];
+
+  // New display name (if provided).
+  optional string display_name = 2 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 100
+  ];
+
+  // New billing email (if provided).
+  optional string billing_email = 3 [
+    (buf.validate.field).string.email = true
+  ];
+}
+
+// Response from updating an organization.
+message UpdateOrganizationResponse {
+  // The updated organization.
+  Organization organization = 1;
+}
+
+// Request to list organizations.
+message ListOrganizationsRequest {
+  // Pagination parameters.
+  PaginationRequest pagination = 1;
+
+  // If true, include suspended and deleted organizations.
+  bool include_inactive = 2;
+}
+
+// Response from listing organizations.
+message ListOrganizationsResponse {
+  // List of organizations.
+  repeated Organization organizations = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}

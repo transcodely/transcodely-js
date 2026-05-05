@@ -1,0 +1,178 @@
+// API Key service for managing programmatic API access.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+
+// APIKeyService manages API keys for programmatic access.
+service APIKeyService {
+  // Create a new API key.
+  // The secret is only returned once in the response - store it securely.
+  rpc Create(CreateAPIKeyRequest) returns (CreateAPIKeyResponse);
+
+  // Get an API key by ID.
+  // Note: The secret is never returned after creation.
+  rpc Get(GetAPIKeyRequest) returns (GetAPIKeyResponse);
+
+  // List API keys with optional filtering.
+  rpc List(ListAPIKeysRequest) returns (ListAPIKeysResponse);
+
+  // Revoke an API key.
+  // Revoked keys cannot be used for authentication.
+  rpc Revoke(RevokeAPIKeyRequest) returns (RevokeAPIKeyResponse);
+}
+
+// API key environment.
+enum APIKeyEnvironment {
+  // Default value, should not be used.
+  API_KEY_ENVIRONMENT_UNSPECIFIED = 0;
+
+  // Production environment (ak_live_...).
+  API_KEY_ENVIRONMENT_LIVE = 1;
+
+  // Sandbox/development environment (ak_test_...).
+  API_KEY_ENVIRONMENT_TEST = 2;
+}
+
+// An API key for programmatic access.
+// Note: The actual secret is only returned during creation.
+message APIKey {
+  // Unique API key identifier (e.g., "ak_a1b2c3d4...").
+  string id = 1;
+
+  // Human-readable name for the key.
+  string name = 2;
+
+  // Optional description of the key's purpose.
+  string description = 3;
+
+  // Key prefix for identification (e.g., "ak_live_" or "ak_test_").
+  // Safe to display in logs and dashboards.
+  string key_prefix = 4;
+
+  // Last 4 characters of the key for identification.
+  // Safe to display for customer support lookups.
+  string key_hint = 5;
+
+  // Environment the key is valid for.
+  APIKeyEnvironment environment = 6;
+
+  // Permission scopes (empty means full access).
+  // Future: granular permissions like "jobs:read", "jobs:write".
+  repeated string scopes = 7;
+
+  // When the key was last used for authentication.
+  optional google.protobuf.Timestamp last_used_at = 8;
+
+  // When the key expires (null means never).
+  optional google.protobuf.Timestamp expires_at = 9;
+
+  // When the key was created.
+  google.protobuf.Timestamp created_at = 10;
+
+  // Whether the key has been revoked.
+  bool is_revoked = 11;
+
+  // When the key was revoked (if applicable).
+  optional google.protobuf.Timestamp revoked_at = 12;
+}
+
+// Request to create a new API key.
+message CreateAPIKeyRequest {
+  // Human-readable name for the key (e.g., "Production API Key", "CI/CD").
+  string name = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 255
+  ];
+
+  // Optional description of the key's purpose.
+  string description = 2 [
+    (buf.validate.field).string.max_len = 1000
+  ];
+
+  // Environment for the key.
+  APIKeyEnvironment environment = 3 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum = {not_in: [0]}
+  ];
+
+  // Optional expiration time. Null means the key never expires.
+  optional google.protobuf.Timestamp expires_at = 4;
+
+  // App ID to create the key for.
+  // Required when unauthenticated. Ignored when authenticated (uses the authenticated app).
+  string app_id = 5 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from creating an API key.
+message CreateAPIKeyResponse {
+  // The created API key metadata.
+  APIKey api_key = 1;
+
+  // The full API key secret.
+  // WARNING: This is the only time the secret is returned.
+  // Store it securely - it cannot be retrieved again.
+  string secret = 2;
+}
+
+// Request to get an API key.
+message GetAPIKeyRequest {
+  // ID of the API key to retrieve.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ak_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from getting an API key.
+message GetAPIKeyResponse {
+  // The requested API key.
+  APIKey api_key = 1;
+}
+
+// Request to list API keys.
+message ListAPIKeysRequest {
+  // Optional filter by environment.
+  optional APIKeyEnvironment environment = 1;
+
+  // If true, include revoked keys in the response.
+  bool include_revoked = 2;
+
+  // Pagination parameters.
+  PaginationRequest pagination = 3;
+}
+
+// Response from listing API keys.
+message ListAPIKeysResponse {
+  // List of API keys.
+  repeated APIKey api_keys = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to revoke an API key.
+message RevokeAPIKeyRequest {
+  // ID of the API key to revoke.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ak_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Optional reason for revocation (for audit purposes).
+  string reason = 2 [
+    (buf.validate.field).string.max_len = 500
+  ];
+}
+
+// Response from revoking an API key.
+message RevokeAPIKeyResponse {
+  // The revoked API key.
+  APIKey api_key = 1;
+}

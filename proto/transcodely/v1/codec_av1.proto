@@ -1,0 +1,124 @@
+// AV1/libsvtav1 codec options for video encoding.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+
+// AV1/libsvtav1 encoder options for fine-tuning encoding parameters.
+// All fields are optional - sensible defaults are applied based on quality tier.
+//
+// IMPORTANT: AV1 uses NUMERIC values for preset and tune, not strings like H.264/H.265.
+// - preset: 0-13 range, but 0-2 (too slow) and 13 (too fast) are forbidden
+// - tune: 0=VQ (visual quality), 1=PSNR
+//
+// AV1 CRF values are on a different scale than H.264:
+// - H.264 CRF 18-28 ≈ AV1 CRF 30-45 for similar perceptual quality
+// - AV1 is significantly more efficient (smaller files at same quality)
+//
+// Restrictions (enforced by semantic validation, not protovalidate):
+// - preset: must be 3-12 (0-2 too slow for production, 13 too fast/low quality)
+// - crf: must be 20-55 (below 20 is near-lossless, above 55 is garbage)
+//
+// AV1-specific features:
+// - Tiling: Split frame into tiles for parallel encoding (increases speed, slight quality loss)
+// - Film grain synthesis: Preserve texture without encoding grain (reduces bitrate)
+// - Loop filters: Advanced filtering for artifact reduction (dlf, cdef, restoration)
+//
+// See docs/codec-implementation/04-av1.md for detailed documentation.
+message AV1Options {
+  // Encoding speed/quality trade-off preset (numeric).
+  // Allowed: 3-12 (lower = slower/better quality, higher = faster/lower quality)
+  // Range: 0-13 at proto level, but 0-2 and 13 are forbidden by semantic validation
+  // Default: determined by quality_tier (economy=10, standard=6, premium=4)
+  optional int32 preset = 1 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 13
+  ];
+
+  // Optimization target (numeric).
+  // 0: VQ (Visual Quality) - optimizes for perceptual quality
+  // 1: PSNR - optimizes for objective metrics
+  // Default: 0 (VQ is recommended for production)
+  optional int32 tune = 2 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 1
+  ];
+
+  // Constant Rate Factor (quality-based encoding).
+  // Range: 20-55 (lower = higher quality, larger file)
+  // Range: 0-63 at proto level, but 0-19 and 56-63 are forbidden by semantic validation
+  // Default: determined by quality_tier (economy=45, standard=35, premium=28)
+  // Note: AV1 CRF scale is different from H.264 (higher values for similar quality)
+  // Note: Mutually exclusive with bitrate.
+  optional int32 crf = 3 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 63
+  ];
+
+  // Target bitrate in Kbps (size-based encoding).
+  // Range: 100-100000 (AV1 is more efficient, needs lower bitrate than H.264)
+  // Note: Mutually exclusive with CRF.
+  optional int32 bitrate = 4 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 100000
+  ];
+
+  // Maximum bitrate for rate control (Kbps).
+  // Range: 100-100000
+  optional int32 max_bitrate = 5 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 100000
+  ];
+
+  // Maximum keyframe interval (GOP size) in frames.
+  // Range: 1-600
+  // Default: 250
+  optional int32 keyint = 6 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 600
+  ];
+
+  // Number of tile columns for parallel encoding.
+  // Range: 0-4 (0=auto, 1-4=2^n tiles)
+  // Higher values increase encoding speed but may reduce quality slightly
+  // Default: 0 (auto-detected based on resolution)
+  optional int32 tile_columns = 7 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 4
+  ];
+
+  // Number of tile rows for parallel encoding.
+  // Range: 0-4 (0=auto, 1-4=2^n tiles)
+  // Higher values increase encoding speed but may reduce quality slightly
+  // Default: 0 (auto-detected based on resolution)
+  optional int32 tile_rows = 8 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 4
+  ];
+
+  // Film grain synthesis strength.
+  // Range: 0-50 (0=disabled, 1-50=increasing grain synthesis)
+  // Preserves film grain texture without encoding it (reduces bitrate significantly)
+  // Recommended for film/vintage content with natural grain
+  // Default: 0 (disabled)
+  optional int32 film_grain = 9 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 50
+  ];
+
+  // Enable deblocking filter (DLF).
+  // Reduces blocking artifacts at tile/block boundaries
+  // Default: true
+  optional bool enable_dlf = 10;
+
+  // Enable Constrained Directional Enhancement Filter (CDEF).
+  // Advanced artifact reduction with directional awareness
+  // Default: true
+  optional bool enable_cdef = 11;
+
+  // Enable loop restoration filter.
+  // Final pass filtering to improve perceptual quality
+  // Default: true
+  optional bool enable_restoration = 12;
+}

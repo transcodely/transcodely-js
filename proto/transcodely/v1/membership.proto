@@ -1,0 +1,179 @@
+// Membership service for managing organization memberships.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+
+// MembershipService manages organization memberships.
+// Requires X-Organization-ID header for all methods.
+service MembershipService {
+  // List members of an organization.
+  // Requires viewer permission on the organization.
+  rpc List(ListMembershipsRequest) returns (ListMembershipsResponse);
+
+  // Get a specific membership.
+  // Requires viewer permission on the organization.
+  rpc Get(GetMembershipRequest) returns (GetMembershipResponse);
+
+  // Update a member's role.
+  // Requires admin permission on the organization.
+  // Cannot demote the last owner.
+  rpc UpdateRole(UpdateMembershipRoleRequest) returns (UpdateMembershipRoleResponse);
+
+  // Remove a member from the organization.
+  // Requires admin permission on the organization.
+  // Cannot remove the last owner.
+  rpc Remove(RemoveMembershipRequest) returns (RemoveMembershipResponse);
+}
+
+// Role of a user in an organization.
+enum MembershipRole {
+  // Default value, should not be used.
+  MEMBERSHIP_ROLE_UNSPECIFIED = 0;
+
+  // Full access, can manage billing and delete organization.
+  MEMBERSHIP_ROLE_OWNER = 1;
+
+  // Can manage members and resources.
+  MEMBERSHIP_ROLE_ADMIN = 2;
+
+  // Can manage resources (jobs, presets, origins).
+  MEMBERSHIP_ROLE_MEMBER = 3;
+
+  // Read-only access.
+  MEMBERSHIP_ROLE_VIEWER = 4;
+}
+
+// Status of a membership.
+enum MembershipStatus {
+  // Default value, should not be used.
+  MEMBERSHIP_STATUS_UNSPECIFIED = 0;
+
+  // User has access to the organization.
+  MEMBERSHIP_STATUS_ACTIVE = 1;
+
+  // Invitation sent, not yet accepted.
+  MEMBERSHIP_STATUS_INVITED = 2;
+
+  // Access temporarily revoked.
+  MEMBERSHIP_STATUS_SUSPENDED = 3;
+}
+
+// A user's membership in an organization.
+message Membership {
+  // Unique membership identifier (e.g., "mem_a1b2c3d4e5").
+  string id = 1;
+
+  // User ID.
+  string user_id = 2;
+
+  // Organization ID.
+  string org_id = 3;
+
+  // Role in the organization.
+  MembershipRole role = 4;
+
+  // Membership status.
+  MembershipStatus status = 5;
+
+  // Who invited this user (if applicable).
+  optional string invited_by = 6;
+
+  // When the invitation was sent.
+  optional google.protobuf.Timestamp invited_at = 7;
+
+  // When the invitation was accepted.
+  optional google.protobuf.Timestamp accepted_at = 8;
+
+  // When the membership was created.
+  google.protobuf.Timestamp created_at = 9;
+
+  // When the membership was last updated.
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// Membership with user details (for listing members).
+message MembershipWithUser {
+  // The membership.
+  Membership membership = 1;
+
+  // User's email.
+  string user_email = 2;
+
+  // User's display name.
+  string user_name = 3;
+
+  // Whether the user account is active.
+  bool user_is_active = 4;
+}
+
+// Request to list organization members.
+message ListMembershipsRequest {
+  // Filter by status.
+  optional MembershipStatus status = 1;
+
+  // Pagination parameters.
+  PaginationRequest pagination = 2;
+}
+
+// Response from listing memberships.
+message ListMembershipsResponse {
+  // List of memberships with user details.
+  repeated MembershipWithUser memberships = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to get a membership.
+message GetMembershipRequest {
+  // Membership ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^mem_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from getting a membership.
+message GetMembershipResponse {
+  // The requested membership with user details.
+  MembershipWithUser membership = 1;
+}
+
+// Request to update a member's role.
+message UpdateMembershipRoleRequest {
+  // Membership ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^mem_[a-zA-Z0-9_-]+$"
+  ];
+
+  // New role.
+  MembershipRole role = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum = {not_in: [0]}
+  ];
+}
+
+// Response from updating a membership role.
+message UpdateMembershipRoleResponse {
+  // The updated membership.
+  Membership membership = 1;
+}
+
+// Request to remove a member.
+message RemoveMembershipRequest {
+  // Membership ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^mem_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from removing a member.
+message RemoveMembershipResponse {
+  // Empty response on success.
+}

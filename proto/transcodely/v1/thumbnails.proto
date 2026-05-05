@@ -1,0 +1,86 @@
+// Thumbnail generation configuration.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+
+// Thumbnail generation mode.
+enum ThumbnailMode {
+  THUMBNAIL_MODE_UNSPECIFIED = 0;
+
+  // Extract a single frame at a specific timestamp.
+  THUMBNAIL_MODE_SINGLE = 1;
+
+  // Extract frames at regular intervals.
+  THUMBNAIL_MODE_INTERVAL = 2;
+
+  // Combine frames into a CSS sprite sheet grid with WebVTT.
+  THUMBNAIL_MODE_SPRITE = 3;
+
+  // Extract frames at explicit timestamps.
+  THUMBNAIL_MODE_TIMESTAMPS = 4;
+}
+
+// Thumbnail output format.
+enum ThumbnailFormat {
+  THUMBNAIL_FORMAT_UNSPECIFIED = 0;
+  THUMBNAIL_FORMAT_JPEG = 1;
+  THUMBNAIL_FORMAT_PNG = 2;
+  THUMBNAIL_FORMAT_WEBP = 3;
+}
+
+// Thumbnail generation specification.
+// Configures how thumbnails are extracted from the input video.
+message ThumbnailSpec {
+  // Generation mode (required).
+  ThumbnailMode mode = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Output format. Default: jpeg.
+  ThumbnailFormat format = 2 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Output width in pixels. If only width is set, height is proportional.
+  optional int32 width = 3 [
+    (buf.validate.field).int32.gte = 16,
+    (buf.validate.field).int32.lte = 3840
+  ];
+
+  // Output height in pixels. If only height is set, width is proportional.
+  optional int32 height = 4 [
+    (buf.validate.field).int32.gte = 16,
+    (buf.validate.field).int32.lte = 2160
+  ];
+
+  // JPEG/WebP quality (1-100). Default: 80. Ignored for PNG.
+  optional int32 quality = 5 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 100
+  ];
+
+  // Timestamp in seconds for single mode.
+  optional double timestamp = 6 [
+    (buf.validate.field).double.gte = 0
+  ];
+
+  // Interval in seconds between frames (interval and sprite modes).
+  // Range: 0.5-300 seconds. Default: 10.
+  optional double interval_seconds = 7 [
+    (buf.validate.field).double.gte = 0.5,
+    (buf.validate.field).double.lte = 300
+  ];
+
+  // Explicit timestamps in seconds (timestamps mode).
+  repeated double timestamps = 8;
+
+  // Number of columns in sprite sheet grid (sprite mode only).
+  // Range: 1-20. Default: 10.
+  optional int32 sprite_columns = 9 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 20
+  ];
+}

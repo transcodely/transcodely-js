@@ -1,0 +1,590 @@
+// Preset service for transcoding configuration templates.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+import "transcodely/v1/streaming.proto";
+
+// PresetService manages transcoding presets.
+// Presets are reusable encoding configurations that define all video/audio settings.
+service PresetService {
+  // Create a new custom preset.
+  rpc Create(CreatePresetRequest) returns (CreatePresetResponse);
+
+  // Get a preset by ID.
+  rpc Get(GetPresetRequest) returns (GetPresetResponse);
+
+  // Get a preset by slug.
+  rpc GetBySlug(GetPresetBySlugRequest) returns (GetPresetBySlugResponse);
+
+  // List presets (system + custom for the app).
+  rpc List(ListPresetsRequest) returns (ListPresetsResponse);
+
+  // Update a custom preset.
+  // Returns error if attempting to update a system preset.
+  rpc Update(UpdatePresetRequest) returns (UpdatePresetResponse);
+
+  // Duplicate a preset (system or custom) as a new custom preset.
+  rpc Duplicate(DuplicatePresetRequest) returns (DuplicatePresetResponse);
+
+  // Archive (soft-delete) a custom preset.
+  // Returns error if attempting to archive a system preset.
+  rpc Archive(ArchivePresetRequest) returns (ArchivePresetResponse);
+}
+
+// Full video encoding settings.
+// All fields are optional - when used in presets, omitted fields use sensible defaults.
+// When used as job overrides, omitted fields inherit from the preset.
+message VideoSettings {
+  // Video codec to use.
+  VideoCodec codec = 1 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Target resolution preset.
+  // Use this OR (width + height) for custom dimensions.
+  Resolution resolution = 2 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Custom output width in pixels (128-7680).
+  // Use with height for non-standard aspect ratios.
+  optional int32 width = 3 [
+    (buf.validate.field).int32.gte = 128,
+    (buf.validate.field).int32.lte = 7680
+  ];
+
+  // Custom output height in pixels (128-4320).
+  optional int32 height = 4 [
+    (buf.validate.field).int32.gte = 128,
+    (buf.validate.field).int32.lte = 4320
+  ];
+
+  // Target frame rate (0 = keep original, max 240).
+  optional int32 framerate = 5 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 240
+  ];
+
+  // Bitrate control mode.
+  BitrateMode bitrate_mode = 6 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Constant Rate Factor (15-35 for H.264, 18-35 for H.265, 15-50 for VP9, 20-55 for AV1).
+  // Lower = higher quality, larger files.
+  optional int32 crf = 7 [
+    (buf.validate.field).int32.gte = 15,
+    (buf.validate.field).int32.lte = 55
+  ];
+
+  // Target bitrate in kbps for CBR/VBR modes (100-100000).
+  optional int32 bitrate_kbps = 8 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 100000
+  ];
+
+  // Maximum bitrate for VBV in kbps (100-240000).
+  optional int32 max_bitrate_kbps = 9 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 240000
+  ];
+
+  // VBV buffer size in kbps (100-480000).
+  optional int32 buffer_size_kbps = 10 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 480000
+  ];
+
+  // Codec profile (e.g., "baseline", "main", "high" for H.264; "main", "main10" for H.265).
+  optional string profile = 11 [
+    (buf.validate.field).string.max_len = 32
+  ];
+
+  // Codec level (e.g., "3.0", "4.0", "5.1").
+  optional string level = 12 [
+    (buf.validate.field).string.max_len = 10
+  ];
+
+  // Encoder speed preset.
+  // For H.264/H.265: "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower".
+  // For AV1: numeric "3"-"12" (lower = slower, better quality).
+  // Note: "veryslow" and "placebo" are not allowed (extreme compute cost, minimal benefit).
+  optional string encoder_preset = 13 [
+    (buf.validate.field).string.max_len = 32
+  ];
+
+  // Content-aware tuning.
+  // For H.264: "film", "animation", "grain", "stillimage", "fastdecode".
+  // For H.265: "grain", "fastdecode".
+  // Note: "zerolatency" is not allowed (internal use only).
+  optional string tune = 14 [
+    (buf.validate.field).string.max_len = 32
+  ];
+
+  // GOP size (keyframe interval in frames, 1-600).
+  optional int32 keyint = 15 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 600
+  ];
+
+  // Minimum keyframe interval (1-60).
+  optional int32 min_keyint = 16 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 60
+  ];
+
+  // Number of B-frames (0-16).
+  optional int32 bframes = 17 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 16
+  ];
+
+  // Number of reference frames (1-16).
+  optional int32 refs = 18 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 16
+  ];
+
+  // Rate control lookahead frames (0-250).
+  optional int32 rc_lookahead = 19 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 250
+  ];
+
+  // Adaptive quantization mode (0-3).
+  optional int32 aq_mode = 20 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 3
+  ];
+
+  // Adaptive quantization strength (0.0-3.0).
+  optional double aq_strength = 21 [
+    (buf.validate.field).double.gte = 0.0,
+    (buf.validate.field).double.lte = 3.0
+  ];
+
+  // Psychovisual rate-distortion optimization ("strength:trellis" format, e.g., "1.0:0.0").
+  optional string psy_rd = 22 [
+    (buf.validate.field).string.max_len = 20
+  ];
+
+  // Deblocking filter strength ("alpha:beta" format, e.g., "0:0", "-1:-1").
+  optional string deblock = 23 [
+    (buf.validate.field).string.max_len = 10
+  ];
+}
+
+// Full audio encoding settings.
+message AudioSettings {
+  // Audio codec to use.
+  AudioCodec codec = 1 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Target bitrate in kbps (32-512).
+  int32 bitrate_kbps = 2 [
+    (buf.validate.field).int32.gte = 32,
+    (buf.validate.field).int32.lte = 512
+  ];
+
+  // Sample rate in Hz (0 = keep original, common: 44100, 48000).
+  optional int32 sample_rate = 3 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 192000
+  ];
+
+  // Number of audio channels (0 = keep original, max 8).
+  optional int32 channels = 4 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 8
+  ];
+
+  // Apply loudness normalization (EBU R128).
+  optional bool normalize = 5;
+}
+
+// A single variant within a multi-variant ABR preset.
+// Defines per-resolution overrides; shared settings (codec, profile, encoder_preset,
+// audio, etc.) are inherited from the parent preset.
+message PresetVariant {
+  // Target resolution for this variant.
+  Resolution resolution = 1 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Custom output width in pixels (128-7680).
+  optional int32 width = 2 [
+    (buf.validate.field).int32.gte = 128,
+    (buf.validate.field).int32.lte = 7680
+  ];
+
+  // Custom output height in pixels (128-4320).
+  optional int32 height = 3 [
+    (buf.validate.field).int32.gte = 128,
+    (buf.validate.field).int32.lte = 4320
+  ];
+
+  // Target bitrate in kbps for VBR/CBR modes (100-240000).
+  optional int32 bitrate_kbps = 4 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 240000
+  ];
+
+  // Maximum bitrate for VBV in kbps (100-240000).
+  optional int32 max_bitrate_kbps = 5 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 240000
+  ];
+
+  // VBV buffer size in kbps (100-480000).
+  optional int32 buffer_size_kbps = 6 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 480000
+  ];
+
+  // Constant Rate Factor override for this variant (0-63).
+  // Codec-specific valid ranges apply at the service level.
+  optional int32 crf = 7 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 63
+  ];
+
+  // Quality tier override for this variant.
+  optional QualityTier quality = 8;
+
+  // Frame rate override for this variant (0 = keep original).
+  optional int32 framerate = 9 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 240
+  ];
+}
+
+// A transcoding preset.
+message Preset {
+  // Unique preset identifier (e.g., "pst_x9y8z7w6v5").
+  string id = 1;
+
+  // URL-safe slug identifier (e.g., "film_1080p_standard").
+  // Used for referencing presets in job creation.
+  string slug = 2;
+
+  // Human-readable name.
+  string name = 3;
+
+  // Optional description.
+  optional string description = 4;
+
+  // Content type for encoder tuning optimization.
+  ContentType content_type = 5;
+
+  // Container format.
+  Container container = 6;
+
+  // Enable faststart (moov atom at beginning) for progressive MP4.
+  bool faststart = 7;
+
+  // Delivery format (affects packaging).
+  DeliveryFormat delivery_format = 8;
+
+  // Streaming configuration for HLS/DASH outputs.
+  // Includes segment duration, GOP alignment, and format options.
+  // DEPRECATED: segment_duration field 9 is replaced by this.
+  optional StreamingConfig streaming = 17;
+
+  // Segment duration in seconds for HLS/DASH (default: 6).
+  // DEPRECATED: Use streaming.segment_duration_seconds instead.
+  optional int32 segment_duration = 9;
+
+  // Video encoding settings.
+  VideoSettings video = 10;
+
+  // Audio encoding settings.
+  AudioSettings audio = 11;
+
+  // Quality tier (affects encoding speed and pricing).
+  QualityTier quality_tier = 12;
+
+  // Estimated cost per minute of encoded video (EUR).
+  // Calculated from codec, resolution, framerate, and quality multipliers.
+  optional double estimated_cost_per_minute = 13;
+
+  // Whether this is a system preset (read-only, available to all apps).
+  bool system_preset = 14;
+
+  // When the preset was created.
+  google.protobuf.Timestamp created_at = 15;
+
+  // When the preset was last updated.
+  google.protobuf.Timestamp updated_at = 16;
+
+  // Multi-variant ABR configuration.
+  // When non-empty, defines a complete ABR ladder for streaming presets.
+  // Each variant inherits shared settings (codec, quality_tier, audio, streaming)
+  // from the preset, with per-variant overrides for resolution, bitrate, etc.
+  // Only valid when delivery_format is hls, dash, or cmaf.
+  repeated PresetVariant variants = 18;
+}
+
+// Request to create a preset.
+message CreatePresetRequest {
+  // URL-safe slug identifier (required, must be unique per app).
+  // Format: lowercase letters, numbers, and underscores only.
+  // Example: "my_custom_1080p", "gaming_4k_premium"
+  string slug = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 64,
+    (buf.validate.field).string.pattern = "^[a-z0-9_]+$"
+  ];
+
+  // Human-readable name.
+  string name = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 128
+  ];
+
+  // Optional description.
+  optional string description = 3 [
+    (buf.validate.field).string.max_len = 1024
+  ];
+
+  // Content type for encoder tuning.
+  ContentType content_type = 4 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Container format (required).
+  Container container = 5 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Enable faststart for progressive MP4 (default: true).
+  optional bool faststart = 6;
+
+  // Delivery format.
+  DeliveryFormat delivery_format = 7 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Streaming configuration for HLS/DASH outputs.
+  // Includes segment duration, GOP alignment, and format options.
+  optional StreamingConfig streaming = 13;
+
+  // Segment duration in seconds for HLS/DASH (2-30, default: 6).
+  // DEPRECATED: Use streaming.segment_duration_seconds instead.
+  optional int32 segment_duration = 8 [
+    (buf.validate.field).int32.gte = 2,
+    (buf.validate.field).int32.lte = 30
+  ];
+
+  // Video encoding settings.
+  VideoSettings video = 9 [
+    (buf.validate.field).required = true
+  ];
+
+  // Audio encoding settings.
+  AudioSettings audio = 10 [
+    (buf.validate.field).required = true
+  ];
+
+  // Quality tier.
+  QualityTier quality_tier = 11 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Multi-variant ABR configuration (max 20 variants).
+  // Only valid when delivery_format is hls, dash, or cmaf.
+  // Requires at least 2 variants when non-empty.
+  repeated PresetVariant variants = 14 [
+    (buf.validate.field).repeated.max_items = 20
+  ];
+}
+
+// Response from creating a preset.
+message CreatePresetResponse {
+  // The created preset.
+  Preset preset = 1;
+}
+
+// Request to get a preset by ID.
+message GetPresetRequest {
+  // ID of the preset to retrieve.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^pst_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from getting a preset.
+message GetPresetResponse {
+  // The requested preset.
+  Preset preset = 1;
+}
+
+// Request to get a preset by slug.
+message GetPresetBySlugRequest {
+  // Slug of the preset to retrieve.
+  string slug = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 64
+  ];
+}
+
+// Response from getting a preset by slug.
+message GetPresetBySlugResponse {
+  // The requested preset.
+  Preset preset = 1;
+}
+
+// Request to list presets.
+message ListPresetsRequest {
+  // Include system presets (default: true).
+  optional bool include_system = 1;
+
+  // Filter by content type.
+  optional ContentType content_type = 2;
+
+  // Filter by quality tier.
+  optional QualityTier quality_tier = 3;
+
+  // Filter by video codec.
+  optional VideoCodec video_codec = 4;
+
+  // Filter by delivery format (progressive, hls, dash, cmaf).
+  optional DeliveryFormat delivery_format = 6;
+
+  // Pagination parameters.
+  PaginationRequest pagination = 5;
+}
+
+// Response from listing presets.
+message ListPresetsResponse {
+  // List of presets.
+  repeated Preset presets = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to update a preset.
+message UpdatePresetRequest {
+  // ID of the preset to update.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^pst_[a-zA-Z0-9_-]+$"
+  ];
+
+  // New slug (optional, must be unique if provided).
+  optional string slug = 2 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 64,
+    (buf.validate.field).string.pattern = "^[a-z0-9_]+$"
+  ];
+
+  // New name (optional).
+  optional string name = 3 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 128
+  ];
+
+  // New description (optional).
+  optional string description = 4 [
+    (buf.validate.field).string.max_len = 1024
+  ];
+
+  // New content type (optional).
+  optional ContentType content_type = 5;
+
+  // New container format (optional).
+  optional Container container = 6;
+
+  // New faststart setting (optional).
+  optional bool faststart = 7;
+
+  // New delivery format (optional).
+  optional DeliveryFormat delivery_format = 8;
+
+  // New streaming configuration (optional).
+  optional StreamingConfig streaming = 14;
+
+  // New segment duration (optional).
+  // DEPRECATED: Use streaming.segment_duration_seconds instead.
+  optional int32 segment_duration = 9 [
+    (buf.validate.field).int32.gte = 2,
+    (buf.validate.field).int32.lte = 30
+  ];
+
+  // New video settings (optional, replaces entire video config if provided).
+  optional VideoSettings video = 10;
+
+  // New audio settings (optional, replaces entire audio config if provided).
+  optional AudioSettings audio = 11;
+
+  // New quality tier (optional).
+  optional QualityTier quality_tier = 12;
+
+  // New multi-variant ABR configuration (max 20 variants).
+  // Set to replace all variants. Send empty array to clear variants.
+  // Only valid when delivery_format is hls, dash, or cmaf.
+  repeated PresetVariant variants = 15 [
+    (buf.validate.field).repeated.max_items = 20
+  ];
+}
+
+// Response from updating a preset.
+message UpdatePresetResponse {
+  // The updated preset.
+  Preset preset = 1;
+}
+
+// Request to duplicate a preset.
+message DuplicatePresetRequest {
+  // ID of the source preset to copy.
+  string source_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^pst_[a-zA-Z0-9_-]+$"
+  ];
+
+  // New slug for the duplicate (required, must be unique).
+  string slug = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 64,
+    (buf.validate.field).string.pattern = "^[a-z0-9_]+$"
+  ];
+
+  // New name for the duplicate.
+  string name = 3 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 128
+  ];
+}
+
+// Response from duplicating a preset.
+message DuplicatePresetResponse {
+  // The new preset (copy of the source).
+  Preset preset = 1;
+}
+
+// Request to archive a preset.
+message ArchivePresetRequest {
+  // ID of the preset to archive.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^pst_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from archiving a preset.
+message ArchivePresetResponse {
+  // The archived preset.
+  Preset preset = 1;
+}

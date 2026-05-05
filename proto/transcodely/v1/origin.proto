@@ -1,0 +1,507 @@
+// Origin service for managing storage origins (inputs/outputs).
+// Origins are storage locations (GCS, S3, HTTP) used for video inputs and outputs.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+
+// OriginService manages storage origins for video inputs and outputs.
+service OriginService {
+  // Create a new origin with validated credentials.
+  // Credentials are validated at creation time and must pass before the origin is stored.
+  rpc Create(CreateOriginRequest) returns (CreateOriginResponse);
+
+  // Get an origin by ID.
+  rpc Get(GetOriginRequest) returns (GetOriginResponse);
+
+  // List origins with optional filtering.
+  rpc List(ListOriginsRequest) returns (ListOriginsResponse);
+
+  // Update an origin's mutable fields (name, description, base_path, path_template).
+  // Credential updates require Validate to be called afterward.
+  rpc Update(UpdateOriginRequest) returns (UpdateOriginResponse);
+
+  // Validate an origin's credentials and permissions.
+  // This is automatically done at creation but can be re-run to check for permission drift.
+  rpc Validate(ValidateOriginRequest) returns (ValidateOriginResponse);
+
+  // Archive an origin (soft delete).
+  // Archived origins cannot be used for new jobs but existing job data is preserved.
+  rpc Archive(ArchiveOriginRequest) returns (ArchiveOriginResponse);
+}
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+// Storage provider type.
+enum OriginProvider {
+  ORIGIN_PROVIDER_UNSPECIFIED = 0;
+
+  // Google Cloud Storage (gs://bucket/path).
+  ORIGIN_PROVIDER_GCS = 1;
+
+  // Amazon S3 (s3://bucket/path).
+  ORIGIN_PROVIDER_S3 = 2;
+
+  // HTTP/HTTPS URL (https://cdn.example.com/path).
+  // Read-only provider.
+  ORIGIN_PROVIDER_HTTP = 3;
+
+  // Transcodely-managed storage (auto-created during hosting provisioning).
+  // Read-only — cannot be modified by users.
+  ORIGIN_PROVIDER_TRANSCODELY = 4;
+}
+
+// Storage permission declared by the customer.
+enum OriginPermission {
+  ORIGIN_PERMISSION_UNSPECIFIED = 0;
+
+  // Read access (list and download objects).
+  ORIGIN_PERMISSION_READ = 1;
+
+  // Write access (upload objects).
+  ORIGIN_PERMISSION_WRITE = 2;
+}
+
+// Origin status.
+enum OriginStatus {
+  ORIGIN_STATUS_UNSPECIFIED = 0;
+
+  // Origin is active and can be used for jobs.
+  ORIGIN_STATUS_ACTIVE = 1;
+
+  // Origin failed validation (credentials or permissions issue).
+  ORIGIN_STATUS_FAILED = 2;
+
+  // Origin has been archived (soft deleted).
+  ORIGIN_STATUS_ARCHIVED = 3;
+}
+
+// =============================================================================
+// Provider-specific credentials (stored encrypted)
+// =============================================================================
+
+// GCS credentials using service account JSON.
+message GcsCredentials {
+  // Service account JSON key file contents.
+  // This is the full JSON content from a service account key download.
+  string service_account_json = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 10,
+    (buf.validate.field).string.max_len = 65536
+  ];
+}
+
+// S3 credentials using access keys.
+message S3Credentials {
+  // AWS access key ID.
+  string access_key_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 16,
+    (buf.validate.field).string.max_len = 128
+  ];
+
+  // AWS secret access key.
+  string secret_access_key = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 16,
+    (buf.validate.field).string.max_len = 128
+  ];
+}
+
+// HTTP credentials using custom headers (e.g., Bearer token, API key).
+message HttpCredentials {
+  // Custom headers to include in all requests.
+  // Example: {"Authorization": "Bearer sk-xxx", "X-API-Key": "key123"}
+  map<string, string> headers = 1 [
+    (buf.validate.field).map.max_pairs = 20,
+    (buf.validate.field).map.keys = { string: { min_len: 1, max_len: 64, pattern: "^[A-Za-z0-9_-]+$" } },
+    (buf.validate.field).map.values = { string: { max_len: 4096 } }
+  ];
+}
+
+// =============================================================================
+// Provider-specific configuration
+// =============================================================================
+
+// GCS origin configuration.
+message GcsOriginConfig {
+  // GCS bucket name (e.g., "my-video-bucket").
+  string bucket = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 222,
+    (buf.validate.field).string.pattern = "^[a-z0-9][a-z0-9._-]*[a-z0-9]$"
+  ];
+
+  // Credentials for authentication.
+  GcsCredentials credentials = 2 [
+    (buf.validate.field).required = true
+  ];
+}
+
+// S3 origin configuration.
+// Works with AWS S3 and any S3-compatible service (Hetzner Object Storage,
+// Wasabi, DigitalOcean Spaces, Cloudflare R2, MinIO, etc.) via the optional
+// endpoint field.
+message S3OriginConfig {
+  // S3 bucket name (e.g., "my-video-bucket").
+  string bucket = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 63,
+    (buf.validate.field).string.pattern = "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+  ];
+
+  // Region (e.g., "us-east-1", "eu-west-1", "fsn1").
+  // Still required when using a custom endpoint — the AWS SDK needs it for request signing.
+  string region = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 30
+  ];
+
+  // Credentials for authentication.
+  S3Credentials credentials = 3 [
+    (buf.validate.field).required = true
+  ];
+
+  // Optional S3-compatible endpoint (e.g., "https://fsn1.your-objectstorage.com").
+  // When set, the provider uses path-style addressing and this endpoint instead of
+  // AWS's auto-discovery. Leave empty to use AWS S3.
+  optional string endpoint = 4 [
+    (buf.validate.field).string.uri = true,
+    (buf.validate.field).string.max_len = 256
+  ];
+}
+
+// HTTP origin configuration.
+message HttpOriginConfig {
+  // Base URL for all requests (e.g., "https://cdn.example.com/videos/").
+  // Must be HTTPS in production.
+  string base_url = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.uri = true,
+    (buf.validate.field).string.pattern = "^https?://.*$",
+    (buf.validate.field).string.max_len = 2048
+  ];
+
+  // Optional credentials (headers for authentication).
+  HttpCredentials credentials = 2;
+}
+
+// =============================================================================
+// Origin resource
+// =============================================================================
+
+// A lightweight reference to an origin, included in job responses.
+// This provides enough context without exposing credentials.
+message OriginRef {
+  // Origin ID.
+  string id = 1;
+
+  // Origin name.
+  string name = 2;
+
+  // Storage provider type.
+  OriginProvider provider = 3;
+
+  // Path to the object (for input) or path template used (for output).
+  string path = 4;
+
+  // Bucket name (GCS/S3 origins only).
+  // Not set for HTTP origins.
+  optional string bucket = 5;
+
+  // Base URL (HTTP origins only).
+  // Not set for GCS/S3 origins.
+  optional string base_url = 6;
+}
+
+// A storage origin for video inputs and outputs.
+message Origin {
+  // Unique origin identifier (e.g., "ori_a1b2c3d4e5f6").
+  string id = 1;
+
+  // Human-readable name for the origin.
+  string name = 2;
+
+  // Optional description of the origin's purpose.
+  string description = 3;
+
+  // Storage provider type.
+  OriginProvider provider = 4;
+
+  // Declared permissions (what the customer says the credentials can do).
+  // We validate these at creation and at job time.
+  repeated OriginPermission permissions = 5;
+
+  // Current status.
+  OriginStatus status = 6;
+
+  // Optional base path within the bucket (e.g., "videos/uploads/").
+  // Applied to all object paths.
+  string base_path = 7;
+
+  // Optional path template for output objects.
+  // Supports variables: {job_id}, {video_id}, {timestamp}, {date}, {uuid},
+  //   {output_index}, {preset_id}, {codec}, {resolution}, {bitrate},
+  //   {format}, {framerate},
+  //   {segment_index}, {segment_number}, {segment_time},
+  //   {thumb_index}, {thumb_time}, {thumb_time_ms}
+  // Example: "jobs/{job_id}/outputs/{output_index}_{codec}.mp4"
+  // Example ABR: "{video_id}/{format}/{resolution}_{framerate}fps/stream"
+  string path_template = 8;
+
+  // GCS-specific configuration (only set if provider is GCS).
+  // Note: credentials are not included in responses for security.
+  GcsOriginConfig gcs = 9;
+
+  // S3-specific configuration (only set if provider is S3).
+  // Note: credentials are not included in responses for security.
+  S3OriginConfig s3 = 10;
+
+  // HTTP-specific configuration (only set if provider is HTTP).
+  // Note: credentials are not included in responses for security.
+  HttpOriginConfig http = 11;
+
+  // Last successful validation timestamp.
+  optional google.protobuf.Timestamp last_validated_at = 12;
+
+  // Error from last failed validation (if status is FAILED).
+  optional string validation_error = 13;
+
+  // When the origin was created.
+  google.protobuf.Timestamp created_at = 14;
+
+  // When the origin was last updated.
+  google.protobuf.Timestamp updated_at = 15;
+
+  // When the origin was archived (if status is ARCHIVED).
+  optional google.protobuf.Timestamp archived_at = 16;
+
+  // True if this is a Transcodely-managed origin (auto-created during hosting provisioning).
+  // Managed origins cannot be modified or archived by users.
+  bool is_managed = 17;
+}
+
+// =============================================================================
+// Service requests and responses
+// =============================================================================
+
+// Request to create a new origin.
+message CreateOriginRequest {
+  option (buf.validate.message).cel = {
+    id: "create_origin.exactly_one_config"
+    message: "exactly one provider config must be specified (gcs, s3, or http)"
+    expression: "(has(this.gcs) ? 1 : 0) + (has(this.s3) ? 1 : 0) + (has(this.http) ? 1 : 0) == 1"
+  };
+  option (buf.validate.message).cel = {
+    id: "create_origin.http_read_only"
+    message: "HTTP origins only support read permission"
+    expression: "!has(this.http) || this.permissions.all(p, p == 1)"
+  };
+
+  // Human-readable name for the origin.
+  string name = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 255
+  ];
+
+  // Optional description of the origin's purpose.
+  string description = 2 [
+    (buf.validate.field).string.max_len = 1000
+  ];
+
+  // Declared permissions (what the credentials should be able to do).
+  // At least one permission is required.
+  repeated OriginPermission permissions = 3 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 2,
+    (buf.validate.field).repeated.items = {
+      enum: {not_in: [0]}
+    }
+  ];
+
+  // Optional base path within the bucket.
+  // Example: "videos/uploads/" - all paths will be prefixed with this.
+  string base_path = 4 [
+    (buf.validate.field).string.max_len = 1024
+  ];
+
+  // Optional path template for output objects.
+  // See Origin.path_template for available variables.
+  string path_template = 5 [
+    (buf.validate.field).string.max_len = 1024
+  ];
+
+  // GCS provider configuration.
+  GcsOriginConfig gcs = 6;
+
+  // S3 provider configuration.
+  S3OriginConfig s3 = 7;
+
+  // HTTP provider configuration (read-only).
+  HttpOriginConfig http = 8;
+}
+
+// Response from creating an origin.
+message CreateOriginResponse {
+  // The created origin.
+  Origin origin = 1;
+
+  // Validation result from initial credential check.
+  ValidationResult validation = 2;
+}
+
+// Validation result details.
+message ValidationResult {
+  // True if all declared permissions were validated successfully.
+  bool success = 1;
+
+  // True if read permission was validated.
+  bool can_read = 2;
+
+  // True if write permission was validated.
+  bool can_write = 3;
+
+  // Error message for read validation failure.
+  string read_error = 4;
+
+  // Error message for write validation failure.
+  string write_error = 5;
+
+  // When the validation was performed.
+  google.protobuf.Timestamp validated_at = 6;
+}
+
+// Request to get an origin.
+message GetOriginRequest {
+  // ID of the origin to retrieve.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ori_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from getting an origin.
+message GetOriginResponse {
+  // The requested origin.
+  Origin origin = 1;
+}
+
+// Request to list origins.
+message ListOriginsRequest {
+  // Optional filter by provider type.
+  optional OriginProvider provider = 1;
+
+  // Optional filter by status.
+  optional OriginStatus status = 2;
+
+  // Optional filter by permission.
+  optional OriginPermission permission = 3;
+
+  // If true, include archived origins.
+  bool include_archived = 4;
+
+  // Pagination parameters.
+  PaginationRequest pagination = 5;
+}
+
+// Response from listing origins.
+message ListOriginsResponse {
+  // List of origins.
+  repeated Origin origins = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to update an origin.
+message UpdateOriginRequest {
+  // ID of the origin to update.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ori_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Updated name (if provided).
+  optional string name = 2 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 255
+  ];
+
+  // Updated description (if provided).
+  optional string description = 3 [
+    (buf.validate.field).string.max_len = 1000
+  ];
+
+  // Updated base path (if provided).
+  optional string base_path = 4 [
+    (buf.validate.field).string.max_len = 1024
+  ];
+
+  // Updated path template (if provided).
+  optional string path_template = 5 [
+    (buf.validate.field).string.max_len = 1024
+  ];
+
+  // Updated GCS credentials (if provider is GCS).
+  // If provided, validation is automatically triggered.
+  optional GcsCredentials gcs_credentials = 6;
+
+  // Updated S3 credentials (if provider is S3).
+  // If provided, validation is automatically triggered.
+  optional S3Credentials s3_credentials = 7;
+
+  // Updated HTTP credentials (if provider is HTTP).
+  // If provided, validation is automatically triggered.
+  optional HttpCredentials http_credentials = 8;
+}
+
+// Response from updating an origin.
+message UpdateOriginResponse {
+  // The updated origin.
+  Origin origin = 1;
+
+  // Validation result if credentials were updated.
+  optional ValidationResult validation = 2;
+}
+
+// Request to validate an origin's credentials and permissions.
+message ValidateOriginRequest {
+  // ID of the origin to validate.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ori_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from validating an origin.
+message ValidateOriginResponse {
+  // The origin after validation (status may have changed).
+  Origin origin = 1;
+
+  // Validation result.
+  ValidationResult validation = 2;
+}
+
+// Request to archive an origin.
+message ArchiveOriginRequest {
+  // ID of the origin to archive.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ori_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from archiving an origin.
+message ArchiveOriginResponse {
+  // The archived origin.
+  Origin origin = 1;
+}

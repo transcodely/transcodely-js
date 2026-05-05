@@ -1,0 +1,100 @@
+// HDR and Dolby Vision configuration.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+
+// HDR format.
+enum HDRFormat {
+  HDR_FORMAT_UNSPECIFIED = 0;
+
+  // Static metadata (SMPTE ST 2086 + CLL).
+  HDR_FORMAT_HDR10 = 1;
+
+  // Dynamic metadata (Samsung).
+  HDR_FORMAT_HDR10_PLUS = 2;
+
+  // Hybrid Log-Gamma (backwards-compatible with SDR).
+  HDR_FORMAT_HLG = 3;
+
+  // Dolby Vision Profile 5 (single-layer, cross-compatible).
+  HDR_FORMAT_DOLBY_VISION_5 = 4;
+
+  // Dolby Vision Profile 8 (MEL, backward-compatible with HDR10).
+  HDR_FORMAT_DOLBY_VISION_8 = 5;
+}
+
+// HDR processing mode.
+enum HDRMode {
+  HDR_MODE_UNSPECIFIED = 0;
+
+  // Preserve input HDR metadata.
+  HDR_MODE_PASSTHROUGH = 1;
+
+  // Convert HDR to SDR via tone mapping.
+  HDR_MODE_TONEMAP = 2;
+
+  // Force a specific HDR format on output.
+  HDR_MODE_FORCE = 3;
+}
+
+// Tone mapping algorithm for HDR to SDR conversion.
+enum ToneMapping {
+  TONE_MAPPING_UNSPECIFIED = 0;
+
+  // Simple, preserves color relationships. General purpose.
+  TONE_MAPPING_REINHARD = 1;
+
+  // Film-like response curve. Cinematic content.
+  TONE_MAPPING_HABLE = 2;
+
+  // ITU-R BT.2390 reference. Broadcast (default).
+  TONE_MAPPING_BT2390 = 3;
+
+  // Smooth highlight rolloff. HDR10+ content.
+  TONE_MAPPING_MOBIUS = 4;
+}
+
+// HDR configuration for a video variant.
+message HDRConfig {
+  // Target HDR format (required for passthrough and force modes).
+  HDRFormat format = 1 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Processing mode (required).
+  HDRMode mode = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Tone mapping algorithm (for tonemap mode).
+  ToneMapping tone_mapping = 3 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Target peak brightness in nits (for tonemap and force modes).
+  // Range: 100-10000.
+  optional int32 target_peak_nits = 4 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 10000
+  ];
+
+  // Master Display Color Volume metadata (SMPTE ST 2086).
+  // Format: "G(x,y)B(x,y)R(x,y)WP(x,y)L(max,min)"
+  optional string master_display = 5 [
+    (buf.validate.field).string.max_len = 256
+  ];
+
+  // Content Light Level metadata (MaxCLL, MaxFALL).
+  // Format: "MaxCLL,MaxFALL" (e.g., "1000,400").
+  optional string content_light_level = 6 [
+    (buf.validate.field).string.max_len = 64
+  ];
+
+  // Dolby Vision RPU file URL (for DV metadata injection).
+  optional string rpu_url = 7 [
+    (buf.validate.field).string.max_len = 2048
+  ];
+}

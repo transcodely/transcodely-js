@@ -1,0 +1,20 @@
+# buf.gen.yaml — TypeScript codegen for the Transcodely JS SDK.
+# Uses Buf's remote plugins; no local protoc install required.
+version: v2
+
+plugins:
+  # Pinned to v1 of @bufbuild/protobuf + @connectrpc/connect for ecosystem
+  # compatibility; will move to v2 when connectrpc/es publishes a v2 plugin.
+  - remote: buf.build/bufbuild/es:v1.10.0
+    out: src/gen
+    opt:
+      - target=ts
+      - import_extension=.js
+  - remote: buf.build/connectrpc/es:v1.6.1
+    out: src/gen
+    opt:
+      - target=ts
+      - import_extension=.js
+
+inputs:
+  - directory: proto

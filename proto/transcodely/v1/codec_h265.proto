@@ -1,0 +1,148 @@
+// H.265/x265 codec options for video encoding.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+
+// H.265/x265 encoder options for fine-tuning encoding parameters.
+// All fields are optional - sensible defaults are applied based on quality tier.
+//
+// Restrictions (enforced by semantic validation, not protovalidate):
+// - preset: veryslow and placebo are not allowed (minimal quality gain at extreme cost)
+// - profile: main10-intra, main422-10, main444-10 are not allowed (limited playback support)
+// - crf: must be 18-35 (below 18 produces near-lossless, above 35 produces poor quality)
+// - tune: only grain and fastdecode are allowed (zerolatency is reserved for live streaming)
+//
+// Key differences from H.264:
+// - CRF range is 18-35 (stricter than H.264's 15-35)
+// - Levels include 6.0, 6.1, 6.2 (for 8K support)
+// - Tunes are more restrictive (grain, fastdecode only)
+//
+// See docs/codec-implementation/02-x265.md for detailed documentation.
+message H265Options {
+  // Encoding speed/quality trade-off preset.
+  // Allowed: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower
+  // Default: determined by quality_tier (economy=veryfast, standard=medium, premium=slow)
+  optional string preset = 1 [
+    (buf.validate.field).string.max_len = 20
+  ];
+
+  // Content-specific tuning.
+  // Allowed: grain, fastdecode
+  // Default: none (x265 auto-detection)
+  // Note: H.265 supports fewer tune options than H.264
+  optional string tune = 2 [
+    (buf.validate.field).string.max_len = 20
+  ];
+
+  // H.265 profile (feature set).
+  // Allowed: main, main10, main-still-picture
+  // Default: main (8-bit, best compatibility)
+  // Note: main10 enables 10-bit encoding for better quality at same bitrate
+  optional string profile = 3 [
+    (buf.validate.field).string.max_len = 20
+  ];
+
+  // H.265 level (bitrate/resolution limits).
+  // Allowed: 3.0, 3.1, 4.0, 4.1, 5.0, 5.1, 5.2, 6.0, 6.1, 6.2
+  // Default: auto-selected based on resolution and framerate
+  // Note: 6.x levels support 8K resolution
+  optional string level = 4 [
+    (buf.validate.field).string.max_len = 10
+  ];
+
+  // Constant Rate Factor (quality-based encoding).
+  // Range: 18-35 (lower = higher quality, larger file)
+  // Default: determined by quality_tier (economy=32, standard=26, premium=22)
+  // Note: Mutually exclusive with bitrate. Stricter range than H.264.
+  optional int32 crf = 5 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 51
+  ];
+
+  // Target bitrate in Kbps (size-based encoding).
+  // Range: 100-240000 (capped by level maximum)
+  // Note: Mutually exclusive with CRF.
+  optional int32 bitrate = 6 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 240000
+  ];
+
+  // Maximum bitrate for VBV buffering (Kbps).
+  // Range: 100-240000
+  optional int32 maxrate = 7 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 240000
+  ];
+
+  // VBV buffer size (Kbps).
+  // Range: 100-480000
+  optional int32 bufsize = 8 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 480000
+  ];
+
+  // Maximum keyframe interval (GOP size) in frames.
+  // Range: 1-600
+  // Default: 250
+  optional int32 keyint = 9 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 600
+  ];
+
+  // Minimum keyframe interval in frames.
+  // Range: 1-60
+  // Default: 25
+  optional int32 min_keyint = 10 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 60
+  ];
+
+  // Number of B-frames between I and P frames.
+  // Range: 0-16
+  // Default: determined by preset
+  optional int32 bframes = 11 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 16
+  ];
+
+  // Number of reference frames.
+  // Range: 1-16
+  // Default: determined by preset
+  optional int32 ref = 12 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 16
+  ];
+
+  // Rate control lookahead frames.
+  // Range: 0-250
+  // Default: determined by preset
+  optional int32 rc_lookahead = 13 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 250
+  ];
+
+  // Adaptive quantization mode.
+  // 0: disabled, 1: variance AQ, 2: auto-variance, 3: auto-variance with bias
+  // Default: 1
+  optional int32 aq_mode = 14 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 3
+  ];
+
+  // Adaptive quantization strength.
+  // Range: 0.0-3.0
+  // Default: 1.0
+  optional double aq_strength = 15 [
+    (buf.validate.field).double.gte = 0.0,
+    (buf.validate.field).double.lte = 3.0
+  ];
+
+  // Psychovisual rate-distortion optimization.
+  // Format: "strength:trellis" (e.g., "1.0:0.0")
+  // Default: determined by tune setting
+  optional string psy_rd = 16 [
+    (buf.validate.field).string.pattern = "^[0-9]+(\\.[0-9]+)?:[0-9]+(\\.[0-9]+)?$"
+  ];
+}

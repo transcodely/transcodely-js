@@ -1,0 +1,590 @@
+// Video service for video hosting and delivery.
+// Videos represent hosted media assets with playback, storage tracking, and usage metering.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+// VideoService manages hosted video assets with upload, playback, and usage tracking.
+service VideoService {
+  // Create a presigned upload URL for direct browser/client upload.
+  // Returns a Video in "uploading" status and a time-limited upload URL.
+  rpc CreateUpload(CreateUploadRequest) returns (CreateUploadResponse);
+
+  // Signal that a client-side upload has completed.
+  // Triggers processing (probe + transcode) for the uploaded file.
+  rpc CompleteUpload(CompleteUploadRequest) returns (CompleteUploadResponse);
+
+  // Create a multipart upload for large files (up to 5GB).
+  // Returns a Video in "uploading" status, an S3 upload_id, and presigned
+  // URLs for the first batch of parts (up to 50).
+  rpc CreateMultipartUpload(CreateMultipartUploadRequest) returns (CreateMultipartUploadResponse);
+
+  // Get fresh presigned URLs for specific part numbers of an in-progress
+  // multipart upload. Use this to fetch URLs in batches or refresh expired ones.
+  rpc GetUploadPartUrls(GetUploadPartUrlsRequest) returns (GetUploadPartUrlsResponse);
+
+  // Complete a multipart upload by providing ETags from all uploaded parts.
+  // Assembles the parts in S3, then triggers processing (probe + transcode).
+  rpc CompleteMultipartUpload(CompleteMultipartUploadRequest) returns (CompleteMultipartUploadResponse);
+
+  // Abort a multipart upload, cleaning up S3 parts and deleting the video record.
+  rpc AbortMultipartUpload(AbortMultipartUploadRequest) returns (AbortMultipartUploadResponse);
+
+  // Get a video by ID.
+  rpc Get(GetVideoRequest) returns (GetVideoResponse);
+
+  // List videos with optional filtering.
+  rpc List(ListVideosRequest) returns (ListVideosResponse);
+
+  // Update a video's mutable fields (title, description, tags, visibility).
+  rpc Update(UpdateVideoRequest) returns (UpdateVideoResponse);
+
+  // Delete a video and all associated storage.
+  rpc Delete(DeleteVideoRequest) returns (DeleteVideoResponse);
+
+  // Watch a video for real-time status updates. Streams the current state immediately,
+  // then pushes updates as the video progresses through processing.
+  // Stream closes automatically when the video reaches a terminal state.
+  rpc Watch(WatchVideoRequest) returns (stream WatchVideoResponse);
+
+  // Get usage summary for the current billing period or a specific month.
+  rpc GetUsage(GetUsageRequest) returns (GetUsageResponse);
+}
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+// Video lifecycle status.
+enum VideoStatus {
+  // Default value, should not be used.
+  VIDEO_STATUS_UNSPECIFIED = 0;
+
+  // Upload in progress (presigned URL issued, awaiting CompleteUpload).
+  VIDEO_STATUS_UPLOADING = 1;
+
+  // Video is being processed (probe, transcode, packaging).
+  VIDEO_STATUS_PROCESSING = 2;
+
+  // Video is ready for playback.
+  VIDEO_STATUS_READY = 3;
+
+  // Processing failed.
+  VIDEO_STATUS_ERROR = 4;
+
+  // Video has been archived (not actively served, storage retained).
+  VIDEO_STATUS_ARCHIVED = 5;
+
+  // Video has been deleted (pending cleanup).
+  VIDEO_STATUS_DELETED = 6;
+}
+
+// Video visibility controls who can access the video.
+enum VideoVisibility {
+  // Default value, should not be used.
+  VIDEO_VISIBILITY_UNSPECIFIED = 0;
+
+  // Anyone with the playback URL can view.
+  VIDEO_VISIBILITY_PUBLIC = 1;
+
+  // Accessible only via direct link (not listed in public indexes).
+  VIDEO_VISIBILITY_UNLISTED = 2;
+
+  // Requires authentication to view.
+  VIDEO_VISIBILITY_PRIVATE = 3;
+}
+
+// =============================================================================
+// Resources
+// =============================================================================
+
+// A hosted video asset with playback, storage, and cost tracking.
+message Video {
+  // Unique video identifier (e.g., "vid_a1b2c3d4e5f6").
+  string id = 1;
+
+  // App that owns this video.
+  string app_id = 2;
+
+  // How the video was created: "upload" (direct upload) or "job" (from transcoding job).
+  string source = 3;
+
+  // Current lifecycle status.
+  string status = 4;
+
+  // Visibility setting.
+  string visibility = 5;
+
+  // Content metadata
+  optional string title = 6;
+  optional string description = 7;
+  repeated string tags = 8;
+
+  // Input file details
+  optional int64 input_size_bytes = 10;
+  optional string input_content_type = 11;
+
+  // Linked transcoding job (set when source is "job" or after upload triggers transcoding).
+  optional string job_id = 15;
+
+  // Preset reference used to drive auto-transcoding for this video, if any.
+  // Either a preset ID (e.g., "pst_abc123") or slug (e.g., "gaming_1080p_60_standard").
+  // Set via CreateUpload; if absent the app's default auto-profile is used.
+  optional string preset = 16;
+
+  // Playback (computed per-request, not stored — signed CDN tokens).
+  optional string playback_url = 20;
+  optional string embed_url = 21;
+  optional string embed_code = 22;
+  optional string poster_url = 23;
+  optional double duration_seconds = 24;
+
+  // Renditions available for playback.
+  repeated VideoRendition renditions = 25;
+
+  // Storage and cost transparency.
+  int64 output_size_bytes = 30;
+  optional double encoding_cost = 31;
+  optional double storage_cost_monthly = 32;
+  optional double egress_total = 33;
+
+  // Timestamps.
+  google.protobuf.Timestamp created_at = 40;
+  google.protobuf.Timestamp updated_at = 41;
+  optional google.protobuf.Timestamp ready_at = 42;
+}
+
+// A single encoded rendition of a video.
+message VideoRendition {
+  // Unique rendition identifier (e.g., "ren_a1b2c3d4e5f6").
+  string id = 1;
+
+  // Resolution label (e.g., "1080p", "720p").
+  string resolution = 2;
+
+  // Video codec used (e.g., "h264", "h265").
+  string codec = 3;
+
+  // Average bitrate in kilobits per second.
+  int32 bitrate_kbps = 4;
+
+  // Frame width in pixels.
+  int32 width = 5;
+
+  // Frame height in pixels.
+  int32 height = 6;
+
+  // Encoded file size in bytes.
+  int64 size_bytes = 7;
+}
+
+// =============================================================================
+// Upload RPCs
+// =============================================================================
+
+// Request to create a presigned upload URL for direct client upload.
+message CreateUploadRequest {
+  // App to create the video under. Required — must have hosting enabled.
+  string app_id = 8 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Original filename (used for content-type detection and display).
+  string filename = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 255}
+  ];
+
+  // MIME type of the file being uploaded (e.g., "video/mp4").
+  string content_type = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 64}
+  ];
+
+  // File size in bytes (max 5GB).
+  int64 size_bytes = 3 [
+    (buf.validate.field).int64 = {gt: 0, lte: 5368709120}
+  ];
+
+  // Optional title for the video.
+  optional string title = 4 [
+    (buf.validate.field).string = {max_len: 255}
+  ];
+
+  // Optional description.
+  optional string description = 5 [
+    (buf.validate.field).string = {max_len: 2000}
+  ];
+
+  // Optional tags for categorization (max 20).
+  repeated string tags = 6 [
+    (buf.validate.field).repeated = {max_items: 20}
+  ];
+
+  // Visibility setting. Defaults to "private" if not specified.
+  optional string visibility = 7;
+
+  // Optional preset reference for the auto-transcode job.
+  // Accepts either a preset ID (e.g., "pst_abc123") or slug (e.g., "gaming_1080p_60_standard").
+  // When provided, the preset's settings drive the encoding instead of the
+  // app's default auto-profile ABR ladder.
+  // The preset must exist and be accessible to the app at CompleteUpload time.
+  optional string preset = 9 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 128
+  ];
+}
+
+// Response from creating an upload.
+message CreateUploadResponse {
+  // The created video (status: "uploading").
+  Video video = 1;
+
+  // Presigned URL for the client to upload the file via HTTP PUT.
+  string upload_url = 2;
+
+  // When the upload URL expires (typically 1 hour).
+  google.protobuf.Timestamp upload_expires_at = 3;
+}
+
+// Request to signal that a client-side upload has completed.
+message CompleteUploadRequest {
+  // Video ID returned from CreateUpload.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+}
+
+// Response from completing an upload.
+message CompleteUploadResponse {
+  // The video (status transitions to "processing").
+  Video video = 1;
+}
+
+// =============================================================================
+// Multipart Upload RPCs
+// =============================================================================
+
+// A single part in a multipart upload with its presigned URL.
+message UploadPart {
+  // Part number (1-based).
+  int32 part_number = 1;
+
+  // Presigned PUT URL for uploading this part.
+  string upload_url = 2;
+}
+
+// A completed part with its ETag from S3.
+message CompletedPart {
+  // Part number (1-based, must match what was uploaded).
+  int32 part_number = 1 [
+    (buf.validate.field).int32 = {gte: 1, lte: 10000}
+  ];
+
+  // ETag returned by S3 after uploading the part.
+  string etag = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 256}
+  ];
+}
+
+// Request to create a multipart upload for large files.
+message CreateMultipartUploadRequest {
+  // App to create the video under. Required — must have hosting enabled.
+  string app_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Original filename (used for content-type detection and display).
+  string filename = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 255}
+  ];
+
+  // MIME type of the file being uploaded (e.g., "video/mp4").
+  string content_type = 3 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 64}
+  ];
+
+  // File size in bytes (max 5GB).
+  int64 size_bytes = 4 [
+    (buf.validate.field).int64 = {gt: 0, lte: 5368709120}
+  ];
+
+  // Number of parts the file will be split into. Client calculates
+  // as ceil(size_bytes / part_size_bytes).
+  int32 total_parts = 5 [
+    (buf.validate.field).int32 = {gte: 1, lte: 10000}
+  ];
+
+  // Size of each part in bytes. Defaults to 25MB if not specified.
+  // Minimum 5MB (except the last part which can be smaller).
+  optional int64 part_size_bytes = 6;
+
+  // Optional title for the video.
+  optional string title = 10 [
+    (buf.validate.field).string = {max_len: 255}
+  ];
+
+  // Optional description.
+  optional string description = 11 [
+    (buf.validate.field).string = {max_len: 2000}
+  ];
+
+  // Optional tags for categorization (max 20).
+  repeated string tags = 12 [
+    (buf.validate.field).repeated = {max_items: 20}
+  ];
+
+  // Visibility setting. Defaults to "unlisted" if not specified.
+  optional string visibility = 13;
+
+  // Optional preset reference for the auto-transcode job.
+  optional string preset = 14 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 128
+  ];
+}
+
+// Response from creating a multipart upload.
+message CreateMultipartUploadResponse {
+  // The created video (status: "uploading").
+  Video video = 1;
+
+  // S3 multipart upload ID. Required for all subsequent part operations.
+  string upload_id = 2;
+
+  // Presigned URLs for the first batch of parts (up to 50).
+  // Use GetUploadPartUrls to fetch URLs for remaining parts.
+  repeated UploadPart parts = 3;
+
+  // When the presigned URLs expire (typically 1 hour).
+  google.protobuf.Timestamp urls_expire_at = 4;
+}
+
+// Request to get fresh presigned URLs for specific parts.
+message GetUploadPartUrlsRequest {
+  // Video ID returned from CreateMultipartUpload.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+
+  // S3 multipart upload ID from CreateMultipartUpload.
+  string upload_id = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+
+  // Part numbers to generate URLs for (1-based, max 100 per request).
+  repeated int32 part_numbers = 3 [
+    (buf.validate.field).repeated = {min_items: 1, max_items: 100}
+  ];
+}
+
+// Response with presigned URLs for requested parts.
+message GetUploadPartUrlsResponse {
+  // Presigned URLs for the requested parts.
+  repeated UploadPart parts = 1;
+
+  // When the presigned URLs expire.
+  google.protobuf.Timestamp urls_expire_at = 2;
+}
+
+// Request to complete a multipart upload with ETags from all parts.
+message CompleteMultipartUploadRequest {
+  // Video ID returned from CreateMultipartUpload.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+
+  // S3 multipart upload ID from CreateMultipartUpload.
+  string upload_id = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+
+  // Completed parts with their ETags (must include all parts).
+  repeated CompletedPart parts = 3 [
+    (buf.validate.field).repeated = {min_items: 1}
+  ];
+}
+
+// Response from completing a multipart upload.
+message CompleteMultipartUploadResponse {
+  // The video (status transitions to "processing").
+  Video video = 1;
+}
+
+// Request to abort a multipart upload.
+message AbortMultipartUploadRequest {
+  // Video ID returned from CreateMultipartUpload.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+
+  // S3 multipart upload ID from CreateMultipartUpload.
+  string upload_id = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+}
+
+// Response from aborting a multipart upload.
+message AbortMultipartUploadResponse {}
+
+// =============================================================================
+// CRUD RPCs
+// =============================================================================
+
+// Request to get a video by ID.
+message GetVideoRequest {
+  // Video ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+}
+
+// Response from getting a video.
+message GetVideoResponse {
+  // The requested video.
+  Video video = 1;
+}
+
+// Request to list videos.
+message ListVideosRequest {
+  // Maximum number of videos to return (1-100).
+  int32 page_size = 1 [
+    (buf.validate.field).int32 = {gte: 1, lte: 100}
+  ];
+
+  // Pagination token from a previous ListVideosResponse.
+  optional string page_token = 2;
+
+  // Optional filter by status (e.g., "ready", "processing").
+  optional string status = 3;
+}
+
+// Response from listing videos.
+message ListVideosResponse {
+  // List of videos.
+  repeated Video videos = 1;
+
+  // Token for fetching the next page. Absent if no more pages.
+  optional string next_page_token = 2;
+
+  // Total number of matching videos.
+  int32 total_count = 3;
+}
+
+// Request to update a video's mutable fields.
+message UpdateVideoRequest {
+  // Video ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+
+  // Updated title.
+  optional string title = 2;
+
+  // Updated description.
+  optional string description = 3;
+
+  // Updated tags (replaces existing tags).
+  repeated string tags = 4;
+
+  // Updated visibility.
+  optional string visibility = 5;
+}
+
+// Response from updating a video.
+message UpdateVideoResponse {
+  // The updated video.
+  Video video = 1;
+}
+
+// Request to delete a video.
+message DeleteVideoRequest {
+  // Video ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+}
+
+// Response from deleting a video.
+message DeleteVideoResponse {}
+
+// =============================================================================
+// Watch RPC
+// =============================================================================
+
+// Request to watch a video for real-time status updates.
+message WatchVideoRequest {
+  // Video ID to watch.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1}
+  ];
+}
+
+// Streamed response with video state and event type.
+message WatchVideoResponse {
+  // Current video state.
+  Video video = 1;
+
+  // Type of event that triggered this update (e.g., "snapshot", "status_change", "completed").
+  string event_type = 2;
+}
+
+// =============================================================================
+// Usage RPC
+// =============================================================================
+
+// Request to get usage summary for a billing period.
+message GetUsageRequest {
+  // Billing month in YYYY-MM format (e.g., "2026-04").
+  // Defaults to the current month if not specified.
+  optional string billing_month = 1;
+}
+
+// Response with usage summary.
+message GetUsageResponse {
+  // Usage breakdown for the requested period.
+  UsageSummary usage = 1;
+}
+
+// Aggregated usage and cost summary for a billing period.
+message UsageSummary {
+  // Billing month in YYYY-MM format.
+  string billing_month = 1;
+
+  // Encoding metrics.
+  int32 videos_encoded = 2;
+  double encoding_minutes = 3;
+  double encoding_cost = 4;
+
+  // Storage metrics.
+  double storage_gb_avg = 10;
+  double storage_cost = 11;
+  int32 videos_hosted = 12;
+
+  // Egress metrics.
+  double egress_gb = 20;
+  double egress_cost = 21;
+  int64 total_requests = 22;
+
+  // Total cost across all categories.
+  double total_cost = 30;
+}

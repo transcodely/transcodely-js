@@ -1,0 +1,883 @@
+// Job service for video transcoding operations.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+import "transcodely/v1/media.proto";
+import "transcodely/v1/codec_h264.proto";
+import "transcodely/v1/codec_h265.proto";
+import "transcodely/v1/codec_vp9.proto";
+import "transcodely/v1/codec_av1.proto";
+import "transcodely/v1/origin.proto";
+import "transcodely/v1/streaming.proto";
+import "transcodely/v1/thumbnails.proto";
+import "transcodely/v1/subtitles.proto";
+import "transcodely/v1/drm.proto";
+import "transcodely/v1/hdr.proto";
+import "transcodely/v1/content_aware.proto";
+
+// JobService handles video transcoding job operations.
+service JobService {
+  // Create a new transcoding job with one or more output renditions.
+  rpc Create(CreateJobRequest) returns (CreateJobResponse);
+
+  // Get a job by ID.
+  rpc Get(GetJobRequest) returns (GetJobResponse);
+
+  // List jobs with optional filtering.
+  rpc List(ListJobsRequest) returns (ListJobsResponse);
+
+  // Cancel a pending or running job.
+  rpc Cancel(CancelJobRequest) returns (CancelJobResponse);
+
+  // Confirm a job that is awaiting confirmation (delayed start jobs only).
+  // This starts the encoding process after the customer has reviewed the estimated cost.
+  rpc Confirm(ConfirmJobRequest) returns (ConfirmJobResponse);
+
+  // Watch a job for real-time updates. Streams the current state immediately,
+  // then pushes updates whenever status or progress changes.
+  // Stream closes automatically when the job reaches a terminal state.
+  rpc Watch(WatchJobRequest) returns (stream WatchJobResponse);
+}
+
+// Job status enumeration.
+enum JobStatus {
+  // Default value, should not be used.
+  JOB_STATUS_UNSPECIFIED = 0;
+
+  // Job is queued and waiting to be processed.
+  JOB_STATUS_PENDING = 1;
+
+  // Job is analyzing the input file (ffprobe).
+  JOB_STATUS_PROBING = 2;
+
+  // Job is currently being transcoded.
+  JOB_STATUS_PROCESSING = 3;
+
+  // All outputs completed successfully.
+  JOB_STATUS_COMPLETED = 4;
+
+  // Job failed with an error.
+  JOB_STATUS_FAILED = 5;
+
+  // Job was canceled by the user.
+  JOB_STATUS_CANCELED = 6;
+
+  // Some outputs completed, others failed.
+  JOB_STATUS_PARTIAL = 7;
+
+  // Job is waiting for customer confirmation after probing (delayed start only).
+  // Customer can review estimated cost before proceeding.
+  JOB_STATUS_AWAITING_CONFIRMATION = 8;
+}
+
+// Output status enumeration.
+enum OutputStatus {
+  OUTPUT_STATUS_UNSPECIFIED = 0;
+  OUTPUT_STATUS_PENDING = 1;
+  OUTPUT_STATUS_PROCESSING = 2;
+  OUTPUT_STATUS_COMPLETED = 3;
+  OUTPUT_STATUS_FAILED = 4;
+  OUTPUT_STATUS_CANCELED = 5;
+}
+
+// Job priority.
+enum JobPriority {
+  JOB_PRIORITY_UNSPECIFIED = 0;
+  JOB_PRIORITY_ECONOMY = 1;
+  JOB_PRIORITY_STANDARD = 2;
+  JOB_PRIORITY_PREMIUM = 3;
+}
+
+// Types of events that trigger watch updates.
+enum WatchEventType {
+  // Default value, should not be used.
+  WATCH_EVENT_TYPE_UNSPECIFIED = 0;
+
+  // Initial state on connect.
+  WATCH_EVENT_TYPE_SNAPSHOT = 1;
+
+  // Progress changed.
+  WATCH_EVENT_TYPE_PROGRESS = 2;
+
+  // Status transition.
+  WATCH_EVENT_TYPE_STATUS_CHANGE = 3;
+
+  // Terminal state, stream will close.
+  WATCH_EVENT_TYPE_COMPLETED = 4;
+
+  // Keepalive.
+  WATCH_EVENT_TYPE_HEARTBEAT = 5;
+}
+
+// Audio track configuration for multi-audio outputs.
+// Used to specify multiple audio language tracks in HLS/DASH outputs.
+message AudioTrackConfig {
+  // ISO 639-2 language code (e.g., "eng", "spa", "jpn", "fra").
+  // Required for each audio track.
+  string language = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^[a-z]{3}$"
+  ];
+
+  // Human-readable label for the audio track.
+  // Displayed in player UI (e.g., "English", "Spanish", "日本語").
+  // If not provided, defaults to the language code.
+  optional string label = 2 [
+    (buf.validate.field).string.max_len = 64
+  ];
+
+  // Source audio track index from the input file (0-based).
+  // Use when the input has multiple audio tracks and you want to select specific ones.
+  // If not provided, uses track 0 for the first audio_track, track 1 for the second, etc.
+  optional int32 source_track = 3 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 15
+  ];
+
+  // Whether this is the default audio track.
+  // Only one track should be marked as default per output.
+  // If no track is marked default, the first track becomes default.
+  optional bool is_default = 4;
+}
+
+// =============================================================================
+// V1 Output Structure - Video Variants and Split Streaming Config
+// =============================================================================
+
+// VideoVariant represents a single video encode configuration.
+// Multiple variants can be combined in a single output for ABR ladders.
+message VideoVariant {
+  // Video codec (required).
+  VideoCodec codec = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Target resolution preset.
+  // Use this OR (width + height) for custom dimensions.
+  Resolution resolution = 2 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Quality tier (affects encoding speed and price).
+  // Maps to encoder presets internally.
+  QualityTier quality = 3 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Target frame rate. 0 = keep original.
+  optional int32 framerate = 4 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 240
+  ];
+
+  // Custom output width in pixels (use with height).
+  optional int32 width = 5 [
+    (buf.validate.field).int32.gte = 128,
+    (buf.validate.field).int32.lte = 7680
+  ];
+
+  // Custom output height in pixels (use with width).
+  optional int32 height = 6 [
+    (buf.validate.field).int32.gte = 128,
+    (buf.validate.field).int32.lte = 4320
+  ];
+
+  // Target bitrate in kbps (overrides CRF-based quality).
+  optional int32 bitrate = 7 [
+    (buf.validate.field).int32.gte = 100,
+    (buf.validate.field).int32.lte = 240000
+  ];
+
+  // H.264 codec options (simplified - only profile and crf).
+  optional H264Options h264 = 10;
+
+  // H.265 codec options (simplified - only profile and crf).
+  optional H265Options h265 = 11;
+
+  // VP9 codec options (simplified - only profile and crf).
+  optional VP9Options vp9 = 12;
+
+  // AV1 codec options (simplified - crf and film_grain).
+  optional AV1Options av1 = 13;
+
+  // HDR configuration for this variant.
+  optional HDRConfig hdr = 14;
+}
+
+// HLSConfig contains HLS-specific packaging options.
+message HLSConfig {
+  // Master playlist name (without extension).
+  // Default: "master" produces "master.m3u8"
+  optional string manifest = 1 [
+    (buf.validate.field).string.max_len = 64,
+    (buf.validate.field).string.pattern = "^[a-zA-Z0-9_-]+$"
+  ];
+
+  // Segment format: "fmp4" (CMAF, default) or "ts" (legacy).
+  // Note: TS only supports H.264.
+  HLSSegmentFormat segment_format = 2 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Playlist type: VOD (default) or EVENT.
+  HLSPlaylistType playlist_type = 3 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Pattern for variant playlist names.
+  // Variables: {codec}, {resolution}, {bitrate}, {index}
+  // Default: "{codec}_{resolution}"
+  optional string variant_pattern = 4 [
+    (buf.validate.field).string.max_len = 128
+  ];
+}
+
+// DASHConfig contains DASH-specific packaging options.
+message DASHConfig {
+  // Manifest name (without extension).
+  // Default: "manifest" produces "manifest.mpd"
+  optional string manifest = 1 [
+    (buf.validate.field).string.max_len = 64,
+    (buf.validate.field).string.pattern = "^[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// SegmentConfig contains shared segmentation options for streaming outputs.
+message SegmentConfig {
+  // Segment duration in seconds.
+  // Range: 1-30, Default: 6 (Apple recommended)
+  optional int32 duration = 1 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 30
+  ];
+
+  // GOP alignment mode.
+  // Default: ALIGNED (GOP matches segment duration)
+  GOPAlignmentMode gop_alignment = 2 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Fixed GOP size in seconds (only when gop_alignment = FIXED).
+  // Range: 1-10 seconds
+  optional int32 gop_size = 3 [
+    (buf.validate.field).int32.gte = 1,
+    (buf.validate.field).int32.lte = 10
+  ];
+}
+
+// =============================================================================
+// Output Specification
+// =============================================================================
+
+// Output specification for a single rendition.
+// Use type + video[] array for all outputs. Preset reference is optional.
+message OutputSpec {
+  // Validation: either preset is set, or type + video[] array must be provided
+  option (buf.validate.message).cel = {
+    id: "output_spec.preset_or_inline"
+    message: "either preset must be specified, or type with video[] array must be provided"
+    expression: "has(this.preset) || (this.type != 0 && size(this.video) > 0)"
+  };
+
+  // video[] must have at least one variant when provided
+  option (buf.validate.message).cel = {
+    id: "output_spec.video_required"
+    message: "video[] array must have at least one variant"
+    expression: "has(this.preset) || size(this.video) >= 1"
+  };
+
+  // Audio tracks are only valid for HLS, DASH, or ADAPTIVE types
+  option (buf.validate.message).cel = {
+    id: "output_spec.audio_require_streaming"
+    message: "audio is only valid for HLS, DASH, or ADAPTIVE streaming types"
+    expression: "size(this.audio) == 0 || this.type == 5 || this.type == 6 || this.type == 7"
+  };
+
+  // HLS config is only valid for HLS or ADAPTIVE types
+  option (buf.validate.message).cel = {
+    id: "output_spec.hls_config_type"
+    message: "hls config is only valid for HLS or ADAPTIVE types"
+    expression: "!has(this.hls) || this.type == 5 || this.type == 7"
+  };
+
+  // DASH config is only valid for DASH or ADAPTIVE types
+  option (buf.validate.message).cel = {
+    id: "output_spec.dash_config_type"
+    message: "dash config is only valid for DASH or ADAPTIVE types"
+    expression: "!has(this.dash) || this.type == 6 || this.type == 7"
+  };
+
+  // Segments config is only valid for streaming types
+  option (buf.validate.message).cel = {
+    id: "output_spec.segments_config_type"
+    message: "segments config is only valid for HLS, DASH, or ADAPTIVE types"
+    expression: "!has(this.segments) || this.type == 5 || this.type == 6 || this.type == 7"
+  };
+
+  // Output type (required unless using preset).
+  // Values: mp4, webm, mkv, mov, hls, dash, adaptive
+  OutputFormat type = 1 [
+    json_name = "type",
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Video variants for ABR (Adaptive Bitrate) encoding.
+  // Each variant is encoded separately and packaged into the output.
+  // For single-variant outputs, use an array with one element.
+  // Maximum 20 variants per output.
+  repeated VideoVariant video = 2 [
+    (buf.validate.field).repeated.max_items = 20
+  ];
+
+  // Audio track configurations for multi-audio outputs.
+  // Only used when type is HLS, DASH, or ADAPTIVE.
+  // Each track specifies a language and optionally a label and source track.
+  // Maximum 8 audio tracks per output.
+  repeated AudioTrackConfig audio = 3 [
+    (buf.validate.field).repeated.max_items = 8
+  ];
+
+  // HLS-specific configuration.
+  // Only used when type is HLS or ADAPTIVE.
+  optional HLSConfig hls = 4;
+
+  // DASH-specific configuration.
+  // Only used when type is DASH or ADAPTIVE.
+  optional DASHConfig dash = 5;
+
+  // Segment configuration for streaming outputs.
+  // Shared between HLS and DASH. Only used for streaming types.
+  optional SegmentConfig segments = 6;
+
+  // Custom path template for this output (overrides job-level and origin templates).
+  // Variables: {job_id}, {output_id}, {date}, {type}, {codec}, {resolution}, {quality}
+  //
+  // Example: "videos/{date}/{job_id}/{resolution}" produces
+  //          "videos/2024-01-15/job_abc123/1080p/master.m3u8"
+  //
+  // For HLS/DASH outputs, the streaming manifest name is appended automatically.
+  // Default: uses job-level output_path_template, or origin's path_template, or "{job_id}/{output_id}"
+  optional string path_template = 7 [
+    (buf.validate.field).string.max_len = 512
+  ];
+
+  // Preset reference (optional).
+  // Accepts either preset ID (e.g., "pst_abc123") or slug (e.g., "gaming_1080p_60_standard").
+  // When provided, the preset's settings are used as the base configuration.
+  optional string preset = 10 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 128
+  ];
+
+  // Subtitle track configurations for this output.
+  // Maximum 8 subtitle tracks per output.
+  repeated SubtitleTrack subtitle_tracks = 11 [
+    (buf.validate.field).repeated.max_items = 8
+  ];
+
+  // DRM (content protection) configuration.
+  // Only valid for HLS, DASH, or ADAPTIVE streaming types.
+  optional DRMConfig drm = 12;
+
+  // Content-aware encoding configuration.
+  // Enables per-title encoding or automatic ABR ladder generation.
+  optional ContentAwareConfig content_aware = 13;
+
+  // Encoding mode: "fixed" (default, static CRF) or "auto" (input-aware constrained CRF).
+  // In "auto" mode, the worker caps each variant's bitrate based on the input's bitrate
+  // and resolution ratio, preventing output from exceeding the input's quality ceiling.
+  optional string encoding_mode = 14;
+}
+
+// Locked pricing snapshot for an output (captured at job creation).
+// These values are used to calculate costs and won't change even if pricing rules are updated.
+message PricingSnapshot {
+  // Base price per minute for the selected codec.
+  double base_price = 1;
+
+  // Multiplier applied for the selected codec.
+  double codec_multiplier = 2;
+
+  // Multiplier applied for the selected resolution.
+  double resolution_multiplier = 3;
+
+  // Multiplier applied for the selected framerate.
+  // Linear scaling: framerate / 30 (e.g., 60fps = 2.0x).
+  double framerate_multiplier = 4;
+
+  // Multiplier applied for the selected quality tier.
+  double quality_multiplier = 5;
+
+  // The resolution tier used for pricing (for transparency).
+  // This shows which tier was applied when custom dimensions are used.
+  Resolution resolution_tier = 6;
+
+  // The actual framerate used for pricing calculation.
+  // For linear pricing: multiplier = actual_framerate / 30.
+  double actual_framerate = 7;
+
+  // Total pixel count when custom dimensions are used (width * height).
+  // Zero if using preset resolution.
+  optional int64 pixel_count = 8;
+
+  // Cumulative multiplier for premium features (DRM, HDR tone mapping, etc.).
+  // 1.0 when no premium features are active.
+  double feature_multiplier = 9;
+}
+
+// Per-variant pricing snapshot for multi-variant outputs (ABR ladders).
+// Each variant in an HLS/DASH output has its own pricing based on codec, resolution, etc.
+message VariantPricingSnapshot {
+  // Variant index within the output (0-based).
+  int32 index = 1;
+
+  // Video codec for this variant.
+  VideoCodec codec = 2;
+
+  // Target resolution for this variant.
+  Resolution resolution = 3;
+
+  // Target framerate for this variant (0 = keep original).
+  int32 framerate = 4;
+
+  // Quality tier for this variant.
+  QualityTier quality = 5;
+
+  // Custom width in pixels (if using custom dimensions).
+  optional int32 width = 6;
+
+  // Custom height in pixels (if using custom dimensions).
+  optional int32 height = 7;
+
+  // Base price per minute for this variant's codec.
+  double base_price = 10;
+
+  // Multiplier applied for this variant's codec.
+  double codec_multiplier = 11;
+
+  // Multiplier applied for this variant's resolution.
+  double resolution_multiplier = 12;
+
+  // Multiplier applied for this variant's framerate.
+  double framerate_multiplier = 13;
+
+  // Multiplier applied for this variant's quality tier.
+  double quality_multiplier = 14;
+
+  // Resolution tier used for pricing (shows which tier was applied).
+  Resolution resolution_tier = 15;
+
+  // Actual framerate used for pricing calculation.
+  double actual_framerate = 16;
+
+  // Total pixel count when custom dimensions are used.
+  optional int64 pixel_count = 17;
+
+  // Per-variant costs (calculated from duration × multipliers)
+  // Estimated cost calculated at probe completion.
+  optional double estimated_cost = 18;
+  // Actual cost calculated at output completion.
+  optional double actual_cost = 19;
+
+  // Variant encoding status: "pending", "processing", "completed", "failed".
+  string status = 20;
+
+  // Variant encoding progress (0-100).
+  int32 progress = 21;
+
+  // Cumulative multiplier for premium features.
+  double feature_multiplier = 22;
+}
+
+// A job output rendition.
+message JobOutput {
+  // Unique output identifier.
+  string id = 1;
+
+  // Output specification.
+  OutputSpec spec = 2;
+
+  // Current output status.
+  OutputStatus status = 3;
+
+  // Progress percentage (0-100).
+  int32 progress = 4;
+
+  // Output URL (set when completed).
+  optional string output_url = 5;
+
+  // Output file size in bytes.
+  optional int64 output_size_bytes = 6;
+
+  // Output duration in seconds (actual encoded duration).
+  optional int64 duration_seconds = 7;
+
+  // Locked pricing snapshot (captured at job creation, used for all cost calculations).
+  PricingSnapshot pricing = 8;
+
+  // Estimated duration in seconds (from input probe, before encoding).
+  optional int64 estimated_duration_seconds = 9;
+
+  // Estimated cost (calculated after probe using locked pricing and estimated duration).
+  optional double estimated_cost = 10;
+
+  // Actual cost (calculated after encoding using locked pricing and actual duration).
+  // For canceled outputs, this reflects cost of encoded portion.
+  // For failed outputs, this is zero.
+  optional double actual_cost = 11;
+
+  // Error code if failed.
+  optional string error_code = 12;
+
+  // Error message if failed.
+  optional string error_message = 13;
+
+  // When the output started processing.
+  optional google.protobuf.Timestamp started_at = 14;
+
+  // When the output completed.
+  optional google.protobuf.Timestamp completed_at = 15;
+
+  // Resolved preset ID if this output was created from a preset reference.
+  // This is set when the output was created using OutputSpec.preset.
+  optional string preset_id = 16;
+
+  // Resolved preset slug if this output was created from a preset reference.
+  optional string preset_slug = 17;
+
+  // Per-variant pricing for multi-variant outputs (ABR ladders).
+  // For HLS/DASH outputs with multiple video variants, each variant has its own pricing.
+  // The estimated_cost and actual_cost fields are the sum of all variant costs.
+  // Empty for single-variant outputs (use pricing instead).
+  repeated VariantPricingSnapshot variant_pricing = 20;
+}
+
+// Execution timing and telemetry for a job.
+// Populated after job processing begins. All durations are in milliseconds.
+message ExecutionTiming {
+  // Worker instance details
+  optional string instance_id = 1;        // Hetzner server ID
+  optional string instance_type = 2;      // cpx41, ccx33, etc.
+  optional string instance_location = 3;  // fsn1, nbg1, hel1
+  optional int32 vcpu_count = 4;          // Number of vCPUs
+  optional int32 memory_mb = 5;           // Memory in MB
+
+  // Phase durations (all in milliseconds)
+  optional int64 boot_duration_ms = 10;      // Time to boot worker instance
+  optional int64 download_duration_ms = 11;  // Time to download input file
+  optional int64 probe_duration_ms = 12;     // Time to probe input (ffprobe)
+  optional int64 encode_duration_ms = 13;    // Time for encoding phase
+  optional int64 upload_duration_ms = 14;    // Time to upload outputs
+  optional int64 packaging_duration_ms = 15; // Time for HLS/DASH packaging
+  optional int64 total_duration_ms = 16;     // Total job processing time
+
+  // Transfer statistics
+  optional int64 download_bytes = 20;        // Input file size in bytes
+  optional double download_speed_mbps = 21;  // Download speed in Mbps
+  optional int64 upload_bytes = 22;          // Total output size in bytes
+  optional double upload_speed_mbps = 23;    // Upload speed in Mbps
+
+  // Resource usage
+  optional double avg_cpu_percent = 30;   // Average CPU utilization
+  optional double peak_cpu_percent = 31;  // Peak CPU utilization
+  optional int32 avg_memory_mb = 32;      // Average memory usage in MB
+  optional int32 peak_memory_mb = 33;     // Peak memory usage in MB
+
+  // Chunk encoding (when enabled)
+  optional int32 chunk_count = 40;     // Number of parallel chunks
+  optional string chunk_strategy = 41; // gop_aligned, scene_detect, etc.
+
+  // Exit status
+  optional int32 exit_code = 50;    // Worker exit code (0 = success)
+  optional string exit_reason = 51; // Human-readable exit reason
+}
+
+// A transcoding job with multiple outputs.
+message Job {
+  // Unique job identifier (e.g., "job_a1b2c3d4e5f6").
+  string id = 1;
+
+  // URL of the input video file (direct URL mode).
+  // Set if the job was created with input_url.
+  string input_url = 2;
+
+  // Input origin reference (origin mode).
+  // Set if the job was created with input_origin_id.
+  optional OriginRef input_origin = 22;
+
+  // Output origin reference (origin mode).
+  // Set if the job was created with output_origin_id.
+  optional OriginRef output_origin = 23;
+
+  // Current job status.
+  JobStatus status = 3;
+
+  // Overall progress percentage (0-100).
+  // Calculated as average of all output progresses.
+  int32 progress = 4;
+
+  // Job priority.
+  JobPriority priority = 5;
+
+  // Input file metadata (populated after probing).
+  // See media.proto for field details.
+  optional InputMetadata input_metadata = 6;
+
+  // Output renditions.
+  repeated JobOutput outputs = 7;
+
+  // Total estimated cost (sum of all outputs, calculated after probe).
+  optional double total_estimated_cost = 8;
+
+  // Total actual cost (sum of completed/canceled outputs).
+  // Failed outputs contribute zero to this total.
+  optional double total_actual_cost = 9;
+
+  // Error code if status is FAILED.
+  optional string error_code = 10;
+
+  // Error message if status is FAILED.
+  optional string error_message = 11;
+
+  // URL to receive webhook notifications.
+  optional string webhook_url = 12;
+
+  // User-provided metadata (key-value pairs).
+  map<string, string> metadata = 13;
+
+  // When the job was created.
+  google.protobuf.Timestamp created_at = 14;
+
+  // When the job was last updated.
+  google.protobuf.Timestamp updated_at = 15;
+
+  // When input probing completed.
+  optional google.protobuf.Timestamp probed_at = 16;
+
+  // When processing started.
+  optional google.protobuf.Timestamp started_at = 17;
+
+  // When the job completed (success, failure, or cancellation).
+  optional google.protobuf.Timestamp completed_at = 18;
+
+  // Whether this job requires confirmation before encoding starts.
+  // If true, job will move to AWAITING_CONFIRMATION after probing.
+  bool delayed_start = 19;
+
+  // When the job was confirmed (for delayed start jobs only).
+  optional google.protobuf.Timestamp confirmed_at = 20;
+
+  // Currency for all cost fields (ISO 4217 code, e.g., "EUR", "USD").
+  string currency = 21;
+
+  // Execution timing and telemetry (populated after processing starts).
+  // Non-optional so EmitUnpopulated emits as null when not set.
+  ExecutionTiming execution = 24;
+
+  // Thumbnail generation specifications (echoed from request).
+  repeated ThumbnailSpec thumbnails = 25;
+}
+
+// Request to create a new job.
+message CreateJobRequest {
+  option (buf.validate.message).cel = {
+    id: "create_job.input_source"
+    message: "either input_url or input_origin_id must be specified (not both)"
+    expression: "(this.input_url != '' && !has(this.input_origin_id)) || (this.input_url == '' && has(this.input_origin_id))"
+  };
+  option (buf.validate.message).cel = {
+    id: "create_job.input_path_requires_origin"
+    message: "input_path can only be specified when using input_origin_id"
+    expression: "!has(this.input_path) || has(this.input_origin_id)"
+  };
+  option (buf.validate.message).cel = {
+    id: "create_job.output_origin_required"
+    message: "output_origin_id is required when managed is not true"
+    expression: "has(this.output_origin_id) || (has(this.managed) && this.managed)"
+  };
+
+  // URL of the input video file (direct URL mode).
+  // Supported schemes: gs://, s3://, https://
+  // Use this OR input_origin_id, not both.
+  string input_url = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.max_len = 2048,
+    (buf.validate.field).string.pattern = "^(gs|s3|https?)://.*$"
+  ];
+
+  // Origin ID for the input source (origin mode).
+  // The origin must have read permission.
+  // Use this OR input_url, not both.
+  optional string input_origin_id = 9 [
+    (buf.validate.field).string.pattern = "^ori_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Path to the input file within the input origin.
+  // Required when using input_origin_id.
+  // Example: "uploads/video.mp4" or "{job_id}/source.mp4"
+  optional string input_path = 10 [
+    (buf.validate.field).string.max_len = 2048
+  ];
+
+  // Origin ID for outputs (origin mode).
+  // If specified, all outputs will be written to this origin.
+  // The origin must have write permission.
+  optional string output_origin_id = 11 [
+    (buf.validate.field).string.pattern = "^ori_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Output specifications (at least one required).
+  repeated OutputSpec outputs = 2 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 10
+  ];
+
+  // Job priority (affects processing order and cost).
+  JobPriority priority = 3 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Optional webhook URL for status notifications.
+  optional string webhook_url = 4 [
+    (buf.validate.field).string.uri = true,
+    (buf.validate.field).string.max_len = 2048
+  ];
+
+  // Optional idempotency key.
+  // If provided, duplicate requests with the same key return the existing job.
+  optional string idempotency_key = 5 [
+    (buf.validate.field).string.max_len = 128
+  ];
+
+  // User-provided metadata (key-value pairs, max 20 entries).
+  map<string, string> metadata = 6 [
+    (buf.validate.field).map.max_pairs = 20,
+    (buf.validate.field).map.keys = { string: { min_len: 1, max_len: 64 } },
+    (buf.validate.field).map.values = { string: { max_len: 1024 } }
+  ];
+
+  // If true, job will pause after probing in AWAITING_CONFIRMATION status.
+  // Customer can review the estimated cost and call ConfirmJob to proceed.
+  // Default: false (immediate execution).
+  bool delayed_start = 7;
+
+  // Thumbnail generation specifications.
+  // Maximum 5 thumbnail specs per job. Thumbnails are free (bundled with transcoding).
+  repeated ThumbnailSpec thumbnails = 8 [
+    (buf.validate.field).repeated.max_items = 5
+  ];
+
+  // Job-level output path template (applies to all outputs unless overridden).
+  // Variables: {job_id}, {output_id}, {date}, {format}, {codec}, {resolution}, {quality}
+  //
+  // Example: "videos/{date}/{job_id}/{resolution}" produces
+  //          "videos/2024-01-15/job_abc123/1080p/master.m3u8"
+  //
+  // This is used for all outputs that don't have their own path_template.
+  // If not specified, falls back to the output origin's path_template or the default "{job_id}/{output_id}".
+  optional string output_path_template = 12 [
+    (buf.validate.field).string.max_len = 512
+  ];
+
+  // Write outputs to managed hosting storage and create a video record.
+  // When true, output_origin_id is not required.
+  optional bool managed = 20;
+}
+
+// Response from creating a job.
+message CreateJobResponse {
+  // The created job.
+  Job job = 1;
+
+  // Video ID created for managed output (only present when managed=true).
+  optional string video_id = 5;
+}
+
+// Request to get a job.
+message GetJobRequest {
+  // ID of the job to retrieve.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^job_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from getting a job.
+message GetJobResponse {
+  // The requested job.
+  Job job = 1;
+}
+
+// Request to list jobs.
+message ListJobsRequest {
+  // Optional status filter.
+  optional JobStatus status = 1;
+
+  // Pagination parameters.
+  PaginationRequest pagination = 2;
+}
+
+// Response from listing jobs.
+message ListJobsResponse {
+  // List of jobs.
+  repeated Job jobs = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to cancel a job.
+message CancelJobRequest {
+  // ID of the job to cancel.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^job_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from cancelling a job.
+message CancelJobResponse {
+  // The canceled job.
+  Job job = 1;
+}
+
+// Request to confirm a delayed start job.
+message ConfirmJobRequest {
+  // ID of the job to confirm.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^job_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from confirming a job.
+message ConfirmJobResponse {
+  // The confirmed job (status will be PROCESSING).
+  Job job = 1;
+}
+
+// Request to watch a job for real-time updates.
+message WatchJobRequest {
+  // ID of the job to watch.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^job_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response streamed to clients watching a job.
+message WatchJobResponse {
+  // The current job state.
+  Job job = 1;
+
+  // Type of event that triggered this update.
+  WatchEventType event = 2;
+
+  // Server timestamp when this event was generated.
+  google.protobuf.Timestamp server_time = 3;
+}

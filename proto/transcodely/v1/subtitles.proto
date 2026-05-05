@@ -1,0 +1,122 @@
+// Subtitle and caption processing configuration.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+
+// Subtitle processing operation.
+enum SubtitleOperation {
+  SUBTITLE_OPERATION_UNSPECIFIED = 0;
+
+  // Mux input subtitle stream into output container.
+  SUBTITLE_OPERATION_PASSTHROUGH = 1;
+
+  // Convert between subtitle formats (e.g., SRT to WebVTT).
+  SUBTITLE_OPERATION_CONVERT = 2;
+
+  // Hardcode subtitles into the video stream (re-render).
+  SUBTITLE_OPERATION_BURN_IN = 3;
+
+  // Extract subtitle stream to a separate file.
+  SUBTITLE_OPERATION_EXTRACT = 4;
+}
+
+// Subtitle format.
+enum SubtitleFormat {
+  SUBTITLE_FORMAT_UNSPECIFIED = 0;
+  SUBTITLE_FORMAT_SRT = 1;
+  SUBTITLE_FORMAT_WEBVTT = 2;
+  SUBTITLE_FORMAT_TTML = 3;
+  SUBTITLE_FORMAT_ASS = 4;
+}
+
+// Styling options for burn-in subtitles.
+message BurnInStyle {
+  // Font family name. Default: "Arial".
+  optional string font_family = 1 [
+    (buf.validate.field).string.max_len = 64
+  ];
+
+  // Font size in pixels. Default: 24.
+  optional int32 font_size = 2 [
+    (buf.validate.field).int32.gte = 8,
+    (buf.validate.field).int32.lte = 120
+  ];
+
+  // Font color as hex string (e.g., "#FFFFFF"). Default: "#FFFFFF".
+  optional string font_color = 3 [
+    (buf.validate.field).string.pattern = "^#[0-9A-Fa-f]{6}$"
+  ];
+
+  // Outline color as hex string. Default: "#000000".
+  optional string outline_color = 4 [
+    (buf.validate.field).string.pattern = "^#[0-9A-Fa-f]{6}$"
+  ];
+
+  // Outline width in pixels. Default: 2.
+  optional int32 outline_width = 5 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 10
+  ];
+
+  // Bottom margin in pixels. Default: 30.
+  optional int32 margin_bottom = 6 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 200
+  ];
+}
+
+// Subtitle track configuration for an output.
+message SubtitleTrack {
+  // Processing operation (required).
+  SubtitleOperation operation = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Input stream index (mutually exclusive with source_url).
+  // 0-based index of the subtitle stream in the input file.
+  optional int32 source_stream_index = 2 [
+    (buf.validate.field).int32.gte = 0,
+    (buf.validate.field).int32.lte = 31
+  ];
+
+  // External subtitle file URL (mutually exclusive with source_stream_index).
+  // Supports gs://, s3://, https:// schemes.
+  optional string source_url = 3 [
+    (buf.validate.field).string.max_len = 2048
+  ];
+
+  // Source subtitle format.
+  SubtitleFormat input_format = 4 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Target subtitle format (for convert and extract operations).
+  SubtitleFormat output_format = 5 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // ISO 639-2 language code (e.g., "eng", "spa", "fra").
+  optional string language = 6 [
+    (buf.validate.field).string.pattern = "^[a-z]{3}$"
+  ];
+
+  // Human-readable label (e.g., "English", "Spanish (CC)").
+  optional string label = 7 [
+    (buf.validate.field).string.max_len = 64
+  ];
+
+  // Whether this is the default subtitle track.
+  optional bool is_default = 8;
+
+  // Whether this track is for hearing-impaired viewers (SDH/CC).
+  optional bool hearing_impaired = 9;
+
+  // Whether this is a forced narrative subtitle track.
+  optional bool forced = 10;
+
+  // Styling options for burn-in operation.
+  optional BurnInStyle burn_in_style = 11;
+}

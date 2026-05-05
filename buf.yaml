@@ -1,0 +1,26 @@
+# buf.yaml - Buf module config for the Transcodely SDKs monorepo.
+# Source of truth for protos lives in transcodely/api; copies live here
+# under proto/ for a self-contained SDK build.
+version: v2
+
+modules:
+  - path: proto
+
+deps:
+  - buf.build/bufbuild/protovalidate
+
+lint:
+  use:
+    - STANDARD
+  except:
+    - PACKAGE_VERSION_SUFFIX
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    - COMMENT_ENUM_VALUE
+
+breaking:
+  use:
+    - FILE
+  except:
+    - EXTENSION_NO_DELETE
+    - FIELD_SAME_DEFAULT

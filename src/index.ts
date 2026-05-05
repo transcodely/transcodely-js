@@ -1,0 +1,320 @@
+/**
+ * transcodely — Official TypeScript SDK for the Transcodely video
+ * transcoding API.
+ *
+ * @example
+ * ```ts
+ * import { Transcodely, OutputFormat, VideoCodec, Resolution } from "transcodely";
+ * const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
+ * const job = await client.jobs.create({
+ *   inputUrl: "s3://my-bucket/source.mp4",
+ *   outputs: [{
+ *     type: OutputFormat.HLS,
+ *     video: [{ codec: VideoCodec.H264, resolution: Resolution.RESOLUTION_1080P }],
+ *   }],
+ * });
+ * ```
+ */
+
+export { Transcodely, type TranscodelyConfig } from "./client.js";
+
+export {
+  APIConnectionError,
+  APIError,
+  AuthenticationError,
+  ConflictError,
+  type FieldViolation,
+  InvalidRequestError,
+  NotFoundError,
+  PermissionError,
+  PreconditionError,
+  RateLimitError,
+  TranscodelyError,
+} from "./errors.js";
+
+export type { CallOptions, LogEvent } from "./transport/transport.js";
+
+export { Page } from "./pagination.js";
+
+export { API_VERSION, SDK_VERSION, DEFAULT_BASE_URL } from "./version.js";
+
+// ----------------------------------------------------------------------------
+// Generated message types and enums.
+//
+// Every public proto type is re-exported here so callers stay in
+// `transcodely` and never have to deep-import generated paths.
+// ----------------------------------------------------------------------------
+
+// Pagination + envelope.
+export {
+  type PaginationRequest,
+  type PaginationResponse,
+  type ErrorDetails,
+  // Codec / format / quality enums shared across messages.
+  VideoCodec,
+  AudioCodec,
+  Container,
+  Resolution,
+  QualityTier,
+  OutputFormat,
+  ContentType,
+  DeliveryFormat,
+  BitrateMode,
+} from "./gen/transcodely/v1/common_pb.js";
+
+// Jobs.
+export {
+  type Job,
+  type JobOutput,
+  type OutputSpec,
+  type VideoVariant,
+  type AudioTrackConfig,
+  type HLSConfig,
+  type DASHConfig,
+  type SegmentConfig,
+  type ExecutionTiming,
+  type PricingSnapshot,
+  type VariantPricingSnapshot,
+  type CreateJobRequest,
+  type CreateJobResponse,
+  type GetJobRequest,
+  type GetJobResponse,
+  type ListJobsRequest,
+  type ListJobsResponse,
+  type CancelJobRequest,
+  type CancelJobResponse,
+  type ConfirmJobRequest,
+  type ConfirmJobResponse,
+  type WatchJobRequest,
+  type WatchJobResponse,
+  JobStatus,
+  JobPriority,
+  OutputStatus,
+  WatchEventType,
+} from "./gen/transcodely/v1/job_pb.js";
+
+// Videos.
+export {
+  type Video,
+  type VideoRendition,
+  type CreateUploadRequest,
+  type CreateUploadResponse,
+  type CompleteUploadRequest,
+  type CompleteUploadResponse,
+  type UploadPart,
+  type CompletedPart,
+  type CreateMultipartUploadRequest,
+  type CreateMultipartUploadResponse,
+  type GetUploadPartUrlsRequest,
+  type GetUploadPartUrlsResponse,
+  type CompleteMultipartUploadRequest,
+  type CompleteMultipartUploadResponse,
+  type AbortMultipartUploadRequest,
+  type GetVideoRequest,
+  type GetVideoResponse,
+  type ListVideosRequest,
+  type ListVideosResponse,
+  type UpdateVideoRequest,
+  type UpdateVideoResponse,
+  type DeleteVideoRequest,
+  type WatchVideoRequest,
+  type WatchVideoResponse,
+  type GetUsageRequest,
+  type GetUsageResponse,
+  type UsageSummary,
+  VideoStatus,
+  VideoVisibility,
+} from "./gen/transcodely/v1/video_pb.js";
+
+// Presets.
+export {
+  type Preset,
+  type PresetVariant,
+  type VideoSettings,
+  type AudioSettings,
+  type CreatePresetRequest,
+  type CreatePresetResponse,
+  type GetPresetRequest,
+  type GetPresetResponse,
+  type GetPresetBySlugRequest,
+  type GetPresetBySlugResponse,
+  type ListPresetsRequest,
+  type ListPresetsResponse,
+  type UpdatePresetRequest,
+  type UpdatePresetResponse,
+  type DuplicatePresetRequest,
+  type DuplicatePresetResponse,
+  type ArchivePresetRequest,
+} from "./gen/transcodely/v1/preset_pb.js";
+
+// Origins.
+export {
+  type Origin,
+  type OriginRef,
+  type GcsCredentials,
+  type S3Credentials,
+  type HttpCredentials,
+  type GcsOriginConfig,
+  type S3OriginConfig,
+  type HttpOriginConfig,
+  type ValidationResult,
+  type CreateOriginRequest,
+  type CreateOriginResponse,
+  type GetOriginRequest,
+  type GetOriginResponse,
+  type ListOriginsRequest,
+  type ListOriginsResponse,
+  type UpdateOriginRequest,
+  type UpdateOriginResponse,
+  type ValidateOriginRequest,
+  type ValidateOriginResponse,
+  type ArchiveOriginRequest,
+  OriginProvider,
+  OriginPermission,
+  OriginStatus,
+} from "./gen/transcodely/v1/origin_pb.js";
+
+// Apps.
+export {
+  type App,
+  type WebhookConfig,
+  type CreateWebhookConfig,
+  type UpdateWebhookConfig,
+  type HostingConfig,
+  type AutoProfileDefaults,
+  type CreateAppRequest,
+  type CreateAppResponse,
+  type GetAppRequest,
+  type GetAppResponse,
+  type UpdateAppRequest,
+  type UpdateAppResponse,
+  type ListAppsRequest,
+  type ListAppsResponse,
+  type ArchiveAppRequest,
+  type EnableHostingRequest,
+  type EnableHostingResponse,
+  type UpdateHostingConfigRequest,
+  type UpdateHostingConfigResponse,
+  AppStatus,
+} from "./gen/transcodely/v1/app_pb.js";
+
+// API keys.
+export {
+  type APIKey,
+  type CreateAPIKeyRequest,
+  type CreateAPIKeyResponse,
+  type GetAPIKeyRequest,
+  type GetAPIKeyResponse,
+  type ListAPIKeysRequest,
+  type ListAPIKeysResponse,
+  type RevokeAPIKeyRequest,
+  APIKeyEnvironment,
+} from "./gen/transcodely/v1/api_key_pb.js";
+
+// Organizations.
+export {
+  type Organization,
+  type CheckSlugRequest,
+  type CheckSlugResponse,
+  type CreateOrganizationRequest,
+  type CreateOrganizationResponse,
+  type GetOrganizationRequest,
+  type GetOrganizationResponse,
+  type UpdateOrganizationRequest,
+  type UpdateOrganizationResponse,
+  type ListOrganizationsRequest,
+  type ListOrganizationsResponse,
+  OrganizationStatus,
+} from "./gen/transcodely/v1/organization_pb.js";
+
+// Memberships.
+export {
+  type Membership,
+  type MembershipWithUser,
+  type GetMembershipRequest,
+  type GetMembershipResponse,
+  type ListMembershipsRequest,
+  type ListMembershipsResponse,
+  type UpdateMembershipRoleRequest,
+  type UpdateMembershipRoleResponse,
+  type RemoveMembershipRequest,
+  MembershipRole,
+  MembershipStatus,
+} from "./gen/transcodely/v1/membership_pb.js";
+
+// Users.
+export {
+  type User,
+  type UserWithOrganizations,
+  type UserOrganization,
+  type GetMeRequest,
+  type GetMeResponse,
+  type GetUserRequest,
+  type GetUserResponse,
+  type UpdateMeRequest,
+  type UpdateMeResponse,
+  type ListUsersRequest,
+  type ListUsersResponse,
+  UserStatus,
+  UserApprovalStatus,
+} from "./gen/transcodely/v1/user_pb.js";
+
+// ----------------------------------------------------------------------------
+// Feature configuration messages and their enums.
+// These ride inside an OutputSpec / PresetVariant on a job creation request.
+// ----------------------------------------------------------------------------
+
+export {
+  type DRMConfig,
+  type BYOKConfig,
+  type KeyServerConfig,
+  DRMSystem,
+  EncryptionScheme,
+} from "./gen/transcodely/v1/drm_pb.js";
+
+export {
+  type HDRConfig,
+  HDRFormat,
+  HDRMode,
+  ToneMapping,
+} from "./gen/transcodely/v1/hdr_pb.js";
+
+export {
+  type ContentAwareConfig,
+  type AutoABRConfig,
+  type ContentAnalysis,
+  ContentAwareMode,
+} from "./gen/transcodely/v1/content_aware_pb.js";
+
+export {
+  type SubtitleTrack,
+  type BurnInStyle,
+  SubtitleOperation,
+  SubtitleFormat,
+} from "./gen/transcodely/v1/subtitles_pb.js";
+
+export {
+  type ThumbnailSpec,
+  ThumbnailMode,
+  ThumbnailFormat,
+} from "./gen/transcodely/v1/thumbnails_pb.js";
+
+export {
+  type StreamingConfig,
+  HLSSegmentFormat,
+  HLSPlaylistType,
+  GOPAlignmentMode,
+} from "./gen/transcodely/v1/streaming_pb.js";
+
+export {
+  type InputMetadata,
+  type VideoStreamInfo,
+  type AudioStreamInfo,
+  type SubtitleStreamInfo,
+} from "./gen/transcodely/v1/media_pb.js";
+
+// Codec-specific encoder options. Pass these via OutputSpec.video[].h264 / .h265 / .vp9 / .av1.
+export { type H264Options } from "./gen/transcodely/v1/codec_h264_pb.js";
+export { type H265Options } from "./gen/transcodely/v1/codec_h265_pb.js";
+export { type VP9Options } from "./gen/transcodely/v1/codec_vp9_pb.js";
+export { type AV1Options } from "./gen/transcodely/v1/codec_av1_pb.js";
