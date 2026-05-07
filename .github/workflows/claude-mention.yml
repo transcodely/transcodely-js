@@ -1,0 +1,56 @@
+name: Claude mention dispatcher
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  forward:
+    name: Forward @claude mention to Routine
+    if: |
+      !github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      !contains(github.event.issue.labels.*.name, 'claude:do-not-touch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: POST to backlog-worker /fire
+        env:
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_URL: ${{ github.event.comment.html_url }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+          ROUTINE_FIRE_URL: ${{ secrets.ROUTINE_FIRE_URL }}
+          ROUTINE_FIRE_TOKEN: ${{ secrets.ROUTINE_FIRE_TOKEN }}
+        run: |
+          if [ -z "$ROUTINE_FIRE_URL" ] || [ -z "$ROUTINE_FIRE_TOKEN" ]; then
+            echo "::error::ROUTINE_FIRE_URL or ROUTINE_FIRE_TOKEN org secret is unset. See transcodely/.github README step 3."
+            exit 1
+          fi
+          jq -n \
+            --arg repo "$REPO" \
+            --argjson issue "$ISSUE_NUMBER" \
+            --arg comment "$COMMENT_URL" \
+            --arg commenter "$COMMENTER" \
+            '{repo:$repo, issue_number:$issue, comment_url:$comment, commenter:$commenter}' \
+          | curl --fail-with-body -sS -X POST \
+              -H "Authorization: Bearer $ROUTINE_FIRE_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data @- \
+              "$ROUTINE_FIRE_URL"
+
+      - name: React to the trigger comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          gh api -X POST \
+            "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
+            -f content=eyes >/dev/null
