@@ -14,6 +14,13 @@ import {
   OutputSpec,
   VideoVariant,
 } from "../../src/gen/transcodely/v1/job_pb.js";
+import {
+  CreateOriginRequest,
+  OriginPermission,
+  R2Jurisdiction,
+  R2OriginConfig,
+  S3Credentials,
+} from "../../src/gen/transcodely/v1/origin_pb.js";
 
 function decode(bytes: Uint8Array): Record<string, unknown> {
   return JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
@@ -110,5 +117,101 @@ describe("round-trip", () => {
     expect(decoded.outputs[0]?.type).toBe(OutputFormat.DASH);
     expect(decoded.outputs[0]?.video[0]?.codec).toBe(VideoCodec.AV1);
     expect(decoded.outputs[0]?.video[0]?.resolution).toBe(Resolution.RESOLUTION_2160P);
+  });
+});
+
+describe("R2 origin JSON wire format", () => {
+  const ACCOUNT_ID = "0123456789abcdef0123456789abcdef";
+
+  it("serializes the account-id form with snake_case keys and simplified enums", () => {
+    const req = new CreateOriginRequest({
+      name: "my-r2",
+      permissions: [OriginPermission.READ, OriginPermission.WRITE],
+      r2: new R2OriginConfig({
+        bucket: "media",
+        accountId: ACCOUNT_ID,
+        jurisdiction: R2Jurisdiction.EU,
+        credentials: new S3Credentials({
+          accessKeyId: "AKIAEXAMPLE",
+          secretAccessKey: "shhh",
+        }),
+      }),
+    });
+    const obj = decode(serialize(req, CreateOriginRequest));
+    expect(obj.permissions).toEqual(["read", "write"]);
+    const r2 = obj.r2 as Record<string, unknown>;
+    expect(r2.bucket).toBe("media");
+    expect(r2.account_id).toBe(ACCOUNT_ID);
+    expect(r2.jurisdiction).toBe("eu");
+    expect(r2).not.toHaveProperty("accountId");
+    const creds = r2.credentials as Record<string, unknown>;
+    expect(creds.access_key_id).toBe("AKIAEXAMPLE");
+    expect(creds.secret_access_key).toBe("shhh");
+    expect(creds).not.toHaveProperty("accessKeyId");
+  });
+
+  it("serializes the endpoint form without account_id or jurisdiction", () => {
+    const req = new CreateOriginRequest({
+      name: "my-r2-custom",
+      permissions: [OriginPermission.READ],
+      r2: new R2OriginConfig({
+        bucket: "media",
+        endpoint: "https://media.example.com",
+        credentials: new S3Credentials({
+          accessKeyId: "AKIAEXAMPLE",
+          secretAccessKey: "shhh",
+        }),
+      }),
+    });
+    const obj = decode(serialize(req, CreateOriginRequest));
+    const r2 = obj.r2 as Record<string, unknown>;
+    expect(r2.endpoint).toBe("https://media.example.com");
+    // Unset string scalars are omitted by protojson; unset enums round-trip as
+    // the simplified zero-value form (the codec strips the ORIGIN_PROVIDER_/etc
+    // prefix unconditionally).
+    expect(r2.account_id ?? "").toBe("");
+  });
+
+  it("round-trips the account-id form", () => {
+    const original = new CreateOriginRequest({
+      name: "my-r2",
+      permissions: [OriginPermission.READ, OriginPermission.WRITE],
+      r2: new R2OriginConfig({
+        bucket: "media",
+        accountId: ACCOUNT_ID,
+        jurisdiction: R2Jurisdiction.FEDRAMP,
+        credentials: new S3Credentials({
+          accessKeyId: "AKIAEXAMPLE",
+          secretAccessKey: "shhh",
+        }),
+      }),
+    });
+    const decoded = deserialize(serialize(original, CreateOriginRequest), CreateOriginRequest);
+    expect(decoded.name).toBe("my-r2");
+    expect(decoded.permissions).toEqual([OriginPermission.READ, OriginPermission.WRITE]);
+    expect(decoded.r2?.bucket).toBe("media");
+    expect(decoded.r2?.accountId).toBe(ACCOUNT_ID);
+    expect(decoded.r2?.jurisdiction).toBe(R2Jurisdiction.FEDRAMP);
+    expect(decoded.r2?.credentials?.accessKeyId).toBe("AKIAEXAMPLE");
+    expect(decoded.r2?.credentials?.secretAccessKey).toBe("shhh");
+  });
+
+  it("round-trips the endpoint form, preserving the optional endpoint string", () => {
+    const original = new CreateOriginRequest({
+      name: "my-r2-custom",
+      permissions: [OriginPermission.READ],
+      r2: new R2OriginConfig({
+        bucket: "media",
+        endpoint: "https://media.example.com",
+        credentials: new S3Credentials({
+          accessKeyId: "AKIAEXAMPLE",
+          secretAccessKey: "shhh",
+        }),
+      }),
+    });
+    const decoded = deserialize(serialize(original, CreateOriginRequest), CreateOriginRequest);
+    expect(decoded.r2?.endpoint).toBe("https://media.example.com");
+    expect(decoded.r2?.accountId).toBe("");
+    expect(decoded.r2?.jurisdiction).toBe(R2Jurisdiction.UNSPECIFIED);
   });
 });

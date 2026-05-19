@@ -24,6 +24,13 @@ import { ThumbnailSpec } from "./thumbnails_pb.js";
 /**
  * Job status enumeration.
  *
+ * Stability rules:
+ * * Tail-append new values only. Inserting a value in the middle silently
+ *   renumbers everything after it and breaks every previously-compiled
+ *   client. CI runs `buf breaking` to catch this.
+ * * When renaming a value (e.g. CANCELLED → CANCELED), `reserved` the old
+ *   name so old generated code does not accidentally re-acquire the tag.
+ *
  * @generated from enum transcodely.v1.JobStatus
  */
 export enum JobStatus {
@@ -105,7 +112,7 @@ proto3.util.setEnumType(JobStatus, "transcodely.v1.JobStatus", [
 ]);
 
 /**
- * Output status enumeration.
+ * Output status enumeration. Tail-append only; see JobStatus comment above.
  *
  * @generated from enum transcodely.v1.OutputStatus
  */
@@ -686,6 +693,7 @@ export class OutputSpec extends Message<OutputSpec> {
    *
    * For HLS/DASH outputs, the streaming manifest name is appended automatically.
    * Default: uses job-level output_path_template, or origin's path_template, or "{job_id}/{output_id}"
+   * Must not start with `/` or contain `..` (no path traversal).
    *
    * @generated from field: optional string path_template = 7;
    */
@@ -1844,6 +1852,7 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
    *
    * This is used for all outputs that don't have their own path_template.
    * If not specified, falls back to the output origin's path_template or the default "{job_id}/{output_id}".
+   * Must not start with `/` or contain `..` (no path traversal).
    *
    * @generated from field: optional string output_path_template = 12;
    */

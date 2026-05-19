@@ -157,6 +157,7 @@ export {
   type GcsOriginConfig,
   type S3OriginConfig,
   type HttpOriginConfig,
+  type R2OriginConfig,
   type ValidationResult,
   type CreateOriginRequest,
   type CreateOriginResponse,
@@ -172,6 +173,7 @@ export {
   OriginProvider,
   OriginPermission,
   OriginStatus,
+  R2Jurisdiction,
 } from "./gen/transcodely/v1/origin_pb.js";
 
 // Apps.

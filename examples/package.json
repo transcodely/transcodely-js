@@ -7,7 +7,8 @@
     "create-job": "tsx 01-create-job.ts",
     "watch-job": "tsx 02-watch-job.ts",
     "pagination": "tsx 03-pagination.ts",
-    "errors": "tsx 04-error-handling.ts"
+    "errors": "tsx 04-error-handling.ts",
+    "create-r2-origin": "tsx 05-create-r2-origin.ts"
   },
   "dependencies": {
     "transcodely": "file:.."
