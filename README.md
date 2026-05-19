@@ -59,6 +59,101 @@ client.users           // getMe / get / list / updateMe
 client.health          // check
 ```
 
+## Origins
+
+An origin tells Transcodely where to read source media from and where to write outputs. Every origin belongs to a single provider; pass exactly one provider-config field (`s3`, `gcs`, `http`, or `r2`) on create.
+
+### Create an S3 origin
+
+```ts
+import { Transcodely, OriginPermission } from "transcodely";
+
+const origin = await client.origins.create({
+  name: "Production S3",
+  permissions: [OriginPermission.READ, OriginPermission.WRITE],
+  s3: {
+    bucket: "my-bucket",
+    region: "us-east-1",
+    credentials: {
+      accessKeyId: process.env.S3_ACCESS_KEY!,
+      secretAccessKey: process.env.S3_SECRET_KEY!,
+    },
+    // endpoint: "https://s3.custom.example.com", // for MinIO, Wasabi, etc.
+  },
+});
+```
+
+### Create a GCS origin
+
+```ts
+import { Transcodely, OriginPermission } from "transcodely";
+
+const origin = await client.origins.create({
+  name: "Production GCS",
+  permissions: [OriginPermission.READ, OriginPermission.WRITE],
+  gcs: {
+    bucket: "my-gcs-bucket",
+    credentials: {
+      serviceAccountJson: process.env.GCS_SERVICE_ACCOUNT_JSON!,
+    },
+  },
+});
+```
+
+### Create an HTTP origin
+
+```ts
+import { Transcodely, OriginPermission } from "transcodely";
+
+const origin = await client.origins.create({
+  name: "Public CDN",
+  permissions: [OriginPermission.READ], // HTTP origins are read-only
+  http: {
+    baseUrl: "https://media.example.com",
+    credentials: {
+      headers: { Authorization: `Bearer ${process.env.MEDIA_TOKEN!}` },
+    },
+  },
+});
+```
+
+### Create an R2 origin
+
+R2 supports two forms. With `accountId` (32-char hex) the endpoint is derived for you, optionally with a data-residency jurisdiction:
+
+```ts
+import { Transcodely, OriginPermission, R2Jurisdiction } from "transcodely";
+
+const origin = await client.origins.create({
+  name: "Production R2",
+  permissions: [OriginPermission.READ, OriginPermission.WRITE],
+  r2: {
+    bucket: "media",
+    accountId: process.env.R2_ACCOUNT_ID!,
+    jurisdiction: R2Jurisdiction.DEFAULT, // or .EU, .FEDRAMP
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY!,
+      secretAccessKey: process.env.R2_SECRET_KEY!,
+    },
+  },
+});
+```
+
+Or, with an explicit `endpoint` (custom domain bound to a bucket, or a jurisdiction not yet enumerated):
+
+```ts
+r2: {
+  bucket: "media",
+  endpoint: "https://media.example.com",
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY!,
+    secretAccessKey: process.env.R2_SECRET_KEY!,
+  },
+},
+```
+
+Provide either `accountId` or `endpoint`, never both. `jurisdiction` only applies when `accountId` is set.
+
 ## Errors
 
 All SDK errors extend `TranscodelyError`:

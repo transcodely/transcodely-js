@@ -50,6 +50,14 @@ export enum OriginProvider {
    * @generated from enum value: ORIGIN_PROVIDER_TRANSCODELY = 4;
    */
   TRANSCODELY = 4,
+
+  /**
+   * Cloudflare R2 (object storage). S3-compatible underneath, but exposed as
+   * a first-class provider with an ergonomic account-id-based config shape.
+   *
+   * @generated from enum value: ORIGIN_PROVIDER_R2 = 5;
+   */
+  R2 = 5,
 }
 // Retrieve enum metadata with: proto3.getEnumType(OriginProvider)
 proto3.util.setEnumType(OriginProvider, "transcodely.v1.OriginProvider", [
@@ -58,6 +66,48 @@ proto3.util.setEnumType(OriginProvider, "transcodely.v1.OriginProvider", [
   { no: 2, name: "ORIGIN_PROVIDER_S3" },
   { no: 3, name: "ORIGIN_PROVIDER_HTTP" },
   { no: 4, name: "ORIGIN_PROVIDER_TRANSCODELY" },
+  { no: 5, name: "ORIGIN_PROVIDER_R2" },
+]);
+
+/**
+ * Cloudflare R2 jurisdiction (data residency).
+ * Controls the endpoint hostname when account_id is used to derive the URL.
+ *
+ * @generated from enum transcodely.v1.R2Jurisdiction
+ */
+export enum R2Jurisdiction {
+  /**
+   * @generated from enum value: R2_JURISDICTION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Default jurisdiction — endpoint is <account_id>.r2.cloudflarestorage.com.
+   *
+   * @generated from enum value: R2_JURISDICTION_DEFAULT = 1;
+   */
+  DEFAULT = 1,
+
+  /**
+   * EU jurisdiction — endpoint is <account_id>.eu.r2.cloudflarestorage.com.
+   *
+   * @generated from enum value: R2_JURISDICTION_EU = 2;
+   */
+  EU = 2,
+
+  /**
+   * FedRAMP jurisdiction — endpoint is <account_id>.fedramp.r2.cloudflarestorage.com.
+   *
+   * @generated from enum value: R2_JURISDICTION_FEDRAMP = 3;
+   */
+  FEDRAMP = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(R2Jurisdiction)
+proto3.util.setEnumType(R2Jurisdiction, "transcodely.v1.R2Jurisdiction", [
+  { no: 0, name: "R2_JURISDICTION_UNSPECIFIED" },
+  { no: 1, name: "R2_JURISDICTION_DEFAULT" },
+  { no: 2, name: "R2_JURISDICTION_EU" },
+  { no: 3, name: "R2_JURISDICTION_FEDRAMP" },
 ]);
 
 /**
@@ -436,6 +486,89 @@ export class HttpOriginConfig extends Message<HttpOriginConfig> {
 }
 
 /**
+ * Cloudflare R2 origin configuration.
+ * Users may supply either an ergonomic account_id (+ optional jurisdiction)
+ * — the endpoint is then derived as <account_id>[.<jurisdiction>].r2.cloudflarestorage.com —
+ * or an explicit endpoint URL for custom domains and future jurisdictions.
+ * Exactly one of account_id or endpoint must be provided.
+ *
+ * @generated from message transcodely.v1.R2OriginConfig
+ */
+export class R2OriginConfig extends Message<R2OriginConfig> {
+  /**
+   * R2 bucket name.
+   *
+   * @generated from field: string bucket = 1;
+   */
+  bucket = "";
+
+  /**
+   * R2 API token credentials. The shape matches S3 since R2 issues S3-compatible
+   * access keys; intentionally reused so the encryption/decryption path is shared.
+   *
+   * @generated from field: transcodely.v1.S3Credentials credentials = 2;
+   */
+  credentials?: S3Credentials;
+
+  /**
+   * Cloudflare account ID (32 lowercase hex characters).
+   * When set, the endpoint is derived from account_id and jurisdiction.
+   * Exactly one of account_id or endpoint must be set.
+   *
+   * @generated from field: string account_id = 3;
+   */
+  accountId = "";
+
+  /**
+   * Optional jurisdiction (data residency). Defaults to R2_JURISDICTION_DEFAULT
+   * when account_id is set. Ignored when endpoint is supplied directly.
+   *
+   * @generated from field: transcodely.v1.R2Jurisdiction jurisdiction = 4;
+   */
+  jurisdiction = R2Jurisdiction.UNSPECIFIED;
+
+  /**
+   * Explicit endpoint URL (e.g., for custom domains bound to a bucket, or for
+   * future jurisdictions not yet enumerated in R2Jurisdiction). Either set this
+   * or account_id, never both.
+   *
+   * @generated from field: optional string endpoint = 5;
+   */
+  endpoint?: string;
+
+  constructor(data?: PartialMessage<R2OriginConfig>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.R2OriginConfig";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "bucket", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "credentials", kind: "message", T: S3Credentials },
+    { no: 3, name: "account_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "jurisdiction", kind: "enum", T: proto3.getEnumType(R2Jurisdiction) },
+    { no: 5, name: "endpoint", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): R2OriginConfig {
+    return new R2OriginConfig().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): R2OriginConfig {
+    return new R2OriginConfig().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): R2OriginConfig {
+    return new R2OriginConfig().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: R2OriginConfig | PlainMessage<R2OriginConfig> | undefined, b: R2OriginConfig | PlainMessage<R2OriginConfig> | undefined): boolean {
+    return proto3.util.equals(R2OriginConfig, a, b);
+  }
+}
+
+/**
  * A lightweight reference to an origin, included in job responses.
  * This provides enough context without exposing credentials.
  *
@@ -585,6 +718,9 @@ export class Origin extends Message<Origin> {
    *   {thumb_index}, {thumb_time}, {thumb_time_ms}
    * Example: "jobs/{job_id}/outputs/{output_index}_{codec}.mp4"
    * Example ABR: "{video_id}/{format}/{resolution}_{framerate}fps/stream"
+   * Must not start with `/` or contain `..` (no path traversal). Must
+   * include at least one of {job_id}|{output_id}|{video_id}|{uuid} so
+   * concurrent jobs sharing this origin cannot collide.
    *
    * @generated from field: string path_template = 8;
    */
@@ -657,6 +793,14 @@ export class Origin extends Message<Origin> {
    */
   isManaged = false;
 
+  /**
+   * R2-specific configuration (only set if provider is R2).
+   * Note: credentials are not included in responses for security.
+   *
+   * @generated from field: transcodely.v1.R2OriginConfig r2 = 18;
+   */
+  r2?: R2OriginConfig;
+
   constructor(data?: PartialMessage<Origin>) {
     super();
     proto3.util.initPartial(data, this);
@@ -682,6 +826,7 @@ export class Origin extends Message<Origin> {
     { no: 15, name: "updated_at", kind: "message", T: Timestamp },
     { no: 16, name: "archived_at", kind: "message", T: Timestamp, opt: true },
     { no: 17, name: "is_managed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 18, name: "r2", kind: "message", T: R2OriginConfig },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Origin {
@@ -766,6 +911,13 @@ export class CreateOriginRequest extends Message<CreateOriginRequest> {
    */
   http?: HttpOriginConfig;
 
+  /**
+   * R2 provider configuration (Cloudflare R2).
+   *
+   * @generated from field: transcodely.v1.R2OriginConfig r2 = 9;
+   */
+  r2?: R2OriginConfig;
+
   constructor(data?: PartialMessage<CreateOriginRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -782,6 +934,7 @@ export class CreateOriginRequest extends Message<CreateOriginRequest> {
     { no: 6, name: "gcs", kind: "message", T: GcsOriginConfig },
     { no: 7, name: "s3", kind: "message", T: S3OriginConfig },
     { no: 8, name: "http", kind: "message", T: HttpOriginConfig },
+    { no: 9, name: "r2", kind: "message", T: R2OriginConfig },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateOriginRequest {
@@ -1200,6 +1353,15 @@ export class UpdateOriginRequest extends Message<UpdateOriginRequest> {
    */
   httpCredentials?: HttpCredentials;
 
+  /**
+   * Updated R2 credentials (if provider is R2). Same shape as S3Credentials —
+   * R2 issues S3-compatible access keys.
+   * If provided, validation is automatically triggered.
+   *
+   * @generated from field: optional transcodely.v1.S3Credentials r2_credentials = 9;
+   */
+  r2Credentials?: S3Credentials;
+
   constructor(data?: PartialMessage<UpdateOriginRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1216,6 +1378,7 @@ export class UpdateOriginRequest extends Message<UpdateOriginRequest> {
     { no: 6, name: "gcs_credentials", kind: "message", T: GcsCredentials, opt: true },
     { no: 7, name: "s3_credentials", kind: "message", T: S3Credentials, opt: true },
     { no: 8, name: "http_credentials", kind: "message", T: HttpCredentials, opt: true },
+    { no: 9, name: "r2_credentials", kind: "message", T: S3Credentials, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateOriginRequest {

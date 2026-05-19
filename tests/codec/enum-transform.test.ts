@@ -19,6 +19,10 @@ import {
   JobPriority,
   JobStatus,
 } from "../../src/gen/transcodely/v1/job_pb.js";
+import {
+  OriginProvider,
+  R2Jurisdiction,
+} from "../../src/gen/transcodely/v1/origin_pb.js";
 
 // Generated TS enums are bare numeric enums. Their @bufbuild/protobuf reflection
 // metadata is registered at import time and retrieved via proto3.getEnumType.
@@ -27,6 +31,8 @@ const JobPriorityT = proto3.getEnumType(JobPriority);
 const VideoCodecT = proto3.getEnumType(VideoCodec);
 const ResolutionT = proto3.getEnumType(Resolution);
 const OutputFormatT = proto3.getEnumType(OutputFormat);
+const OriginProviderT = proto3.getEnumType(OriginProvider);
+const R2JurisdictionT = proto3.getEnumType(R2Jurisdiction);
 
 describe("camelToScreamingSnake", () => {
   it("splits CamelCase on every boundary", () => {
@@ -38,6 +44,12 @@ describe("camelToScreamingSnake", () => {
     expect(camelToScreamingSnake("APIKeyEnvironment")).toBe("API_KEY_ENVIRONMENT");
     expect(camelToScreamingSnake("HTTPCredentials")).toBe("HTTP_CREDENTIALS");
   });
+
+  it("treats a digit + uppercase + lowercase as a single token (e.g. R2Jurisdiction)", () => {
+    // Pins R2 enum prefix derivation. The digit-letter boundary inserts no
+    // underscore; the letter-letter boundary (2J before lowercase 'u') does.
+    expect(camelToScreamingSnake("R2Jurisdiction")).toBe("R2_JURISDICTION");
+  });
 });
 
 describe("enumPrefix", () => {
@@ -45,6 +57,8 @@ describe("enumPrefix", () => {
     expect(enumPrefix(JobStatusT)).toBe("JOB_STATUS_");
     expect(enumPrefix(VideoCodecT)).toBe("VIDEO_CODEC_");
     expect(enumPrefix(OutputFormatT)).toBe("OUTPUT_FORMAT_");
+    expect(enumPrefix(OriginProviderT)).toBe("ORIGIN_PROVIDER_");
+    expect(enumPrefix(R2JurisdictionT)).toBe("R2_JURISDICTION_");
   });
 });
 
@@ -122,5 +136,26 @@ describe("JobPriority canonical mapping", () => {
     expect(expandEnumValue("standard", JobPriorityT)).toBe("JOB_PRIORITY_STANDARD");
     // Sanity: TS enum entry names are stripped, but the prefix is what's on the wire.
     expect(JobStatus.PROCESSING).toBe(3);
+  });
+});
+
+describe("OriginProvider canonical mapping", () => {
+  it("simplifies and expands every provider variant", () => {
+    expect(simplifyEnumValue("ORIGIN_PROVIDER_GCS", OriginProviderT)).toBe("gcs");
+    expect(simplifyEnumValue("ORIGIN_PROVIDER_S3", OriginProviderT)).toBe("s3");
+    expect(simplifyEnumValue("ORIGIN_PROVIDER_HTTP", OriginProviderT)).toBe("http");
+    expect(simplifyEnumValue("ORIGIN_PROVIDER_R2", OriginProviderT)).toBe("r2");
+    expect(expandEnumValue("r2", OriginProviderT)).toBe("ORIGIN_PROVIDER_R2");
+  });
+});
+
+describe("R2Jurisdiction canonical mapping", () => {
+  it("simplifies and expands every jurisdiction variant", () => {
+    expect(simplifyEnumValue("R2_JURISDICTION_DEFAULT", R2JurisdictionT)).toBe("default");
+    expect(simplifyEnumValue("R2_JURISDICTION_EU", R2JurisdictionT)).toBe("eu");
+    expect(simplifyEnumValue("R2_JURISDICTION_FEDRAMP", R2JurisdictionT)).toBe("fedramp");
+    expect(expandEnumValue("default", R2JurisdictionT)).toBe("R2_JURISDICTION_DEFAULT");
+    expect(expandEnumValue("eu", R2JurisdictionT)).toBe("R2_JURISDICTION_EU");
+    expect(expandEnumValue("fedramp", R2JurisdictionT)).toBe("R2_JURISDICTION_FEDRAMP");
   });
 });

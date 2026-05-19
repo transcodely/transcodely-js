@@ -589,7 +589,7 @@ export class UpdateAppRequest extends Message<UpdateAppRequest> {
  */
 export class UpdateWebhookConfig extends Message<UpdateWebhookConfig> {
   /**
-   * New webhook URL.
+   * New webhook URL. HTTPS only (same constraint as CreateWebhookConfig).
    * Set to empty string to disable webhooks.
    *
    * @generated from field: optional string url = 1;
