@@ -65,6 +65,11 @@ message App {
   optional string description = 4;
 
   // Webhook configuration.
+  // Deprecated: Use WebhookService (webhook.proto) to manage webhook endpoints
+  // instead. The new WebhookEndpoint resource supports multiple endpoints per
+  // app, HMAC-SHA-256 signing with secret rotation, and per-event type
+  // subscriptions. This field is retained for backwards compatibility;
+  // field number 5 must never be reused.
   optional WebhookConfig webhook = 5;
 
   // App status.
@@ -92,6 +97,11 @@ message App {
 
   // Hosting configuration (only set when hosting_enabled=true).
   optional HostingConfig hosting_config = 13;
+
+  // Resource type discriminator. Always "app" for this message.
+  // Lets webhook consumers and polyglot SDKs identify the resource without
+  // out-of-band knowledge of the field name. Server-set; ignored on requests.
+  string object = 14;
 }
 
 // Webhook configuration for an app.
@@ -210,10 +220,14 @@ message UpdateAppRequest {
 
 // Webhook configuration for app update.
 message UpdateWebhookConfig {
-  // New webhook URL.
+  // New webhook URL. HTTPS only (same constraint as CreateWebhookConfig).
   // Set to empty string to disable webhooks.
   optional string url = 1 [
-    (buf.validate.field).string.uri = true
+    (buf.validate.field).cel = {
+      id: "update_webhook_config.url_https_or_empty"
+      message: "webhook url must be empty or an https:// URL"
+      expression: "this == '' || (this.isUri() && this.startsWith('https://'))"
+    }
   ];
 
   // If true, regenerate the webhook secret.

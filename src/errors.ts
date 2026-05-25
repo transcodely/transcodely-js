@@ -107,3 +107,24 @@ export class InvalidRequestError extends TranscodelyError {}
 
 /** 412 — preconditions not met (e.g. job not cancelable in current state). */
 export class PreconditionError extends TranscodelyError {}
+
+/**
+ * Base class for errors thrown by {@link Webhooks.constructEvent}. Unlike the
+ * other SDK errors, these originate locally — the SDK never made a network
+ * call when these fire — so `httpStatus` and `requestId` are always
+ * undefined.
+ */
+export class WebhookError extends TranscodelyError {
+  constructor(message: string, opts: { cause?: unknown } = {}) {
+    super({ message, cause: opts.cause });
+  }
+}
+
+/** Signature header was missing/malformed or no `v1=` entry matched the computed HMAC. */
+export class WebhookSignatureError extends WebhookError {}
+
+/** Signature timestamp is outside the tolerance window (default 300 s). */
+export class WebhookTimestampError extends WebhookError {}
+
+/** Body was valid JSON but did not match the expected event envelope shape. */
+export class WebhookPayloadError extends WebhookError {}

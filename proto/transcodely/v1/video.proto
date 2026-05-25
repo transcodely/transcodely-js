@@ -155,6 +155,11 @@ message Video {
   google.protobuf.Timestamp created_at = 40;
   google.protobuf.Timestamp updated_at = 41;
   optional google.protobuf.Timestamp ready_at = 42;
+
+  // Resource type discriminator. Always "video" for this message.
+  // Lets webhook consumers and polyglot SDKs identify the resource without
+  // out-of-band knowledge of the field name. Server-set; ignored on requests.
+  string object = 43;
 }
 
 // A single encoded rendition of a video.
@@ -256,7 +261,7 @@ message CompleteUploadRequest {
   // Video ID returned from CreateUpload.
   string id = 1 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
   ];
 }
 
@@ -374,13 +379,13 @@ message GetUploadPartUrlsRequest {
   // Video ID returned from CreateMultipartUpload.
   string id = 1 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
   ];
 
   // S3 multipart upload ID from CreateMultipartUpload.
   string upload_id = 2 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 256}
   ];
 
   // Part numbers to generate URLs for (1-based, max 100 per request).
@@ -403,13 +408,13 @@ message CompleteMultipartUploadRequest {
   // Video ID returned from CreateMultipartUpload.
   string id = 1 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
   ];
 
   // S3 multipart upload ID from CreateMultipartUpload.
   string upload_id = 2 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 256}
   ];
 
   // Completed parts with their ETags (must include all parts).
@@ -429,13 +434,13 @@ message AbortMultipartUploadRequest {
   // Video ID returned from CreateMultipartUpload.
   string id = 1 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
   ];
 
   // S3 multipart upload ID from CreateMultipartUpload.
   string upload_id = 2 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 256}
   ];
 }
 
@@ -451,7 +456,7 @@ message GetVideoRequest {
   // Video ID.
   string id = 1 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
   ];
 }
 
@@ -492,7 +497,7 @@ message UpdateVideoRequest {
   // Video ID.
   string id = 1 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
   ];
 
   // Updated title.
@@ -519,7 +524,7 @@ message DeleteVideoRequest {
   // Video ID.
   string id = 1 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
   ];
 }
 
@@ -535,7 +540,7 @@ message WatchVideoRequest {
   // Video ID to watch.
   string id = 1 [
     (buf.validate.field).required = true,
-    (buf.validate.field).string = {min_len: 1}
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
   ];
 }
 

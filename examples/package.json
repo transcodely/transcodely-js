@@ -8,12 +8,15 @@
     "watch-job": "tsx 02-watch-job.ts",
     "pagination": "tsx 03-pagination.ts",
     "errors": "tsx 04-error-handling.ts",
-    "create-r2-origin": "tsx 05-create-r2-origin.ts"
+    "create-r2-origin": "tsx 05-create-r2-origin.ts",
+    "webhook-receiver": "tsx 06-webhook-receiver-express.ts"
   },
   "dependencies": {
+    "express": "^4.19.0",
     "transcodely": "file:.."
   },
   "devDependencies": {
+    "@types/express": "^4.17.0",
     "tsx": "^4.0.0",
     "typescript": "^5.4.0"
   }

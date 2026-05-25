@@ -685,14 +685,22 @@ export class OutputSpec extends Message<OutputSpec> {
   segments?: SegmentConfig;
 
   /**
-   * Custom path template for this output (overrides job-level and origin templates).
+   * Custom path template for this output. When set together with the job-level
+   * output_path_template, the two compose ADDITIVELY: the effective template is
+   * "<output_path_template>/<path_template>". When the job-level template is
+   * unset, this template is used on its own.
+   *
    * Variables: {job_id}, {output_id}, {date}, {type}, {codec}, {resolution}, {quality}
    *
-   * Example: "videos/{date}/{job_id}/{resolution}" produces
+   * Example (additive): output_path_template = "videos/{job_id}" and
+   * path_template = "{codec}-{resolution}" → "videos/job_abc/h264-1080p.mp4".
+   *
+   * Example (standalone): "videos/{date}/{job_id}/{resolution}" produces
    *          "videos/2024-01-15/job_abc123/1080p/master.m3u8"
    *
    * For HLS/DASH outputs, the streaming manifest name is appended automatically.
-   * Default: uses job-level output_path_template, or origin's path_template, or "{job_id}/{output_id}"
+   * Default when both this and output_path_template are unset: the origin's
+   * path_template, or "{job_id}/{output_id}".
    * Must not start with `/` or contain `..` (no path traversal).
    *
    * @generated from field: optional string path_template = 7;
@@ -741,6 +749,17 @@ export class OutputSpec extends Message<OutputSpec> {
    */
   encodingMode?: string;
 
+  /**
+   * Resolved path template after composing job-level + per-output (additive),
+   * falling back through origin → default as needed, and applying any
+   * collision auto-fix. Read-only on responses; ignored on requests. Lets
+   * clients see exactly which template the worker will render against. Empty
+   * until the server processes the job.
+   *
+   * @generated from field: optional string effective_path_template = 15;
+   */
+  effectivePathTemplate?: string;
+
   constructor(data?: PartialMessage<OutputSpec>) {
     super();
     proto3.util.initPartial(data, this);
@@ -761,6 +780,7 @@ export class OutputSpec extends Message<OutputSpec> {
     { no: 12, name: "drm", kind: "message", T: DRMConfig, opt: true },
     { no: 13, name: "content_aware", kind: "message", T: ContentAwareConfig, opt: true },
     { no: 14, name: "encoding_mode", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 15, name: "effective_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputSpec {
@@ -1224,6 +1244,15 @@ export class JobOutput extends Message<JobOutput> {
    */
   variantPricing: VariantPricingSnapshot[] = [];
 
+  /**
+   * Resource type discriminator. Always "job_output" for this message.
+   * Lets webhook consumers and polyglot SDKs identify the resource without
+   * out-of-band knowledge of the field name. Server-set; ignored on requests.
+   *
+   * @generated from field: string object = 21;
+   */
+  object = "";
+
   constructor(data?: PartialMessage<JobOutput>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1250,6 +1279,7 @@ export class JobOutput extends Message<JobOutput> {
     { no: 16, name: "preset_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 17, name: "preset_slug", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 20, name: "variant_pricing", kind: "message", T: VariantPricingSnapshot, repeated: true },
+    { no: 21, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JobOutput {
@@ -1696,6 +1726,26 @@ export class Job extends Message<Job> {
    */
   thumbnails: ThumbnailSpec[] = [];
 
+  /**
+   * Job-level output path template (echoed from request).
+   * Variables: {job_id}, {output_id}, {date}, {timestamp}, {codec}, {resolution}, {format}, {quality}, {output_index}, {uuid}
+   * Empty when the request did not specify one; outputs then fall back to
+   * their own path_template (if set), the origin's path_template, or the
+   * default "{job_id}/{output_id}".
+   *
+   * @generated from field: optional string output_path_template = 26;
+   */
+  outputPathTemplate?: string;
+
+  /**
+   * Resource type discriminator. Always "job" for this message.
+   * Lets webhook consumers and polyglot SDKs identify the resource without
+   * out-of-band knowledge of the field name. Server-set; ignored on requests.
+   *
+   * @generated from field: string object = 27;
+   */
+  object = "";
+
   constructor(data?: PartialMessage<Job>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1729,6 +1779,8 @@ export class Job extends Message<Job> {
     { no: 21, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 24, name: "execution", kind: "message", T: ExecutionTiming },
     { no: 25, name: "thumbnails", kind: "message", T: ThumbnailSpec, repeated: true },
+    { no: 26, name: "output_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 27, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Job {
@@ -1844,14 +1896,22 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
   thumbnails: ThumbnailSpec[] = [];
 
   /**
-   * Job-level output path template (applies to all outputs unless overridden).
+   * Job-level output path template — a job-wide prefix applied to every output.
+   * When an output also sets its own path_template, the two compose
+   * ADDITIVELY: the effective template is
+   * "<output_path_template>/<output.path_template>". An output without its own
+   * path_template uses this template alone.
+   *
    * Variables: {job_id}, {output_id}, {date}, {format}, {codec}, {resolution}, {quality}
    *
-   * Example: "videos/{date}/{job_id}/{resolution}" produces
-   *          "videos/2024-01-15/job_abc123/1080p/master.m3u8"
+   * Example (additive): output_path_template = "videos/{job_id}" + output's
+   *          path_template = "{codec}-{resolution}" → "videos/job_abc/h264-1080p.mp4".
    *
-   * This is used for all outputs that don't have their own path_template.
-   * If not specified, falls back to the output origin's path_template or the default "{job_id}/{output_id}".
+   * Example (standalone): "videos/{date}/{job_id}/{resolution}" produces
+   *          "videos/2024-01-15/job_abc123/1080p/master.m3u8".
+   *
+   * If neither this nor a per-output path_template is set, falls back to the
+   * output origin's path_template or the default "{job_id}/{output_id}".
    * Must not start with `/` or contain `..` (no path traversal).
    *
    * @generated from field: optional string output_path_template = 12;

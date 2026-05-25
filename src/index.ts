@@ -30,6 +30,10 @@ export {
   PreconditionError,
   RateLimitError,
   TranscodelyError,
+  WebhookError,
+  WebhookPayloadError,
+  WebhookSignatureError,
+  WebhookTimestampError,
 } from "./errors.js";
 
 export type { CallOptions, LogEvent } from "./transport/transport.js";
@@ -199,6 +203,51 @@ export {
   type UpdateHostingConfigResponse,
   AppStatus,
 } from "./gen/transcodely/v1/app_pb.js";
+
+// Webhooks. The proto-level `Event` is re-exported as `APIEvent` to keep
+// the customer-facing discriminated union `WebhookEvent` (in ./webhooks)
+// as the primary `Event` type developers reach for.
+export {
+  type Event as APIEvent,
+  type WebhookEndpoint,
+  type WebhookDelivery,
+  type CreateWebhookEndpointRequest,
+  type CreateWebhookEndpointResponse,
+  type RetrieveWebhookEndpointRequest,
+  type RetrieveWebhookEndpointResponse,
+  type UpdateWebhookEndpointRequest,
+  type UpdateWebhookEndpointResponse,
+  type DeleteWebhookEndpointRequest,
+  type DeleteWebhookEndpointResponse,
+  type ListWebhookEndpointsRequest,
+  type ListWebhookEndpointsResponse,
+  type RotateWebhookSecretRequest,
+  type RotateWebhookSecretResponse,
+  type ListEventsRequest,
+  type ListEventsResponse,
+  type RetrieveEventRequest,
+  type RetrieveEventResponse,
+  type ResendEventRequest,
+  type ResendEventResponse,
+  type ListWebhookDeliveriesRequest,
+  type ListWebhookDeliveriesResponse,
+  type SendTestWebhookRequest,
+  type SendTestWebhookResponse,
+  type GetEndpointHealthRequest,
+  type GetEndpointHealthResponse,
+  type HealthBucket,
+} from "./gen/transcodely/v1/webhook_pb.js";
+
+export {
+  Webhooks,
+  constructEvent,
+  verifySignature,
+  DEFAULT_TOLERANCE_SECONDS,
+  SIGNATURE_HEADER,
+  type EventBase,
+  type WebhookEvent,
+  type VerifyOptions,
+} from "./webhooks/index.js";
 
 // API keys.
 export {

@@ -1,0 +1,126 @@
+{
+  "$schema_version": "1",
+  "$description": "Language-agnostic conformance vectors for Transcodely webhook verification. Every SDK that implements constructEvent must pass each vector. Producers: language-agnostic inputs (secret, body, ts, tolerance, now). Consumers: derive the signature header at runtime as `t=<ts>,v1=<HMAC-SHA-256(secret, <ts>.<body>)>` unless `signature_header` is provided literally (used to seed signature_error vectors).",
+  "vectors": [
+    {
+      "name": "ok_job_succeeded",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t1\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.succeeded\",\"data\":{\"id\":\"job_t1\",\"object\":\"job\",\"status\":\"completed\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_t1\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "job.succeeded", "event_id": "evt_t1", "data_id": "job_t1" }
+    },
+    {
+      "name": "ok_video_uploaded",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t2\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"video.uploaded\",\"data\":{\"id\":\"vid_t2\",\"object\":\"video\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_t2\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "video.uploaded", "event_id": "evt_t2", "data_id": "vid_t2" }
+    },
+    {
+      "name": "ok_app_created",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t3\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"app.created\",\"data\":{\"id\":\"app_t3\",\"object\":\"app\",\"name\":\"Test App\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_t3\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "app.created", "event_id": "evt_t3", "data_id": "app_t3" }
+    },
+    {
+      "name": "ok_output_ready",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t4\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"output.ready\",\"data\":{\"id\":\"jot_t4\",\"output_url\":\"https://cdn.example.com/out.m3u8\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_t4\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "output.ready", "event_id": "evt_t4", "data_id": "jot_t4" }
+    },
+    {
+      "name": "ok_at_tolerance_edge",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480000,
+      "body": "{\"id\":\"evt_t5\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:50:00Z\",\"type\":\"job.created\",\"data\":{\"id\":\"job_t5\",\"object\":\"job\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_t5\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480299,
+      "expect": { "result": "ok", "event_type": "job.created", "event_id": "evt_t5", "data_id": "job_t5" }
+    },
+    {
+      "name": "ok_with_idempotency_key",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t6\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.created\",\"data\":{\"id\":\"job_t6\",\"object\":\"job\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_t6\",\"idempotency_key\":\"customer_supplied_key_abc\"}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "job.created", "event_id": "evt_t6", "data_id": "job_t6", "idempotency_key": "customer_supplied_key_abc" }
+    },
+    {
+      "name": "ok_multi_secret_rotation",
+      "secrets": ["whsec_old_secret", "whsec_test_12345678901234567890abcdef"],
+      "signing_secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t7\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.succeeded\",\"data\":{\"id\":\"job_t7\",\"object\":\"job\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_t7\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "job.succeeded", "event_id": "evt_t7", "data_id": "job_t7" }
+    },
+    {
+      "name": "signature_error_wrong_secret",
+      "secret": "whsec_definitely_wrong_secret_xxxxxx",
+      "signing_secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t8\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.succeeded\",\"data\":{\"id\":\"job_t8\",\"object\":\"job\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_t8\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "signature_error" }
+    },
+    {
+      "name": "signature_error_tampered_body",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "signing_body": "{\"id\":\"evt_original\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.succeeded\",\"data\":{\"id\":\"job_orig\",\"object\":\"job\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_o\",\"idempotency_key\":null}}",
+      "body": "{\"id\":\"evt_TAMPERED\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.succeeded\",\"data\":{\"id\":\"job_orig\",\"object\":\"job\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_o\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "signature_error" }
+    },
+    {
+      "name": "timestamp_error_too_old",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480000,
+      "body": "{\"id\":\"evt_t9\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:50:00Z\",\"type\":\"job.created\",\"data\":{\"id\":\"job_t9\",\"object\":\"job\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_t9\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480301,
+      "expect": { "result": "timestamp_error" }
+    },
+    {
+      "name": "payload_error_data_is_string",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t10\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.succeeded\",\"data\":\"not an object\",\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_t10\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "payload_error" }
+    },
+    {
+      "name": "payload_error_missing_id",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.succeeded\",\"data\":{\"id\":\"job_x\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"req_x\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "payload_error" }
+    },
+    {
+      "name": "payload_error_invalid_json",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{not valid json",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "payload_error" }
+    }
+  ]
+}

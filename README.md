@@ -154,6 +154,94 @@ r2: {
 
 Provide either `accountId` or `endpoint`, never both. `jurisdiction` only applies when `accountId` is set.
 
+## Webhooks
+
+Transcodely signs every webhook delivery with HMAC-SHA-256 using your endpoint's `whsec_…` secret. Verify the signature before trusting the body — `client.webhooks.constructEvent` validates the signature, parses the envelope, and returns a typed event:
+
+```ts
+import express from "express";
+import { Transcodely, WebhookSignatureError, WebhookTimestampError } from "transcodely";
+
+const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
+const app = express();
+
+app.post(
+  "/webhooks/transcodely",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    try {
+      const event = client.webhooks.constructEvent(
+        req.body,
+        req.header("transcodely-signature")!,
+        process.env.WEBHOOK_SECRET!,
+      );
+
+      switch (event.type) {
+        case "job.succeeded":
+          // event.data is a fully-typed Job
+          console.log("Job done:", event.data.id);
+          break;
+        case "video.uploaded":
+          console.log("Video uploaded:", event.data.id);
+          break;
+        default:
+          // Forward-compat: unknown types still parse.
+          console.log("Unhandled:", event.type);
+      }
+      res.sendStatus(200);
+    } catch (err) {
+      if (err instanceof WebhookSignatureError || err instanceof WebhookTimestampError) {
+        res.sendStatus(400);
+        return;
+      }
+      throw err;
+    }
+  },
+);
+```
+
+The signed payload is the **raw HTTP body** — use `express.raw()` (or the equivalent in your framework) to receive a `Buffer`, never `express.json()`.
+
+### Multi-secret rotation
+
+Pass an array to verify against both your previous and current secrets during a rotation window:
+
+```ts
+client.webhooks.constructEvent(body, sig, [process.env.PREVIOUS_SECRET!, process.env.CURRENT_SECRET!]);
+```
+
+### Manage endpoints
+
+```ts
+const endpoint = await client.webhookEndpoints.create({
+  appId: "app_xyz",
+  url: "https://example.com/webhooks/transcodely",
+  enabledEvents: ["job.succeeded", "job.failed", "video.uploaded"],
+});
+console.log("Store this:", endpoint.secret); // only present on create + rotate
+
+const rotated = await client.webhookEndpoints.rotateSecret(endpoint.id);
+console.log("New secret:", rotated.secret);
+
+for await (const ep of client.webhookEndpoints.list({ appId: "app_xyz" }).autoPage()) {
+  console.log(ep.id, ep.url);
+}
+
+await client.webhookEndpoints.sendTest(endpoint.id, "job.succeeded");
+```
+
+### Replay an event
+
+```ts
+// Fetch a stored event (same shape as constructEvent returns)
+const event = await client.events.retrieve("evt_…");
+console.log(event.type, event.data);
+
+// Requeue delivery — defaults to every subscribed endpoint, or pass
+// `endpointIds` to target a subset.
+await client.events.resend("evt_…");
+```
+
 ## Errors
 
 All SDK errors extend `TranscodelyError`:

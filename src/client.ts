@@ -6,6 +6,7 @@
 
 import { ApiKeys } from "./resources/api-keys.js";
 import { Apps } from "./resources/apps.js";
+import { Events } from "./resources/events.js";
 import { Health } from "./resources/health.js";
 import { Jobs } from "./resources/jobs.js";
 import { Memberships } from "./resources/memberships.js";
@@ -14,7 +15,9 @@ import { Origins } from "./resources/origins.js";
 import { Presets } from "./resources/presets.js";
 import { Users } from "./resources/users.js";
 import { Videos } from "./resources/videos.js";
+import { WebhookEndpoints } from "./resources/webhook-endpoints.js";
 import { Transport, type TransportConfig } from "./transport/transport.js";
+import { Webhooks } from "./webhooks/index.js";
 
 export interface TranscodelyConfig extends TransportConfig {}
 
@@ -33,6 +36,8 @@ export class Transcodely {
   private _memberships: Memberships | undefined;
   private _users: Users | undefined;
   private _health: Health | undefined;
+  private _webhookEndpoints: WebhookEndpoints | undefined;
+  private _events: Events | undefined;
 
   constructor(config: TranscodelyConfig) {
     this.transport = new Transport(config);
@@ -72,6 +77,21 @@ export class Transcodely {
   }
   get health(): Health {
     return (this._health ??= new Health(this.transport));
+  }
+  get webhookEndpoints(): WebhookEndpoints {
+    return (this._webhookEndpoints ??= new WebhookEndpoints(this.transport));
+  }
+  get events(): Events {
+    return (this._events ??= new Events(this.transport));
+  }
+  /**
+   * Stateless verify-and-decode helper. `client.webhooks.constructEvent(...)`
+   * mirrors the Stripe SDK convention. The namespace is also exported at the
+   * package root as {@link Webhooks} for consumers who don't instantiate
+   * the full client.
+   */
+  get webhooks(): typeof Webhooks {
+    return Webhooks;
   }
 }
 
