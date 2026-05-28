@@ -81,6 +81,11 @@ export class App extends Message<App> {
 
   /**
    * Webhook configuration.
+   * Deprecated: Use WebhookService (webhook.proto) to manage webhook endpoints
+   * instead. The new WebhookEndpoint resource supports multiple endpoints per
+   * app, HMAC-SHA-256 signing with secret rotation, and per-event type
+   * subscriptions. This field is retained for backwards compatibility;
+   * field number 5 must never be reused.
    *
    * @generated from field: optional transcodely.v1.WebhookConfig webhook = 5;
    */
@@ -142,6 +147,15 @@ export class App extends Message<App> {
    */
   hostingConfig?: HostingConfig;
 
+  /**
+   * Resource type discriminator. Always "app" for this message.
+   * Lets webhook consumers and polyglot SDKs identify the resource without
+   * out-of-band knowledge of the field name. Server-set; ignored on requests.
+   *
+   * @generated from field: string object = 14;
+   */
+  object = "";
+
   constructor(data?: PartialMessage<App>) {
     super();
     proto3.util.initPartial(data, this);
@@ -163,6 +177,7 @@ export class App extends Message<App> {
     { no: 11, name: "hosting_status", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 12, name: "cdn_hostname", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 13, name: "hosting_config", kind: "message", T: HostingConfig, opt: true },
+    { no: 14, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): App {

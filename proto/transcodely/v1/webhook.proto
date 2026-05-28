@@ -1,0 +1,561 @@
+// Webhook service — signed HTTPS event delivery (Stripe-parity).
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+
+// WebhookService manages signed webhook endpoints, events, and delivery history.
+service WebhookService {
+  // Create a new webhook endpoint.
+  // WARNING: The signing secret is only returned in this response.
+  // Store it securely — it cannot be retrieved again.
+  rpc CreateWebhookEndpoint(CreateWebhookEndpointRequest) returns (CreateWebhookEndpointResponse);
+
+  // Retrieve a webhook endpoint by ID.
+  // The secret field is always absent here; use RotateWebhookSecret to obtain a new one.
+  rpc RetrieveWebhookEndpoint(RetrieveWebhookEndpointRequest) returns (RetrieveWebhookEndpointResponse);
+
+  // Update a webhook endpoint's URL, description, enabled events, status, or metadata.
+  rpc UpdateWebhookEndpoint(UpdateWebhookEndpointRequest) returns (UpdateWebhookEndpointResponse);
+
+  // Delete a webhook endpoint (soft delete).
+  rpc DeleteWebhookEndpoint(DeleteWebhookEndpointRequest) returns (DeleteWebhookEndpointResponse);
+
+  // List webhook endpoints for an app.
+  rpc ListWebhookEndpoints(ListWebhookEndpointsRequest) returns (ListWebhookEndpointsResponse);
+
+  // Rotate the signing secret for a webhook endpoint.
+  // The previous secret remains valid for 24 hours to allow in-flight requests to drain.
+  // WARNING: The new plain-text secret is only returned in this response.
+  // Store it securely — it cannot be retrieved again.
+  rpc RotateWebhookSecret(RotateWebhookSecretRequest) returns (RotateWebhookSecretResponse);
+
+  // List events emitted for an app, newest first.
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+
+  // Retrieve a single event by ID.
+  rpc RetrieveEvent(RetrieveEventRequest) returns (RetrieveEventResponse);
+
+  // Resend an existing event by creating new pending delivery records.
+  // The delivery worker picks them up immediately.
+  rpc ResendEvent(ResendEventRequest) returns (ResendEventResponse);
+
+  // Send a synthetic event to a single endpoint to verify the handler.
+  // The synthetic event is NOT visible from ListEvents and does not affect
+  // pending_webhooks counters on any other event row. It uses the endpoint's
+  // current signing secret and goes through the normal delivery pipeline
+  // (including retries), so the operator sees a real WebhookDelivery row
+  // they can inspect.
+  //
+  // Rate-limited to 10 calls per endpoint per minute. Disabled endpoints
+  // reject with FailedPrecondition.
+  rpc SendTestWebhook(SendTestWebhookRequest) returns (SendTestWebhookResponse);
+
+  // List webhook delivery attempts for an endpoint.
+  rpc ListWebhookDeliveries(ListWebhookDeliveriesRequest) returns (ListWebhookDeliveriesResponse);
+
+  // Aggregate delivery stats for a single endpoint over a rolling time window.
+  // The dashboard renders the result as a success-rate gauge + sparkline; this
+  // RPC's response is cached server-side for ~30 seconds, so callers may see
+  // up to 30 s of staleness.
+  rpc GetEndpointHealth(GetEndpointHealthRequest) returns (GetEndpointHealthResponse);
+}
+
+// =============================================================================
+// Resource messages
+// =============================================================================
+
+// A registered HTTPS endpoint that receives signed webhook events.
+message WebhookEndpoint {
+  // Unique identifier (e.g., "whe_a1b2c3d4e5f6").
+  string id = 1;
+
+  // Parent app ID.
+  string app_id = 2;
+
+  // HTTPS URL that receives signed POST requests.
+  string url = 3;
+
+  // Optional human-readable description.
+  optional string description = 4;
+
+  // Event types this endpoint subscribes to.
+  // Use "*" to subscribe to all event types.
+  // Possible values: "job.created", "job.updated", "job.succeeded",
+  // "job.failed", "job.canceled", "job.progress", "output.created",
+  // "output.ready", "output.failed", "output.progress",
+  // "video.uploaded", "video.deleted", "app.created", "app.updated", or "*".
+  repeated string enabled_events = 5;
+
+  // Operational status: "enabled" or "disabled".
+  // Wire value is lowercase per project convention.
+  string status = 6;
+
+  // API version this endpoint receives events for (e.g., "2024-01-01").
+  // Defaults to the app's current API version at creation time.
+  optional string api_version = 7;
+
+  // Arbitrary key-value metadata.
+  map<string, string> metadata = 8;
+
+  // When the endpoint was created.
+  google.protobuf.Timestamp created_at = 9;
+
+  // When the endpoint was last updated.
+  google.protobuf.Timestamp updated_at = 10;
+
+  // Plain-text signing secret (whsec_...).
+  // WARNING: Only populated by CreateWebhookEndpoint and RotateWebhookSecret.
+  // All other RPCs return this field absent. Store it securely on receipt.
+  optional string secret = 11;
+
+  // Reason the endpoint is in `status: "disabled"`. Absent when status is "enabled".
+  // One of:
+  //   "manual"        — operator paused via UpdateWebhookEndpoint
+  //   "auto_failures" — scheduler tripped after 10 consecutive terminal failures
+  //                     spanning ≥72 h
+  // Wire value is lowercase per project convention.
+  optional string disabled_reason = 12;
+
+  // When the signing secret was last rotated. Absent on endpoints that have
+  // never been rotated (initial creation does not count as a rotation).
+  optional google.protobuf.Timestamp last_rotated_at = 13;
+
+  // When the previous signing secret stops being accepted for incoming
+  // verification during the 24 h rotation overlap window. Set to
+  // `last_rotated_at + 24h` on rotation; absent once the overlap closes
+  // or when no rotation has happened yet.
+  optional google.protobuf.Timestamp previous_secret_expires_at = 14;
+}
+
+// An immutable record of a platform event emitted for an app.
+message Event {
+  // Unique identifier (e.g., "evt_a1b2c3d4e5f6g7h8").
+  string id = 1;
+
+  // Parent app ID.
+  string app_id = 2;
+
+  // Event type, snake_case lowercase (e.g., "job.succeeded", "video.uploaded").
+  string type = 3;
+
+  // JSON-encoded snapshot of the resource at the time the event fired.
+  // Shape matches the API response for the resource: snake_case field names,
+  // lowercase enum strings on the wire (project convention).
+  string data = 4;
+
+  // Request ID of the API call that triggered this event, for distributed tracing.
+  optional string request_id = 5;
+
+  // Number of delivery attempts still in pending state across all subscribed endpoints.
+  int32 pending_webhooks = 6;
+
+  // When the event was created.
+  google.protobuf.Timestamp created_at = 7;
+
+  // API version this event was emitted under (e.g., "2026-05-23").
+  // Frozen at emit time so the payload shape stays stable for the event's
+  // lifetime. Mirrored into the webhook envelope as the top-level `api_version`.
+  string api_version = 8;
+
+  // True when the event was emitted from production (live mode) traffic.
+  // Reserved for a future test-mode concept; always `true` today.
+  bool livemode = 9;
+
+  // Resource type discriminator. Always "event" for this message.
+  // Mirrored into the webhook envelope as the top-level `object`.
+  string object = 10;
+}
+
+// A single attempt to deliver an Event to a WebhookEndpoint.
+// Multiple rows exist for the same event+endpoint pair when retries are scheduled.
+message WebhookDelivery {
+  // Unique identifier (e.g., "whd_a1b2c3d4e5f6").
+  string id = 1;
+
+  // Endpoint that received (or failed to receive) the event.
+  string webhook_endpoint_id = 2;
+
+  // Event that was delivered.
+  string event_id = 3;
+
+  // Delivery status: "pending", "succeeded", or "failed".
+  // Wire value is lowercase per project convention.
+  string status = 4;
+
+  // Attempt number starting at 1. Incremented by the retry scheduler
+  // when a new delivery row is created for a retry.
+  int32 attempt = 5;
+
+  // HTTP response status returned by the endpoint.
+  // Only present when the worker received a response (absent on transport error).
+  optional int32 response_status = 6;
+
+  // First 4 KiB of the HTTP response body (truncated if larger).
+  optional string response_body = 7;
+
+  // When the next retry is scheduled.
+  // Absent when the delivery succeeded or all retry attempts are exhausted.
+  optional google.protobuf.Timestamp next_attempt_at = 8;
+
+  // When this delivery record was created.
+  google.protobuf.Timestamp created_at = 9;
+
+  // When this delivery record was last updated.
+  google.protobuf.Timestamp updated_at = 10;
+
+  // Round-trip time from request send to response received, in milliseconds.
+  // Absent on transport errors (no response was received).
+  optional int32 latency_ms = 11;
+
+  // Reason a response was not received. Absent when response_status is set.
+  // One of: "timeout", "connection_refused", "dns_failure",
+  // "tls_handshake_failed", "ssrf_blocked", "unknown".
+  // Wire value is lowercase per project convention.
+  optional string transport_error = 12;
+
+  // JSON-encoded response headers as received from the endpoint, with
+  // credential-bearing headers (Authorization, Cookie, Set-Cookie, etc.)
+  // redacted to "[REDACTED]". Capped at 32 header names and 4 KiB of JSON;
+  // dropped to absent when either cap is exceeded so a hostile receiver
+  // cannot bloat the audit log.
+  // Decode as map<string, string[]> (multi-value headers are preserved).
+  // Absent on transport errors.
+  optional string response_headers = 13;
+}
+
+// =============================================================================
+// Request / response messages
+// =============================================================================
+
+// Request to create a new webhook endpoint.
+message CreateWebhookEndpointRequest {
+  // App to create the endpoint for.
+  string app_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // HTTPS URL to receive signed POST requests.
+  string url = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.uri = true,
+    (buf.validate.field).string.prefix = "https://"
+  ];
+
+  // Optional description (max 500 characters).
+  optional string description = 3 [
+    (buf.validate.field).string.max_len = 500
+  ];
+
+  // Event types to subscribe to. At least one required. Use "*" for all.
+  repeated string enabled_events = 4 [
+    (buf.validate.field).repeated.min_items = 1
+  ];
+
+  // Optional API version override.
+  optional string api_version = 5;
+
+  // Optional metadata.
+  map<string, string> metadata = 6;
+}
+
+// Response from creating a webhook endpoint.
+// The signing secret is populated only on create.
+message CreateWebhookEndpointResponse {
+  // The created webhook endpoint, with the plain-text signing secret populated.
+  WebhookEndpoint endpoint = 1;
+}
+
+// Request to retrieve a webhook endpoint.
+message RetrieveWebhookEndpointRequest {
+  // Webhook endpoint ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^whe_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from retrieving a webhook endpoint.
+// The signing secret is never populated here.
+message RetrieveWebhookEndpointResponse {
+  // The requested webhook endpoint.
+  WebhookEndpoint endpoint = 1;
+}
+
+// Request to update a webhook endpoint.
+// Only provided fields are updated; omitted fields are unchanged.
+message UpdateWebhookEndpointRequest {
+  // Webhook endpoint ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^whe_[a-zA-Z0-9_-]+$"
+  ];
+
+  // New HTTPS URL (if provided).
+  optional string url = 2 [
+    (buf.validate.field).string.uri = true,
+    (buf.validate.field).string.prefix = "https://"
+  ];
+
+  // New description (if provided; max 500 characters).
+  optional string description = 3 [
+    (buf.validate.field).string.max_len = 500
+  ];
+
+  // Replacement enabled-events list (if provided, replaces the entire list).
+  repeated string enabled_events = 4;
+
+  // New status: "enabled" or "disabled".
+  optional string status = 5;
+
+  // Replacement metadata map (if provided, replaces the entire map).
+  map<string, string> metadata = 6;
+}
+
+// Response from updating a webhook endpoint.
+message UpdateWebhookEndpointResponse {
+  // The updated webhook endpoint.
+  WebhookEndpoint endpoint = 1;
+}
+
+// Request to delete a webhook endpoint.
+message DeleteWebhookEndpointRequest {
+  // Webhook endpoint ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^whe_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from deleting a webhook endpoint.
+message DeleteWebhookEndpointResponse {}
+
+// Request to list webhook endpoints for an app.
+message ListWebhookEndpointsRequest {
+  // App to list endpoints for.
+  string app_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Pagination (cursor-based; limit ≤ 100).
+  PaginationRequest pagination = 2;
+}
+
+// Response from listing webhook endpoints.
+message ListWebhookEndpointsResponse {
+  // Webhook endpoints for the app.
+  repeated WebhookEndpoint endpoints = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to rotate the signing secret for a webhook endpoint.
+message RotateWebhookSecretRequest {
+  // Webhook endpoint ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^whe_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from rotating a signing secret.
+// The new plain-text signing secret is populated only on this response.
+message RotateWebhookSecretResponse {
+  // The webhook endpoint, with the new plain-text signing secret populated.
+  WebhookEndpoint endpoint = 1;
+}
+
+// Request to list events for an app.
+message ListEventsRequest {
+  // App to list events for.
+  string app_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Filter by event type (exact match, e.g., "job.succeeded").
+  optional string type = 2;
+
+  // Only include events at or after this timestamp (RFC 3339).
+  optional google.protobuf.Timestamp created_after = 3;
+
+  // Only include events at or before this timestamp (RFC 3339).
+  optional google.protobuf.Timestamp created_before = 4;
+
+  // Pagination (cursor-based, newest first; limit ≤ 100).
+  PaginationRequest pagination = 5;
+}
+
+// Response from listing events.
+message ListEventsResponse {
+  // Events for the app, newest first.
+  repeated Event events = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to retrieve a single event.
+message RetrieveEventRequest {
+  // Event ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^evt_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from retrieving a single event.
+message RetrieveEventResponse {
+  // The requested event.
+  Event event = 1;
+}
+
+// Request to resend an existing event.
+// Creates new pending delivery records; the delivery worker picks them up immediately.
+message ResendEventRequest {
+  // Event ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^evt_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Subset of endpoint IDs to resend to (optional; max 100).
+  // If empty, resends to all currently-subscribed enabled endpoints.
+  repeated string endpoint_ids = 2 [
+    (buf.validate.field).repeated.max_items = 100
+  ];
+}
+
+// Response from resending an event.
+// One delivery record is returned per endpoint the event was queued for.
+message ResendEventResponse {
+  // Newly-created pending delivery records, one per target endpoint.
+  repeated WebhookDelivery deliveries = 1;
+}
+
+// Request to send a synthetic test event to a single endpoint.
+message SendTestWebhookRequest {
+  // Endpoint to send the test event to.
+  string endpoint_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^whe_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Concrete event type to simulate. Must be one of the values returned
+  // by domain.WebhookEventTypes() (e.g. "job.succeeded", "video.uploaded").
+  // The "*" wildcard is rejected: it is only valid as a subscription value.
+  string event_type = 2 [
+    (buf.validate.field).required = true
+  ];
+}
+
+// Response from SendTestWebhook.
+message SendTestWebhookResponse {
+  // The newly-queued delivery row. The UI navigates the operator to its
+  // detail sheet so they can watch the worker transition it from pending
+  // to succeeded / failed in real time.
+  WebhookDelivery delivery = 1;
+}
+
+// Request to list webhook delivery attempts.
+// At least one of endpoint_id or event_id must be set. The event_id-only form
+// returns every delivery for an event across every subscribed endpoint, which
+// the dashboard uses to render an event's full delivery history in a single
+// round-trip instead of fanning out N requests per endpoint.
+message ListWebhookDeliveriesRequest {
+  option (buf.validate.message).cel = {
+    id: "webhook_deliveries.endpoint_or_event_required"
+    message: "endpoint_id or event_id must be set"
+    expression: "has(this.endpoint_id) || has(this.event_id)"
+  };
+
+  // Endpoint to list deliveries for. Either this or event_id is required.
+  optional string endpoint_id = 1 [
+    (buf.validate.field).string.pattern = "^whe_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Filter by event ID. Either this or endpoint_id is required.
+  optional string event_id = 2 [
+    (buf.validate.field).string.pattern = "^evt_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Filter by status: "pending", "succeeded", or "failed".
+  optional string status = 3;
+
+  // Pagination (cursor-based; limit ≤ 100).
+  PaginationRequest pagination = 4;
+}
+
+// Response from listing webhook deliveries.
+message ListWebhookDeliveriesResponse {
+  // Delivery records.
+  repeated WebhookDelivery deliveries = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request for aggregate delivery stats on a single endpoint.
+message GetEndpointHealthRequest {
+  // Endpoint to summarize.
+  string endpoint_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^whe_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Rolling window. One of "24h" (24 hourly buckets, default), "7d"
+  // (7 daily buckets), or "30d" (30 daily buckets).
+  optional string window = 2 [
+    (buf.validate.field).string = {in: ["24h", "7d", "30d"]}
+  ];
+}
+
+// Response from GetEndpointHealth. Counts are over the window; percentiles
+// are computed only over deliveries that received a response (transport
+// errors excluded). Buckets are zero-filled so the array length always
+// matches the window: 24 for "24h", 7 for "7d", 30 for "30d".
+message GetEndpointHealthResponse {
+  // The window the response covers, echoed back ("24h", "7d", or "30d").
+  string window = 1;
+
+  // Total attempts in the window (sum of bucket attempts).
+  int32 total_attempts = 2;
+
+  // Terminal-state attempts.
+  int32 succeeded = 3;
+  int32 failed = 4;
+
+  // Attempts currently in-flight (status="pending"). Counted across the
+  // entire window, not "pending at the bucket boundary".
+  int32 pending = 5;
+
+  // succeeded / (succeeded + failed). Pending rows are excluded from the
+  // denominator. Zero when the denominator is zero.
+  double success_rate = 6;
+
+  // Latency percentiles in milliseconds over the window, excluding
+  // transport errors. Absent when no responses were received.
+  optional int32 p50_latency_ms = 7;
+  optional int32 p95_latency_ms = 8;
+
+  // Time-bucketed counts for sparkline rendering, oldest-first, zero-filled.
+  repeated HealthBucket buckets = 9;
+}
+
+// One bucket of the GetEndpointHealth response.
+message HealthBucket {
+  // Bucket start (inclusive).
+  google.protobuf.Timestamp bucket_start = 1;
+  // All attempts that landed in this bucket.
+  int32 attempts = 2;
+  int32 succeeded = 3;
+  int32 failed = 4;
+  // In-flight retries scheduled within this bucket.
+  int32 pending = 5;
+}

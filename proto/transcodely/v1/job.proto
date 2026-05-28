@@ -44,7 +44,18 @@ service JobService {
 }
 
 // Job status enumeration.
+//
+// Stability rules:
+// * Tail-append new values only. Inserting a value in the middle silently
+//   renumbers everything after it and breaks every previously-compiled
+//   client. CI runs `buf breaking` to catch this.
+// * When renaming a value (e.g. CANCELLED → CANCELED), `reserved` the old
+//   name so old generated code does not accidentally re-acquire the tag.
 enum JobStatus {
+  // The old British spelling was renamed to CANCELED at tag 6. Reserved so a
+  // future contributor can't reintroduce the name on a different value.
+  reserved "JOB_STATUS_CANCELLED";
+
   // Default value, should not be used.
   JOB_STATUS_UNSPECIFIED = 0;
 
@@ -74,8 +85,10 @@ enum JobStatus {
   JOB_STATUS_AWAITING_CONFIRMATION = 8;
 }
 
-// Output status enumeration.
+// Output status enumeration. Tail-append only; see JobStatus comment above.
 enum OutputStatus {
+  reserved "OUTPUT_STATUS_CANCELLED";
+
   OUTPUT_STATUS_UNSPECIFIED = 0;
   OUTPUT_STATUS_PENDING = 1;
   OUTPUT_STATUS_PROCESSING = 2;
@@ -151,6 +164,11 @@ message AudioTrackConfig {
 // VideoVariant represents a single video encode configuration.
 // Multiple variants can be combined in a single output for ABR ladders.
 message VideoVariant {
+  // Reserved: the codec submessage fields were renamed in place from
+  // *_options to the short forms below (numbers preserved, names changed).
+  // Reserving the old names prevents accidental reuse with a different shape.
+  reserved "h264_options", "h265_options", "vp9_options", "av1_options";
+
   // Video codec (required).
   VideoCodec codec = 1 [
     (buf.validate.field).required = true,
@@ -277,6 +295,14 @@ message SegmentConfig {
 // Output specification for a single rendition.
 // Use type + video[] array for all outputs. Preset reference is optional.
 message OutputSpec {
+  // Tag 8, 9 are reserved gaps in the field-number space — fill from 15+
+  // rather than reusing 8/9. The "streaming" name was used for a deleted
+  // StreamingConfig submessage at tag 14; tag 14 has since been reused for
+  // `encoding_mode` (string) and the wire-type incompatibility is permanent.
+  // Reserving the old NAME prevents anyone re-introducing it on a new tag.
+  reserved 8, 9;
+  reserved "streaming";
+
   // Validation: either preset is set, or type + video[] array must be provided
   option (buf.validate.message).cel = {
     id: "output_spec.preset_or_inline"
@@ -354,16 +380,30 @@ message OutputSpec {
   // Shared between HLS and DASH. Only used for streaming types.
   optional SegmentConfig segments = 6;
 
-  // Custom path template for this output (overrides job-level and origin templates).
+  // Custom path template for this output. When set together with the job-level
+  // output_path_template, the two compose ADDITIVELY: the effective template is
+  // "<output_path_template>/<path_template>". When the job-level template is
+  // unset, this template is used on its own.
+  //
   // Variables: {job_id}, {output_id}, {date}, {type}, {codec}, {resolution}, {quality}
   //
-  // Example: "videos/{date}/{job_id}/{resolution}" produces
+  // Example (additive): output_path_template = "videos/{job_id}" and
+  // path_template = "{codec}-{resolution}" → "videos/job_abc/h264-1080p.mp4".
+  //
+  // Example (standalone): "videos/{date}/{job_id}/{resolution}" produces
   //          "videos/2024-01-15/job_abc123/1080p/master.m3u8"
   //
   // For HLS/DASH outputs, the streaming manifest name is appended automatically.
-  // Default: uses job-level output_path_template, or origin's path_template, or "{job_id}/{output_id}"
+  // Default when both this and output_path_template are unset: the origin's
+  // path_template, or "{job_id}/{output_id}".
+  // Must not start with `/` or contain `..` (no path traversal).
   optional string path_template = 7 [
-    (buf.validate.field).string.max_len = 512
+    (buf.validate.field).string.max_len = 512,
+    (buf.validate.field).cel = {
+      id: "output_spec.path_template_safe"
+      message: "path_template must not start with `/` or contain `..`"
+      expression: "this == '' || (!this.startsWith('/') && !this.contains('..'))"
+    }
   ];
 
   // Preset reference (optional).
@@ -391,7 +431,18 @@ message OutputSpec {
   // Encoding mode: "fixed" (default, static CRF) or "auto" (input-aware constrained CRF).
   // In "auto" mode, the worker caps each variant's bitrate based on the input's bitrate
   // and resolution ratio, preventing output from exceeding the input's quality ceiling.
-  optional string encoding_mode = 14;
+  optional string encoding_mode = 14 [
+    (buf.validate.field).string = {in: ["fixed", "auto"]}
+  ];
+
+  // Resolved path template after composing job-level + per-output (additive),
+  // falling back through origin → default as needed, and applying any
+  // collision auto-fix. Read-only on responses; ignored on requests. Lets
+  // clients see exactly which template the worker will render against. Empty
+  // until the server processes the job.
+  optional string effective_path_template = 15 [
+    (buf.validate.field).string.max_len = 512
+  ];
 }
 
 // Locked pricing snapshot for an output (captured at job creation).
@@ -555,6 +606,11 @@ message JobOutput {
   // The estimated_cost and actual_cost fields are the sum of all variant costs.
   // Empty for single-variant outputs (use pricing instead).
   repeated VariantPricingSnapshot variant_pricing = 20;
+
+  // Resource type discriminator. Always "job_output" for this message.
+  // Lets webhook consumers and polyglot SDKs identify the resource without
+  // out-of-band knowledge of the field name. Server-set; ignored on requests.
+  string object = 21;
 }
 
 // Execution timing and telemetry for a job.
@@ -681,6 +737,18 @@ message Job {
 
   // Thumbnail generation specifications (echoed from request).
   repeated ThumbnailSpec thumbnails = 25;
+
+  // Job-level output path template (echoed from request).
+  // Variables: {job_id}, {output_id}, {date}, {timestamp}, {codec}, {resolution}, {format}, {quality}, {output_index}, {uuid}
+  // Empty when the request did not specify one; outputs then fall back to
+  // their own path_template (if set), the origin's path_template, or the
+  // default "{job_id}/{output_id}".
+  optional string output_path_template = 26;
+
+  // Resource type discriminator. Always "job" for this message.
+  // Lets webhook consumers and polyglot SDKs identify the resource without
+  // out-of-band knowledge of the field name. Server-set; ignored on requests.
+  string object = 27;
 }
 
 // Request to create a new job.
@@ -772,16 +840,30 @@ message CreateJobRequest {
     (buf.validate.field).repeated.max_items = 5
   ];
 
-  // Job-level output path template (applies to all outputs unless overridden).
+  // Job-level output path template — a job-wide prefix applied to every output.
+  // When an output also sets its own path_template, the two compose
+  // ADDITIVELY: the effective template is
+  // "<output_path_template>/<output.path_template>". An output without its own
+  // path_template uses this template alone.
+  //
   // Variables: {job_id}, {output_id}, {date}, {format}, {codec}, {resolution}, {quality}
   //
-  // Example: "videos/{date}/{job_id}/{resolution}" produces
-  //          "videos/2024-01-15/job_abc123/1080p/master.m3u8"
+  // Example (additive): output_path_template = "videos/{job_id}" + output's
+  //          path_template = "{codec}-{resolution}" → "videos/job_abc/h264-1080p.mp4".
   //
-  // This is used for all outputs that don't have their own path_template.
-  // If not specified, falls back to the output origin's path_template or the default "{job_id}/{output_id}".
+  // Example (standalone): "videos/{date}/{job_id}/{resolution}" produces
+  //          "videos/2024-01-15/job_abc123/1080p/master.m3u8".
+  //
+  // If neither this nor a per-output path_template is set, falls back to the
+  // output origin's path_template or the default "{job_id}/{output_id}".
+  // Must not start with `/` or contain `..` (no path traversal).
   optional string output_path_template = 12 [
-    (buf.validate.field).string.max_len = 512
+    (buf.validate.field).string.max_len = 512,
+    (buf.validate.field).cel = {
+      id: "create_job.output_path_template_safe"
+      message: "output_path_template must not start with `/` or contain `..`"
+      expression: "this == '' || (!this.startsWith('/') && !this.contains('..'))"
+    }
   ];
 
   // Write outputs to managed hosting storage and create a video record.

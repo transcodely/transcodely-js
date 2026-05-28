@@ -276,6 +276,15 @@ export class Video extends Message<Video> {
    */
   readyAt?: Timestamp;
 
+  /**
+   * Resource type discriminator. Always "video" for this message.
+   * Lets webhook consumers and polyglot SDKs identify the resource without
+   * out-of-band knowledge of the field name. Server-set; ignored on requests.
+   *
+   * @generated from field: string object = 43;
+   */
+  object = "";
+
   constructor(data?: PartialMessage<Video>) {
     super();
     proto3.util.initPartial(data, this);
@@ -309,6 +318,7 @@ export class Video extends Message<Video> {
     { no: 40, name: "created_at", kind: "message", T: Timestamp },
     { no: 41, name: "updated_at", kind: "message", T: Timestamp },
     { no: 42, name: "ready_at", kind: "message", T: Timestamp, opt: true },
+    { no: 43, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Video {

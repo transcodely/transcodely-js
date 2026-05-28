@@ -54,6 +54,25 @@ enum OriginProvider {
   // Transcodely-managed storage (auto-created during hosting provisioning).
   // Read-only — cannot be modified by users.
   ORIGIN_PROVIDER_TRANSCODELY = 4;
+
+  // Cloudflare R2 (object storage). S3-compatible underneath, but exposed as
+  // a first-class provider with an ergonomic account-id-based config shape.
+  ORIGIN_PROVIDER_R2 = 5;
+}
+
+// Cloudflare R2 jurisdiction (data residency).
+// Controls the endpoint hostname when account_id is used to derive the URL.
+enum R2Jurisdiction {
+  R2_JURISDICTION_UNSPECIFIED = 0;
+
+  // Default jurisdiction — endpoint is <account_id>.r2.cloudflarestorage.com.
+  R2_JURISDICTION_DEFAULT = 1;
+
+  // EU jurisdiction — endpoint is <account_id>.eu.r2.cloudflarestorage.com.
+  R2_JURISDICTION_EU = 2;
+
+  // FedRAMP jurisdiction — endpoint is <account_id>.fedramp.r2.cloudflarestorage.com.
+  R2_JURISDICTION_FEDRAMP = 3;
 }
 
 // Storage permission declared by the customer.
@@ -194,6 +213,57 @@ message HttpOriginConfig {
   HttpCredentials credentials = 2;
 }
 
+// Cloudflare R2 origin configuration.
+// Users may supply either an ergonomic account_id (+ optional jurisdiction)
+// — the endpoint is then derived as <account_id>[.<jurisdiction>].r2.cloudflarestorage.com —
+// or an explicit endpoint URL for custom domains and future jurisdictions.
+// Exactly one of account_id or endpoint must be provided.
+message R2OriginConfig {
+  option (buf.validate.message).cel = {
+    id: "r2.exactly_one_location"
+    message: "exactly one of account_id or endpoint must be set"
+    expression: "(this.account_id != '' ? 1 : 0) + (has(this.endpoint) ? 1 : 0) == 1"
+  };
+  option (buf.validate.message).cel = {
+    id: "r2.jurisdiction_requires_account_id"
+    message: "jurisdiction is only valid when account_id is set"
+    expression: "this.jurisdiction == 0 || this.account_id != ''"
+  };
+
+  // R2 bucket name.
+  string bucket = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 63,
+    (buf.validate.field).string.pattern = "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+  ];
+
+  // R2 API token credentials. The shape matches S3 since R2 issues S3-compatible
+  // access keys; intentionally reused so the encryption/decryption path is shared.
+  S3Credentials credentials = 2 [
+    (buf.validate.field).required = true
+  ];
+
+  // Cloudflare account ID (32 lowercase hex characters).
+  // When set, the endpoint is derived from account_id and jurisdiction.
+  // Exactly one of account_id or endpoint must be set.
+  string account_id = 3 [
+    (buf.validate.field).string.pattern = "^([a-f0-9]{32})?$"
+  ];
+
+  // Optional jurisdiction (data residency). Defaults to R2_JURISDICTION_DEFAULT
+  // when account_id is set. Ignored when endpoint is supplied directly.
+  R2Jurisdiction jurisdiction = 4;
+
+  // Explicit endpoint URL (e.g., for custom domains bound to a bucket, or for
+  // future jurisdictions not yet enumerated in R2Jurisdiction). Either set this
+  // or account_id, never both.
+  optional string endpoint = 5 [
+    (buf.validate.field).string.uri = true,
+    (buf.validate.field).string.max_len = 256
+  ];
+}
+
 // =============================================================================
 // Origin resource
 // =============================================================================
@@ -255,7 +325,17 @@ message Origin {
   //   {thumb_index}, {thumb_time}, {thumb_time_ms}
   // Example: "jobs/{job_id}/outputs/{output_index}_{codec}.mp4"
   // Example ABR: "{video_id}/{format}/{resolution}_{framerate}fps/stream"
-  string path_template = 8;
+  // Must not start with `/` or contain `..` (no path traversal). Must
+  // include at least one of {job_id}|{output_id}|{video_id}|{uuid} so
+  // concurrent jobs sharing this origin cannot collide.
+  string path_template = 8 [
+    (buf.validate.field).string.max_len = 512,
+    (buf.validate.field).cel = {
+      id: "origin.path_template_safe"
+      message: "path_template must not start with `/` or contain `..`"
+      expression: "this == '' || (!this.startsWith('/') && !this.contains('..'))"
+    }
+  ];
 
   // GCS-specific configuration (only set if provider is GCS).
   // Note: credentials are not included in responses for security.
@@ -287,6 +367,10 @@ message Origin {
   // True if this is a Transcodely-managed origin (auto-created during hosting provisioning).
   // Managed origins cannot be modified or archived by users.
   bool is_managed = 17;
+
+  // R2-specific configuration (only set if provider is R2).
+  // Note: credentials are not included in responses for security.
+  R2OriginConfig r2 = 18;
 }
 
 // =============================================================================
@@ -297,8 +381,8 @@ message Origin {
 message CreateOriginRequest {
   option (buf.validate.message).cel = {
     id: "create_origin.exactly_one_config"
-    message: "exactly one provider config must be specified (gcs, s3, or http)"
-    expression: "(has(this.gcs) ? 1 : 0) + (has(this.s3) ? 1 : 0) + (has(this.http) ? 1 : 0) == 1"
+    message: "exactly one provider config must be specified (gcs, s3, http, or r2)"
+    expression: "(has(this.gcs) ? 1 : 0) + (has(this.s3) ? 1 : 0) + (has(this.http) ? 1 : 0) + (has(this.r2) ? 1 : 0) == 1"
   };
   option (buf.validate.message).cel = {
     id: "create_origin.http_read_only"
@@ -348,6 +432,9 @@ message CreateOriginRequest {
 
   // HTTP provider configuration (read-only).
   HttpOriginConfig http = 8;
+
+  // R2 provider configuration (Cloudflare R2).
+  R2OriginConfig r2 = 9;
 }
 
 // Response from creating an origin.
@@ -462,6 +549,11 @@ message UpdateOriginRequest {
   // Updated HTTP credentials (if provider is HTTP).
   // If provided, validation is automatically triggered.
   optional HttpCredentials http_credentials = 8;
+
+  // Updated R2 credentials (if provider is R2). Same shape as S3Credentials —
+  // R2 issues S3-compatible access keys.
+  // If provided, validation is automatically triggered.
+  optional S3Credentials r2_credentials = 9;
 }
 
 // Response from updating an origin.
