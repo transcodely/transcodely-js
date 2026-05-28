@@ -2,7 +2,7 @@ import { Timestamp } from "@bufbuild/protobuf";
 import { describe, expect, it, vi } from "vitest";
 
 import { PaginationResponse } from "../../src/gen/transcodely/v1/common_pb.js";
-import { Job } from "../../src/gen/transcodely/v1/job_pb.js";
+import { Job, JobStatus } from "../../src/gen/transcodely/v1/job_pb.js";
 import { WebhookService } from "../../src/gen/transcodely/v1/webhook_connect.js";
 import {
   Event as APIEvent,
@@ -23,7 +23,7 @@ function fakeProtoEvent(): APIEvent {
     id: "evt_pe1",
     appId: "app_xyz",
     type: "job.succeeded",
-    data: JSON.stringify({ id: "job_inner", object: "job", input_url: "https://x/in.mp4" }),
+    data: JSON.stringify({ id: "job_inner", object: "job", status: "completed", input_url: "https://x/in.mp4" }),
     requestId: "req_pe1",
     pendingWebhooks: 0,
     createdAt: Timestamp.fromDate(new Date("2026-05-24T10:55:08Z")),
@@ -51,6 +51,8 @@ describe("Events facade", () => {
     expect(event.data).toBeInstanceOf(Job);
     expect((event.data as Job).id).toBe("job_inner");
     expect((event.data as Job).inputUrl).toBe("https://x/in.mp4");
+    // Bridge shares the decoder, so it inherits the same enum-expansion requirement.
+    expect((event.data as Job).status).toBe(JobStatus.COMPLETED);
   });
 
   it("list paginates with cursor passthrough and bridges each event", async () => {

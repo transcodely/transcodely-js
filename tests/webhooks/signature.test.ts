@@ -111,3 +111,41 @@ describe("verifySignature", () => {
     ).toThrow(WebhookSignatureError);
   });
 });
+
+describe("known-answer vector (independent oracle)", () => {
+  // These inputs are copied verbatim from the server's signing known-answer
+  // test (api/internal/services/webhooks/signing_test.go). The expected hex
+  // was computed with OpenSSL — an implementation independent of both the Go
+  // server and the SDK's node:crypto — so this asserts cross-implementation
+  // agreement on the exact bytes, not just self-consistency:
+  //
+  //   printf '%s' '1700000000.{"id":"job_abc123","status":"succeeded"}' \
+  //     | openssl dgst -sha256 -hmac "whsec_known_answer_test_key_here"
+  const SERVER_SECRET = "whsec_known_answer_test_key_here";
+  const SERVER_TS = 1_700_000_000;
+  const SERVER_BODY = `{"id":"job_abc123","status":"succeeded"}`;
+  const GOLDEN_HEX = "738628e4926e9ad49a18b13f0e83519f30e3a79650f68528a4b69dfe27abdd93";
+
+  it("verifies a signature the server would produce for the known-answer inputs", () => {
+    expect(() =>
+      verifySignature(
+        new TextEncoder().encode(SERVER_BODY),
+        `t=${SERVER_TS},v1=${GOLDEN_HEX}`,
+        SERVER_SECRET,
+        { now: () => SERVER_TS },
+      ),
+    ).not.toThrow();
+  });
+
+  it("rejects the same inputs if a single hex char is flipped", () => {
+    const tampered = `0${GOLDEN_HEX.slice(1)}`;
+    expect(() =>
+      verifySignature(
+        new TextEncoder().encode(SERVER_BODY),
+        `t=${SERVER_TS},v1=${tampered}`,
+        SERVER_SECRET,
+        { now: () => SERVER_TS },
+      ),
+    ).toThrow(WebhookSignatureError);
+  });
+});
