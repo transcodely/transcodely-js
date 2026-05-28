@@ -7,8 +7,8 @@ import {
   WebhookSignatureError,
   WebhookTimestampError,
 } from "../../src/errors.js";
-import { App } from "../../src/gen/transcodely/v1/app_pb.js";
-import { Job, JobOutput } from "../../src/gen/transcodely/v1/job_pb.js";
+import { App, AppStatus } from "../../src/gen/transcodely/v1/app_pb.js";
+import { Job, JobOutput, JobStatus, OutputStatus } from "../../src/gen/transcodely/v1/job_pb.js";
 import { Video } from "../../src/gen/transcodely/v1/video_pb.js";
 import { constructEvent } from "../../src/webhooks/construct-event.js";
 
@@ -72,41 +72,50 @@ describe("constructEvent — happy paths", () => {
     expect(event.data).toBeInstanceOf(Job);
     expect((event.data as Job).id).toBe("job_abc");
     expect((event.data as Job).inputUrl).toBe("https://x/in.mp4");
+    // The server sends simplified lowercase enums ("completed"); the SDK must
+    // expand them back to the proto enum before fromJson, or the field is
+    // silently zeroed to UNSPECIFIED. This is the C1 regression guard.
+    expect((event.data as Job).status).toBe(JobStatus.COMPLETED);
   });
 
   it("decodes an output.ready event with JobOutput data", () => {
     const body = envelope({
       type: "output.ready",
-      data: { id: "jot_abc", output_url: "https://cdn/out.m3u8", progress: 100 },
+      data: { id: "jot_abc", status: "completed", output_url: "https://cdn/out.m3u8", progress: 100 },
     });
     const event = constructEvent(body, header(body), SECRET, { now: NOW });
     expect(event.type).toBe("output.ready");
     expect(event.data).toBeInstanceOf(JobOutput);
     expect((event.data as JobOutput).id).toBe("jot_abc");
     expect((event.data as JobOutput).outputUrl).toBe("https://cdn/out.m3u8");
+    expect((event.data as JobOutput).status).toBe(OutputStatus.COMPLETED);
   });
 
   it("decodes a video.uploaded event with Video data", () => {
     const body = envelope({
       type: "video.uploaded",
-      data: { id: "vid_abc", object: "video" },
+      data: { id: "vid_abc", object: "video", status: "ready" },
     });
     const event = constructEvent(body, header(body), SECRET, { now: NOW });
     expect(event.type).toBe("video.uploaded");
     expect(event.data).toBeInstanceOf(Video);
     expect((event.data as Video).id).toBe("vid_abc");
+    // Video.status/visibility are plain string fields on the proto (not enums),
+    // so they pass through verbatim and are unaffected by enum expansion.
+    expect((event.data as Video).status).toBe("ready");
   });
 
   it("decodes an app.created event with App data", () => {
     const body = envelope({
       type: "app.created",
-      data: { id: "app_abc", object: "app", name: "My App" },
+      data: { id: "app_abc", object: "app", name: "My App", status: "active" },
     });
     const event = constructEvent(body, header(body), SECRET, { now: NOW });
     expect(event.type).toBe("app.created");
     expect(event.data).toBeInstanceOf(App);
     expect((event.data as App).id).toBe("app_abc");
     expect((event.data as App).name).toBe("My App");
+    expect((event.data as App).status).toBe(AppStatus.ACTIVE);
   });
 
   it("preserves a non-null request.idempotencyKey", () => {

@@ -4,6 +4,9 @@
  * helper and the `client.events` resource bridge.
  */
 
+import type { JsonValue } from "@bufbuild/protobuf";
+
+import { fromJson } from "../codec/json.js";
 import { App } from "../gen/transcodely/v1/app_pb.js";
 import { Job, JobOutput } from "../gen/transcodely/v1/job_pb.js";
 import { Video } from "../gen/transcodely/v1/video_pb.js";
@@ -60,15 +63,22 @@ interface DecoderEntry {
  * (verify path, JSON arrives pre-parsed) and the `events` resource bridge
  * (API-Event path, JSON arrives as a string field on the proto Event).
  *
+ * Each decoder goes through the codec's `fromJson`, NOT the raw
+ * `MessageType.fromJson`. This is load-bearing: the server emits the inner
+ * resource with simplified lowercase enum values (e.g. "completed"), and the
+ * codec's `fromJson` runs the enum-expansion transform first. The raw
+ * `MessageType.fromJson` with `ignoreUnknownFields` would silently zero every
+ * enum field to UNSPECIFIED instead — see the enum regression tests.
+ *
  * The `output.` entry must precede no other entry — prefixes are disjoint
  * today, so order is informational, but keep `output.` first to make the
  * intent explicit.
  */
 export const RESOURCE_DECODERS: readonly DecoderEntry[] = [
-  { prefix: "output.", decode: (json) => JobOutput.fromJson(json as never, { ignoreUnknownFields: true }) },
-  { prefix: "job.",    decode: (json) => Job.fromJson(json as never, { ignoreUnknownFields: true }) },
-  { prefix: "video.",  decode: (json) => Video.fromJson(json as never, { ignoreUnknownFields: true }) },
-  { prefix: "app.",    decode: (json) => App.fromJson(json as never, { ignoreUnknownFields: true }) },
+  { prefix: "output.", decode: (json) => fromJson(json as JsonValue, JobOutput) },
+  { prefix: "job.",    decode: (json) => fromJson(json as JsonValue, Job) },
+  { prefix: "video.",  decode: (json) => fromJson(json as JsonValue, Video) },
+  { prefix: "app.",    decode: (json) => fromJson(json as JsonValue, App) },
 ];
 
 /** Look up a decoder by event type, or `undefined` if the type is unknown. */
