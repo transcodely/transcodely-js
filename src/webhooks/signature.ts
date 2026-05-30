@@ -8,6 +8,13 @@ export const DEFAULT_TOLERANCE_SECONDS = 300;
 /** HTTP header name carrying the signature (lower-cased for `Headers#get`). */
 export const SIGNATURE_HEADER = "transcodely-signature";
 
+/**
+ * HTTP header name carrying the event ID (`evt_…`). Useful as an
+ * idempotency key for handlers that need to deduplicate redeliveries —
+ * the same event ID is sent on every retry of the same event.
+ */
+export const EVENT_ID_HEADER = "webhook-id";
+
 export interface VerifyOptions {
   /** Tolerance in seconds. Defaults to {@link DEFAULT_TOLERANCE_SECONDS}. */
   tolerance?: number;

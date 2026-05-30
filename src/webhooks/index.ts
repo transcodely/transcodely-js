@@ -25,8 +25,10 @@ export const Webhooks = {
 export { constructEvent } from "./construct-event.js";
 export {
   DEFAULT_TOLERANCE_SECONDS,
+  EVENT_ID_HEADER,
   SIGNATURE_HEADER,
   verifySignature,
   type VerifyOptions,
 } from "./signature.js";
-export type { EventBase, WebhookEvent } from "./types.js";
+export { WEBHOOK_EVENT_TYPES } from "./types.js";
+export type { EventBase, WebhookEvent, WebhookEventType } from "./types.js";

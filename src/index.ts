@@ -243,9 +243,12 @@ export {
   constructEvent,
   verifySignature,
   DEFAULT_TOLERANCE_SECONDS,
+  EVENT_ID_HEADER,
   SIGNATURE_HEADER,
+  WEBHOOK_EVENT_TYPES,
   type EventBase,
   type WebhookEvent,
+  type WebhookEventType,
   type VerifyOptions,
 } from "./webhooks/index.js";
 

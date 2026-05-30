@@ -37,7 +37,6 @@ export interface EventBase {
  */
 export type WebhookEvent =
   | (EventBase & { type: "job.created";     data: Job })
-  | (EventBase & { type: "job.updated";     data: Job })
   | (EventBase & { type: "job.succeeded";   data: Job })
   | (EventBase & { type: "job.failed";      data: Job })
   | (EventBase & { type: "job.canceled";    data: Job })
@@ -51,6 +50,34 @@ export type WebhookEvent =
   | (EventBase & { type: "app.created";     data: App })
   | (EventBase & { type: "app.updated";     data: App })
   | (EventBase & { type: string;            data: unknown });
+
+/**
+ * The 13 concrete webhook event types the API can emit. Mirrors the source of
+ * truth in `domain.WebhookEventTypes()` (api/internal/domain/webhook.go). The
+ * `"*"` wildcard is a subscription-only value and is intentionally absent.
+ *
+ * Exported so consumers can validate `enabledEvents` lists and so the
+ * catalog-drift regression test can compare this set against the discriminated
+ * union literals above.
+ */
+export const WEBHOOK_EVENT_TYPES = [
+  "job.created",
+  "job.succeeded",
+  "job.failed",
+  "job.canceled",
+  "job.progress",
+  "output.created",
+  "output.ready",
+  "output.failed",
+  "output.progress",
+  "video.uploaded",
+  "video.deleted",
+  "app.created",
+  "app.updated",
+] as const;
+
+/** A concrete event type the API can emit (excludes the `"*"` wildcard). */
+export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 
 /** A resource decoder for a given event-type prefix. */
 interface DecoderEntry {

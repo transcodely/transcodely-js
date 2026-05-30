@@ -136,7 +136,6 @@ export class Videos {
     id: string,
     opts: { signal?: AbortSignal; includeHeartbeats?: boolean } = {},
   ): AsyncIterable<WatchVideoResponse> {
-    // VideoService.Watch event field is a string per proto; treat "heartbeat" as filterable.
     return watch<WatchVideoResponse>(
       (signal) =>
         this.transport.stream(
@@ -148,8 +147,7 @@ export class Videos {
       {
         includeHeartbeats: opts.includeHeartbeats,
         signal: opts.signal,
-        isHeartbeat: (event) =>
-          (event as unknown as { event?: string }).event === "heartbeat",
+        isHeartbeat: (event) => event.eventType === "heartbeat",
       },
     );
   }
