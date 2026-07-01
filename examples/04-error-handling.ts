@@ -5,7 +5,7 @@ import {
   RateLimitError,
   Transcodely,
   TranscodelyError,
-} from "transcodely";
+} from "@transcodely/sdk";
 
 const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 

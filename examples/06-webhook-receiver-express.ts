@@ -14,7 +14,7 @@ import {
   WebhookPayloadError,
   WebhookSignatureError,
   WebhookTimestampError,
-} from "transcodely";
+} from "@transcodely/sdk";
 
 const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY ?? "" });
 const secret = process.env.WEBHOOK_SECRET ?? "";

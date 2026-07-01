@@ -1,10 +1,10 @@
 /**
- * transcodely — Official TypeScript SDK for the Transcodely video
+ * @transcodely/sdk — Official TypeScript SDK for the Transcodely video
  * transcoding API.
  *
  * @example
  * ```ts
- * import { Transcodely, OutputFormat, VideoCodec, Resolution } from "transcodely";
+ * import { Transcodely, OutputFormat, VideoCodec, Resolution } from "@transcodely/sdk";
  * const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
  * const job = await client.jobs.create({
  *   inputUrl: "s3://my-bucket/source.mp4",

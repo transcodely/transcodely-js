@@ -1,4 +1,4 @@
-import { Transcodely } from "transcodely";
+import { Transcodely } from "@transcodely/sdk";
 
 const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 

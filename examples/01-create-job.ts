@@ -1,4 +1,4 @@
-import { OutputFormat, Resolution, Transcodely, VideoCodec } from "transcodely";
+import { OutputFormat, Resolution, Transcodely, VideoCodec } from "@transcodely/sdk";
 
 const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 

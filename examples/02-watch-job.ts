@@ -1,4 +1,4 @@
-import { JobStatus, Transcodely } from "transcodely";
+import { JobStatus, Transcodely } from "@transcodely/sdk";
 
 const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 

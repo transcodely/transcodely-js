@@ -1,15 +1,15 @@
-# transcodely
+# @transcodely/sdk
 
 Official TypeScript / Node SDK for the [Transcodely](https://transcodely.com) video transcoding API.
 
 ```bash
-npm install transcodely
+npm install @transcodely/sdk
 ```
 
 ## Quick start
 
 ```ts
-import { Transcodely, OutputFormat, VideoCodec, Resolution } from "transcodely";
+import { Transcodely, OutputFormat, VideoCodec, Resolution } from "@transcodely/sdk";
 
 const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 
@@ -66,7 +66,7 @@ An origin tells Transcodely where to read source media from and where to write o
 ### Create an S3 origin
 
 ```ts
-import { Transcodely, OriginPermission } from "transcodely";
+import { Transcodely, OriginPermission } from "@transcodely/sdk";
 
 const origin = await client.origins.create({
   name: "Production S3",
@@ -86,7 +86,7 @@ const origin = await client.origins.create({
 ### Create a GCS origin
 
 ```ts
-import { Transcodely, OriginPermission } from "transcodely";
+import { Transcodely, OriginPermission } from "@transcodely/sdk";
 
 const origin = await client.origins.create({
   name: "Production GCS",
@@ -103,7 +103,7 @@ const origin = await client.origins.create({
 ### Create an HTTP origin
 
 ```ts
-import { Transcodely, OriginPermission } from "transcodely";
+import { Transcodely, OriginPermission } from "@transcodely/sdk";
 
 const origin = await client.origins.create({
   name: "Public CDN",
@@ -122,7 +122,7 @@ const origin = await client.origins.create({
 R2 supports two forms. With `accountId` (32-char hex) the endpoint is derived for you, optionally with a data-residency jurisdiction:
 
 ```ts
-import { Transcodely, OriginPermission, R2Jurisdiction } from "transcodely";
+import { Transcodely, OriginPermission, R2Jurisdiction } from "@transcodely/sdk";
 
 const origin = await client.origins.create({
   name: "Production R2",
@@ -160,7 +160,7 @@ Transcodely signs every webhook delivery with HMAC-SHA-256 using your endpoint's
 
 ```ts
 import express from "express";
-import { Transcodely, WebhookSignatureError, WebhookTimestampError } from "transcodely";
+import { Transcodely, WebhookSignatureError, WebhookTimestampError } from "@transcodely/sdk";
 
 const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 const app = express();
@@ -247,7 +247,7 @@ await client.events.resend("evt_…");
 All SDK errors extend `TranscodelyError`:
 
 ```ts
-import { TranscodelyError, InvalidRequestError, RateLimitError } from "transcodely";
+import { TranscodelyError, InvalidRequestError, RateLimitError } from "@transcodely/sdk";
 
 try {
   await client.jobs.create(params);

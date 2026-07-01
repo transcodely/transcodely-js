@@ -1,5 +1,8 @@
 {
-  "name": "transcodely",
+  "name": "@transcodely/sdk",
+  "publishConfig": {
+    "access": "public"
+  },
   "version": "0.1.2",
   "description": "Official JavaScript / TypeScript SDK for the Transcodely video transcoding API",
   "license": "MIT",
