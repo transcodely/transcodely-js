@@ -35,7 +35,9 @@ jobs:
   # ============================================================================
   # Publish to npm — runs only when release-please created a tag + Release
   # in the previous job. Re-runs the test + build gate as defense-in-depth, then
-  # publishes with --provenance for supply-chain attestation via OIDC.
+  # publishes via npm Trusted Publishing (OIDC) — no long-lived NPM_TOKEN.
+  # The trusted publisher must be configured on the package settings page:
+  # https://www.npmjs.com/package/@transcodely/sdk/access
   # ============================================================================
   publish-npm:
     name: Publish to npm
@@ -44,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # OIDC for `npm publish --provenance`
+      id-token: write   # OIDC for npm trusted publishing + --provenance
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,10 +75,14 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Trusted publishing (OIDC) requires npm >= 11.5.1; the runner ships an
+      # older npm by default. `access` and `provenance` come from the token
+      # exchange + publishConfig, so no `--access` or `NODE_AUTH_TOKEN` needed.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
       - name: Publish to npm
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance
 
       - name: Release Summary
         run: |
@@ -84,5 +90,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Version:** \`${{ needs.release-please.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Tag:** \`${{ needs.release-please.outputs.tag_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Install:** \`npm install transcodely@${{ needs.release-please.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **npm:** https://www.npmjs.com/package/transcodely/v/${{ needs.release-please.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Install:** \`npm install @transcodely/sdk@${{ needs.release-please.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **npm:** https://www.npmjs.com/package/@transcodely/sdk/v/${{ needs.release-please.outputs.version }}" >> $GITHUB_STEP_SUMMARY
