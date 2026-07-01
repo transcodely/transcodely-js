@@ -124,6 +124,18 @@ describe("constructEvent — happy paths", () => {
     expect(event.request.idempotencyKey).toBe("user_supplied_key");
   });
 
+  it("accepts a null request.id (async-pipeline events have no originating request)", () => {
+    // `job.succeeded`/`.failed`/`.progress` are emitted from worker callbacks
+    // with no Connect-RPC request scope; the API sends `request.id: null`.
+    // Regression guard: the old envelope validator rejected null and made
+    // every async job event un-decodable.
+    const body = envelope({ request: { id: null, idempotency_key: null } });
+    const event = constructEvent(body, header(body), SECRET, { now: NOW });
+    expect(event.type).toBe("job.succeeded");
+    expect(event.request.id).toBeNull();
+    expect(event.request.idempotencyKey).toBeNull();
+  });
+
   it("accepts a Buffer body and a Uint8Array body", () => {
     const body = envelope();
     const buf = Buffer.from(body);
@@ -230,6 +242,13 @@ describe("constructEvent — error paths", () => {
 
   it("WebhookPayloadError when request.idempotency_key is the wrong type", () => {
     const body = envelope({ request: { id: "req_x", idempotency_key: 42 } });
+    expect(() => constructEvent(body, header(body), SECRET, { now: NOW })).toThrow(
+      WebhookPayloadError,
+    );
+  });
+
+  it("WebhookPayloadError when request.id is the wrong type (not string or null)", () => {
+    const body = envelope({ request: { id: 42, idempotency_key: null } });
     expect(() => constructEvent(body, header(body), SECRET, { now: NOW })).toThrow(
       WebhookPayloadError,
     );
