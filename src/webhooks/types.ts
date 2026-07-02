@@ -25,8 +25,13 @@ export interface EventBase {
   livemode: boolean;
   /** Number of delivery attempts still pending across all subscribed endpoints. */
   pendingWebhooks: number;
-  /** Originating API request, if known. */
-  request: { id: string; idempotencyKey: string | null };
+  /**
+   * Originating API request, if known. `id` is `null` for events emitted
+   * outside a request scope (e.g. worker-callback events like
+   * `job.succeeded`); `idempotencyKey` is `null` when the caller didn't
+   * supply one on the originating request.
+   */
+  request: { id: string | null; idempotencyKey: string | null };
 }
 
 /**

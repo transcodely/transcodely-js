@@ -90,7 +90,12 @@ function buildEvent(parsed: unknown): WebhookEvent {
   if (!isPlainObject(requestRaw)) {
     throw new WebhookPayloadError("Webhook envelope field `request` must be a JSON object");
   }
-  const requestId = requireString(requestRaw, "id");
+  const requestIdRaw = requestRaw["id"];
+  if (requestIdRaw !== null && (typeof requestIdRaw !== "string" || requestIdRaw.length === 0)) {
+    throw new WebhookPayloadError(
+      "Webhook envelope field `request.id` must be a non-empty string or null",
+    );
+  }
   const idempotencyKeyRaw = requestRaw["idempotency_key"];
   if (idempotencyKeyRaw !== null && typeof idempotencyKeyRaw !== "string") {
     throw new WebhookPayloadError(
@@ -112,6 +117,6 @@ function buildEvent(parsed: unknown): WebhookEvent {
     data,
     livemode,
     pendingWebhooks,
-    request: { id: requestId, idempotencyKey: idempotencyKeyRaw },
+    request: { id: requestIdRaw, idempotencyKey: idempotencyKeyRaw },
   } as WebhookEvent;
 }
