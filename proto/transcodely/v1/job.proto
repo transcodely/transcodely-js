@@ -345,6 +345,13 @@ message OutputSpec {
     expression: "!has(this.segments) || this.type == 5 || this.type == 6 || this.type == 7"
   };
 
+  // disable_audio (video-only) cannot be combined with explicit audio tracks.
+  option (buf.validate.message).cel = {
+    id: "output_spec.disable_audio_no_tracks"
+    message: "disable_audio cannot be combined with explicit audio[] tracks"
+    expression: "!has(this.disable_audio) || !this.disable_audio || size(this.audio) == 0"
+  };
+
   // Output type (required unless using preset).
   // Values: mp4, webm, mkv, mov, hls, dash, adaptive
   OutputFormat type = 1 [
@@ -443,6 +450,14 @@ message OutputSpec {
   optional string effective_path_template = 15 [
     (buf.validate.field).string.max_len = 512
   ];
+
+  // Produce a video-only output, dropping audio entirely.
+  // Override semantics: when unset, the value is inherited from the referenced
+  // preset (or defaults to false). When true, no audio stream is encoded or
+  // packaged even if the source has one. A source that has no audio is always
+  // handled gracefully (video-only) regardless of this flag.
+  // Must not be combined with explicit audio[] tracks.
+  optional bool disable_audio = 16;
 }
 
 // Locked pricing snapshot for an output (captured at job creation).
@@ -737,6 +752,12 @@ message Job {
 
   // Thumbnail generation specifications (echoed from request).
   repeated ThumbnailSpec thumbnails = 25;
+
+  // Generated thumbnail artifacts (populated after the job completes). Each
+  // entry carries the worker-built storage `url` plus `mode`/`index` to
+  // correlate it back to the spec in `thumbnails` that produced it. Mirrors
+  // how JobOutput.output_url surfaces rendition results.
+  repeated ThumbnailResult thumbnail_results = 28;
 
   // Job-level output path template (echoed from request).
   // Variables: {job_id}, {output_id}, {date}, {timestamp}, {codec}, {resolution}, {format}, {quality}, {output_index}, {uuid}

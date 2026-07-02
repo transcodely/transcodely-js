@@ -83,4 +83,63 @@ message ThumbnailSpec {
     (buf.validate.field).int32.gte = 1,
     (buf.validate.field).int32.lte = 20
   ];
+
+  // Per-thumbnail storage path template, resolved by the worker with
+  // thumbnail-aware variables. Precedence: this field, then the output origin's
+  // path_template, then the built-in default {job_id}/thumbnails/thumb_{thumb_index}.
+  // The job-level output_path_template is NOT applied to thumbnails (it is
+  // documented as applying to every output; thumbnails aren't outputs).
+  //
+  // Variables: {job_id}, {video_id}, {date}, {timestamp}, {uuid},
+  // {format} (image format: jpeg|png|webp), {thumb_index} (0-based),
+  // {thumb_time} (seconds, file-safe), {thumb_time_ms} (milliseconds).
+  //
+  // Example: "video/{video_id}/poster/{thumb_index}".
+  //
+  // Must not start with `/` or contain `..` (no path traversal). When set, it
+  // must reference a uniqueness token ({job_id}, {video_id}, or {uuid}) so
+  // thumbnails from different jobs never collide on a shared origin. Unset →
+  // the default above (existing keys unchanged).
+  optional string path_template = 10 [
+    (buf.validate.field).string.max_len = 512,
+    (buf.validate.field).cel = {
+      id: "thumbnail_spec.path_template_safe"
+      message: "path_template must not start with `/` or contain `..`"
+      expression: "this == '' || (!this.startsWith('/') && !this.contains('..'))"
+    }
+  ];
+}
+
+// A single generated thumbnail artifact, reported by the worker on job
+// completion and surfaced on the Job response. Mirrors the rendition pattern:
+// the worker computes both the storage key and the storage URL, and the API
+// persists them verbatim (the same way JobOutput.output_url works). One
+// ThumbnailSpec can yield many ThumbnailResults (interval → N frames; sprite →
+// image + .vtt sidecar), correlated back via mode + index.
+message ThumbnailResult {
+  // Storage key relative to the output origin
+  // (e.g. "job_xxx/thumbnails/thumb_0.jpg"). Stable identifier for the file.
+  string storage_key = 1 [
+    (buf.validate.field).required = true
+  ];
+
+  // Fully-qualified storage URL as built by the worker
+  // (e.g. "s3://bucket/prefix/job_xxx/thumbnails/thumb_0.jpg"). Stored as-is
+  // and echoed on the Job response, exactly like JobOutput.output_url.
+  string url = 2;
+
+  // Generation mode that produced this file: single | interval | sprite |
+  // timestamps. Lowercase string on the wire.
+  string mode = 3;
+
+  // File format: jpeg | png | webp. The sprite mode's WebVTT sidecar uses
+  // "vtt".
+  string format = 4;
+
+  // Pixel dimensions. 0 when not applicable (e.g. the .vtt sidecar).
+  int32 width = 5;
+  int32 height = 6;
+
+  // 0-based index within a multi-file spec (interval frames, sprite tiles).
+  int32 index = 7;
 }

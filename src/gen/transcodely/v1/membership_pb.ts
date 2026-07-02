@@ -515,11 +515,13 @@ export class UpdateMembershipRoleRequest extends Message<UpdateMembershipRoleReq
  */
 export class UpdateMembershipRoleResponse extends Message<UpdateMembershipRoleResponse> {
   /**
-   * The updated membership.
+   * The updated membership, including user details — same shape as
+   * GetMembership / ListMemberships so a client refreshing from this response
+   * doesn't see user fields disappear after a role change.
    *
-   * @generated from field: transcodely.v1.Membership membership = 1;
+   * @generated from field: transcodely.v1.MembershipWithUser membership = 1;
    */
-  membership?: Membership;
+  membership?: MembershipWithUser;
 
   constructor(data?: PartialMessage<UpdateMembershipRoleResponse>) {
     super();
@@ -529,7 +531,7 @@ export class UpdateMembershipRoleResponse extends Message<UpdateMembershipRoleRe
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "transcodely.v1.UpdateMembershipRoleResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "membership", kind: "message", T: Membership },
+    { no: 1, name: "membership", kind: "message", T: MembershipWithUser },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateMembershipRoleResponse {

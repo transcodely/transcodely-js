@@ -290,10 +290,11 @@ message Preset {
   // Delivery format (affects packaging).
   DeliveryFormat delivery_format = 8;
 
-  // Streaming configuration for HLS/DASH outputs.
-  // Includes segment duration, GOP alignment, and format options.
-  // DEPRECATED: segment_duration field 9 is replaced by this.
-  optional StreamingConfig streaming = 17;
+  // Field 17 (streaming) was removed: it was never persisted, never read on
+  // Create/Update, and never populated by the server, so it always serialized
+  // as null. Reserved to prevent reuse. Streaming config is carried per-output
+  // (OutputSpec.streaming) and per-variant, not on the preset resource.
+  reserved 17;
 
   // Segment duration in seconds for HLS/DASH (default: 6).
   // DEPRECATED: Use streaming.segment_duration_seconds instead.
@@ -327,6 +328,10 @@ message Preset {
   // from the preset, with per-variant overrides for resolution, bitrate, etc.
   // Only valid when delivery_format is hls, dash, or cmaf.
   repeated PresetVariant variants = 18;
+
+  // Produce video-only outputs (no audio). When true, outputs derived from this
+  // preset drop audio entirely unless the output overrides disable_audio.
+  bool disable_audio = 19;
 }
 
 // Request to create a preset.
@@ -400,10 +405,14 @@ message CreatePresetRequest {
 
   // Multi-variant ABR configuration (max 20 variants).
   // Only valid when delivery_format is hls, dash, or cmaf.
-  // Requires at least 2 variants when non-empty.
+  // Requires at least 1 variant when non-empty; a single variant produces a
+  // single-rendition streaming output (e.g. one vertical 720p HLS stream).
   repeated PresetVariant variants = 14 [
     (buf.validate.field).repeated.max_items = 20
   ];
+
+  // Produce video-only outputs (no audio). Default: false.
+  optional bool disable_audio = 15;
 }
 
 // Response from creating a preset.
@@ -536,6 +545,10 @@ message UpdatePresetRequest {
   repeated PresetVariant variants = 15 [
     (buf.validate.field).repeated.max_items = 20
   ];
+
+  // New disable_audio setting (optional). When true, outputs from this preset
+  // are video-only.
+  optional bool disable_audio = 16;
 }
 
 // Response from updating a preset.

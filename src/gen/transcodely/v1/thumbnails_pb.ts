@@ -162,6 +162,28 @@ export class ThumbnailSpec extends Message<ThumbnailSpec> {
    */
   spriteColumns?: number;
 
+  /**
+   * Per-thumbnail storage path template, resolved by the worker with
+   * thumbnail-aware variables. Precedence: this field, then the output origin's
+   * path_template, then the built-in default {job_id}/thumbnails/thumb_{thumb_index}.
+   * The job-level output_path_template is NOT applied to thumbnails (it is
+   * documented as applying to every output; thumbnails aren't outputs).
+   *
+   * Variables: {job_id}, {video_id}, {date}, {timestamp}, {uuid},
+   * {format} (image format: jpeg|png|webp), {thumb_index} (0-based),
+   * {thumb_time} (seconds, file-safe), {thumb_time_ms} (milliseconds).
+   *
+   * Example: "video/{video_id}/poster/{thumb_index}".
+   *
+   * Must not start with `/` or contain `..` (no path traversal). When set, it
+   * must reference a uniqueness token ({job_id}, {video_id}, or {uuid}) so
+   * thumbnails from different jobs never collide on a shared origin. Unset →
+   * the default above (existing keys unchanged).
+   *
+   * @generated from field: optional string path_template = 10;
+   */
+  pathTemplate?: string;
+
   constructor(data?: PartialMessage<ThumbnailSpec>) {
     super();
     proto3.util.initPartial(data, this);
@@ -179,6 +201,7 @@ export class ThumbnailSpec extends Message<ThumbnailSpec> {
     { no: 7, name: "interval_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 8, name: "timestamps", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, repeated: true },
     { no: 9, name: "sprite_columns", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 10, name: "path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ThumbnailSpec {
@@ -195,6 +218,103 @@ export class ThumbnailSpec extends Message<ThumbnailSpec> {
 
   static equals(a: ThumbnailSpec | PlainMessage<ThumbnailSpec> | undefined, b: ThumbnailSpec | PlainMessage<ThumbnailSpec> | undefined): boolean {
     return proto3.util.equals(ThumbnailSpec, a, b);
+  }
+}
+
+/**
+ * A single generated thumbnail artifact, reported by the worker on job
+ * completion and surfaced on the Job response. Mirrors the rendition pattern:
+ * the worker computes both the storage key and the storage URL, and the API
+ * persists them verbatim (the same way JobOutput.output_url works). One
+ * ThumbnailSpec can yield many ThumbnailResults (interval → N frames; sprite →
+ * image + .vtt sidecar), correlated back via mode + index.
+ *
+ * @generated from message transcodely.v1.ThumbnailResult
+ */
+export class ThumbnailResult extends Message<ThumbnailResult> {
+  /**
+   * Storage key relative to the output origin
+   * (e.g. "job_xxx/thumbnails/thumb_0.jpg"). Stable identifier for the file.
+   *
+   * @generated from field: string storage_key = 1;
+   */
+  storageKey = "";
+
+  /**
+   * Fully-qualified storage URL as built by the worker
+   * (e.g. "s3://bucket/prefix/job_xxx/thumbnails/thumb_0.jpg"). Stored as-is
+   * and echoed on the Job response, exactly like JobOutput.output_url.
+   *
+   * @generated from field: string url = 2;
+   */
+  url = "";
+
+  /**
+   * Generation mode that produced this file: single | interval | sprite |
+   * timestamps. Lowercase string on the wire.
+   *
+   * @generated from field: string mode = 3;
+   */
+  mode = "";
+
+  /**
+   * File format: jpeg | png | webp. The sprite mode's WebVTT sidecar uses
+   * "vtt".
+   *
+   * @generated from field: string format = 4;
+   */
+  format = "";
+
+  /**
+   * Pixel dimensions. 0 when not applicable (e.g. the .vtt sidecar).
+   *
+   * @generated from field: int32 width = 5;
+   */
+  width = 0;
+
+  /**
+   * @generated from field: int32 height = 6;
+   */
+  height = 0;
+
+  /**
+   * 0-based index within a multi-file spec (interval frames, sprite tiles).
+   *
+   * @generated from field: int32 index = 7;
+   */
+  index = 0;
+
+  constructor(data?: PartialMessage<ThumbnailResult>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.ThumbnailResult";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "storage_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "mode", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "format", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "width", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 6, name: "height", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 7, name: "index", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ThumbnailResult {
+    return new ThumbnailResult().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ThumbnailResult {
+    return new ThumbnailResult().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ThumbnailResult {
+    return new ThumbnailResult().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ThumbnailResult | PlainMessage<ThumbnailResult> | undefined, b: ThumbnailResult | PlainMessage<ThumbnailResult> | undefined): boolean {
+    return proto3.util.equals(ThumbnailResult, a, b);
   }
 }
 

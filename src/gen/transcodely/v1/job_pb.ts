@@ -19,7 +19,7 @@ import { DRMConfig } from "./drm_pb.js";
 import { ContentAwareConfig } from "./content_aware_pb.js";
 import { OriginRef } from "./origin_pb.js";
 import { InputMetadata } from "./media_pb.js";
-import { ThumbnailSpec } from "./thumbnails_pb.js";
+import { ThumbnailResult, ThumbnailSpec } from "./thumbnails_pb.js";
 
 /**
  * Job status enumeration.
@@ -760,6 +760,18 @@ export class OutputSpec extends Message<OutputSpec> {
    */
   effectivePathTemplate?: string;
 
+  /**
+   * Produce a video-only output, dropping audio entirely.
+   * Override semantics: when unset, the value is inherited from the referenced
+   * preset (or defaults to false). When true, no audio stream is encoded or
+   * packaged even if the source has one. A source that has no audio is always
+   * handled gracefully (video-only) regardless of this flag.
+   * Must not be combined with explicit audio[] tracks.
+   *
+   * @generated from field: optional bool disable_audio = 16;
+   */
+  disableAudio?: boolean;
+
   constructor(data?: PartialMessage<OutputSpec>) {
     super();
     proto3.util.initPartial(data, this);
@@ -781,6 +793,7 @@ export class OutputSpec extends Message<OutputSpec> {
     { no: 13, name: "content_aware", kind: "message", T: ContentAwareConfig, opt: true },
     { no: 14, name: "encoding_mode", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 15, name: "effective_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 16, name: "disable_audio", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputSpec {
@@ -1727,6 +1740,16 @@ export class Job extends Message<Job> {
   thumbnails: ThumbnailSpec[] = [];
 
   /**
+   * Generated thumbnail artifacts (populated after the job completes). Each
+   * entry carries the worker-built storage `url` plus `mode`/`index` to
+   * correlate it back to the spec in `thumbnails` that produced it. Mirrors
+   * how JobOutput.output_url surfaces rendition results.
+   *
+   * @generated from field: repeated transcodely.v1.ThumbnailResult thumbnail_results = 28;
+   */
+  thumbnailResults: ThumbnailResult[] = [];
+
+  /**
    * Job-level output path template (echoed from request).
    * Variables: {job_id}, {output_id}, {date}, {timestamp}, {codec}, {resolution}, {format}, {quality}, {output_index}, {uuid}
    * Empty when the request did not specify one; outputs then fall back to
@@ -1779,6 +1802,7 @@ export class Job extends Message<Job> {
     { no: 21, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 24, name: "execution", kind: "message", T: ExecutionTiming },
     { no: 25, name: "thumbnails", kind: "message", T: ThumbnailSpec, repeated: true },
+    { no: 28, name: "thumbnail_results", kind: "message", T: ThumbnailResult, repeated: true },
     { no: 26, name: "output_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 27, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
