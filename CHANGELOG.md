@@ -4,6 +4,18 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.1.3](https://github.com/transcodely/transcodely-js/compare/v0.1.2...v0.1.3) (2026-07-02)
+
+
+### Features
+
+* resync proto — thumbnail path_template + accumulated drift ([#9](https://github.com/transcodely/transcodely-js/issues/9)) ([b304946](https://github.com/transcodely/transcodely-js/commit/b30494607e4b969014654e75fc7e3832bc4ad79e))
+
+
+### Bug Fixes
+
+* **webhooks:** accept null request.id in envelope ([#8](https://github.com/transcodely/transcodely-js/issues/8)) ([b1c2b70](https://github.com/transcodely/transcodely-js/commit/b1c2b7073b814b8aba4ac2e4c438d291ae7461ca))
+
 ## [0.1.2](https://github.com/transcodely/transcodely-js/compare/v0.1.1...v0.1.2) (2026-07-01)
 
 
