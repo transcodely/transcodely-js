@@ -250,16 +250,6 @@ export class Video extends Message<Video> {
   encodingCost?: number;
 
   /**
-   * @generated from field: optional double storage_cost_monthly = 32;
-   */
-  storageCostMonthly?: number;
-
-  /**
-   * @generated from field: optional double egress_total = 33;
-   */
-  egressTotal?: number;
-
-  /**
    * Timestamps.
    *
    * @generated from field: google.protobuf.Timestamp created_at = 40;
@@ -313,8 +303,6 @@ export class Video extends Message<Video> {
     { no: 25, name: "renditions", kind: "message", T: VideoRendition, repeated: true },
     { no: 30, name: "output_size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 31, name: "encoding_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
-    { no: 32, name: "storage_cost_monthly", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
-    { no: 33, name: "egress_total", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 40, name: "created_at", kind: "message", T: Timestamp },
     { no: 41, name: "updated_at", kind: "message", T: Timestamp },
     { no: 42, name: "ready_at", kind: "message", T: Timestamp, opt: true },
@@ -1687,7 +1675,8 @@ export class WatchVideoResponse extends Message<WatchVideoResponse> {
   video?: Video;
 
   /**
-   * Type of event that triggered this update (e.g., "snapshot", "status_change", "completed").
+   * Type of event that triggered this update. One of: "snapshot" (initial
+   * state on subscribe), "status_change", "progress", "completed".
    *
    * @generated from field: string event_type = 2;
    */
@@ -1876,6 +1865,13 @@ export class UsageSummary extends Message<UsageSummary> {
    */
   totalCost = 0;
 
+  /**
+   * ISO 4217 currency code for all monetary fields in this summary (e.g. "EUR").
+   *
+   * @generated from field: string currency = 31;
+   */
+  currency = "";
+
   constructor(data?: PartialMessage<UsageSummary>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1895,6 +1891,7 @@ export class UsageSummary extends Message<UsageSummary> {
     { no: 21, name: "egress_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 22, name: "total_requests", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 30, name: "total_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 31, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UsageSummary {

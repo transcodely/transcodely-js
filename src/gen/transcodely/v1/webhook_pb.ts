@@ -1290,7 +1290,10 @@ export class ResendEventRequest extends Message<ResendEventRequest> {
  */
 export class ResendEventResponse extends Message<ResendEventResponse> {
   /**
-   * Newly-created pending delivery records, one per target endpoint.
+   * Newly-created pending delivery records, one per target endpoint. These are
+   * freshly queued, so response-side fields (latency_ms, response_status,
+   * response_headers, transport_error) are absent until the worker attempts
+   * delivery — re-fetch via ListWebhookDeliveries to see the completed row.
    *
    * @generated from field: repeated transcodely.v1.WebhookDelivery deliveries = 1;
    */
@@ -1384,7 +1387,9 @@ export class SendTestWebhookResponse extends Message<SendTestWebhookResponse> {
   /**
    * The newly-queued delivery row. The UI navigates the operator to its
    * detail sheet so they can watch the worker transition it from pending
-   * to succeeded / failed in real time.
+   * to succeeded / failed in real time. Because it is freshly queued,
+   * response-side fields (latency_ms, response_status, response_headers,
+   * transport_error) are absent until the worker attempts delivery.
    *
    * @generated from field: transcodely.v1.WebhookDelivery delivery = 1;
    */

@@ -4,7 +4,6 @@ import { MembershipService } from "../gen/transcodely/v1/membership_connect.js";
 import {
   GetMembershipRequest,
   ListMembershipsRequest,
-  type Membership,
   type MembershipWithUser,
   RemoveMembershipRequest,
   UpdateMembershipRoleRequest,
@@ -52,7 +51,7 @@ export class Memberships {
   async updateRole(
     req: PartialMessage<UpdateMembershipRoleRequest>,
     opts?: CallOptions,
-  ): Promise<Membership> {
+  ): Promise<MembershipWithUser> {
     const res = await this.transport.unary(
       MembershipService,
       MembershipService.methods.updateRole,

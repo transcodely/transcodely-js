@@ -435,7 +435,10 @@ message ResendEventRequest {
 // Response from resending an event.
 // One delivery record is returned per endpoint the event was queued for.
 message ResendEventResponse {
-  // Newly-created pending delivery records, one per target endpoint.
+  // Newly-created pending delivery records, one per target endpoint. These are
+  // freshly queued, so response-side fields (latency_ms, response_status,
+  // response_headers, transport_error) are absent until the worker attempts
+  // delivery — re-fetch via ListWebhookDeliveries to see the completed row.
   repeated WebhookDelivery deliveries = 1;
 }
 
@@ -459,7 +462,9 @@ message SendTestWebhookRequest {
 message SendTestWebhookResponse {
   // The newly-queued delivery row. The UI navigates the operator to its
   // detail sheet so they can watch the worker transition it from pending
-  // to succeeded / failed in real time.
+  // to succeeded / failed in real time. Because it is freshly queued,
+  // response-side fields (latency_ms, response_status, response_headers,
+  // transport_error) are absent until the worker attempts delivery.
   WebhookDelivery delivery = 1;
 }
 

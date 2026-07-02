@@ -483,15 +483,6 @@ export class Preset extends Message<Preset> {
   deliveryFormat = DeliveryFormat.UNSPECIFIED;
 
   /**
-   * Streaming configuration for HLS/DASH outputs.
-   * Includes segment duration, GOP alignment, and format options.
-   * DEPRECATED: segment_duration field 9 is replaced by this.
-   *
-   * @generated from field: optional transcodely.v1.StreamingConfig streaming = 17;
-   */
-  streaming?: StreamingConfig;
-
-  /**
    * Segment duration in seconds for HLS/DASH (default: 6).
    * DEPRECATED: Use streaming.segment_duration_seconds instead.
    *
@@ -560,6 +551,14 @@ export class Preset extends Message<Preset> {
    */
   variants: PresetVariant[] = [];
 
+  /**
+   * Produce video-only outputs (no audio). When true, outputs derived from this
+   * preset drop audio entirely unless the output overrides disable_audio.
+   *
+   * @generated from field: bool disable_audio = 19;
+   */
+  disableAudio = false;
+
   constructor(data?: PartialMessage<Preset>) {
     super();
     proto3.util.initPartial(data, this);
@@ -576,7 +575,6 @@ export class Preset extends Message<Preset> {
     { no: 6, name: "container", kind: "enum", T: proto3.getEnumType(Container) },
     { no: 7, name: "faststart", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 8, name: "delivery_format", kind: "enum", T: proto3.getEnumType(DeliveryFormat) },
-    { no: 17, name: "streaming", kind: "message", T: StreamingConfig, opt: true },
     { no: 9, name: "segment_duration", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
     { no: 10, name: "video", kind: "message", T: VideoSettings },
     { no: 11, name: "audio", kind: "message", T: AudioSettings },
@@ -586,6 +584,7 @@ export class Preset extends Message<Preset> {
     { no: 15, name: "created_at", kind: "message", T: Timestamp },
     { no: 16, name: "updated_at", kind: "message", T: Timestamp },
     { no: 18, name: "variants", kind: "message", T: PresetVariant, repeated: true },
+    { no: 19, name: "disable_audio", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Preset {
@@ -702,11 +701,19 @@ export class CreatePresetRequest extends Message<CreatePresetRequest> {
   /**
    * Multi-variant ABR configuration (max 20 variants).
    * Only valid when delivery_format is hls, dash, or cmaf.
-   * Requires at least 2 variants when non-empty.
+   * Requires at least 1 variant when non-empty; a single variant produces a
+   * single-rendition streaming output (e.g. one vertical 720p HLS stream).
    *
    * @generated from field: repeated transcodely.v1.PresetVariant variants = 14;
    */
   variants: PresetVariant[] = [];
+
+  /**
+   * Produce video-only outputs (no audio). Default: false.
+   *
+   * @generated from field: optional bool disable_audio = 15;
+   */
+  disableAudio?: boolean;
 
   constructor(data?: PartialMessage<CreatePresetRequest>) {
     super();
@@ -729,6 +736,7 @@ export class CreatePresetRequest extends Message<CreatePresetRequest> {
     { no: 10, name: "audio", kind: "message", T: AudioSettings },
     { no: 11, name: "quality_tier", kind: "enum", T: proto3.getEnumType(QualityTier) },
     { no: 14, name: "variants", kind: "message", T: PresetVariant, repeated: true },
+    { no: 15, name: "disable_audio", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreatePresetRequest {
@@ -1190,6 +1198,14 @@ export class UpdatePresetRequest extends Message<UpdatePresetRequest> {
    */
   variants: PresetVariant[] = [];
 
+  /**
+   * New disable_audio setting (optional). When true, outputs from this preset
+   * are video-only.
+   *
+   * @generated from field: optional bool disable_audio = 16;
+   */
+  disableAudio?: boolean;
+
   constructor(data?: PartialMessage<UpdatePresetRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1212,6 +1228,7 @@ export class UpdatePresetRequest extends Message<UpdatePresetRequest> {
     { no: 11, name: "audio", kind: "message", T: AudioSettings, opt: true },
     { no: 12, name: "quality_tier", kind: "enum", T: proto3.getEnumType(QualityTier), opt: true },
     { no: 15, name: "variants", kind: "message", T: PresetVariant, repeated: true },
+    { no: 16, name: "disable_audio", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdatePresetRequest {

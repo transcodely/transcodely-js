@@ -349,6 +349,7 @@ export {
 
 export {
   type ThumbnailSpec,
+  type ThumbnailResult,
   ThumbnailMode,
   ThumbnailFormat,
 } from "./gen/transcodely/v1/thumbnails_pb.js";

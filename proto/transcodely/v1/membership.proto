@@ -160,8 +160,10 @@ message UpdateMembershipRoleRequest {
 
 // Response from updating a membership role.
 message UpdateMembershipRoleResponse {
-  // The updated membership.
-  Membership membership = 1;
+  // The updated membership, including user details — same shape as
+  // GetMembership / ListMemberships so a client refreshing from this response
+  // doesn't see user fields disappear after a role change.
+  MembershipWithUser membership = 1;
 }
 
 // Request to remove a member.

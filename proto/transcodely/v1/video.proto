@@ -148,8 +148,11 @@ message Video {
   // Storage and cost transparency.
   int64 output_size_bytes = 30;
   optional double encoding_cost = 31;
-  optional double storage_cost_monthly = 32;
-  optional double egress_total = 33;
+  // Fields 32 (storage_cost_monthly) and 33 (egress_total) were removed: no
+  // per-video storage/egress cost is tracked, so they were never populated.
+  // Aggregate storage/egress cost is exposed via VideoService.GetUsage
+  // (UsageSummary). Reserved to prevent reuse.
+  reserved 32, 33;
 
   // Timestamps.
   google.protobuf.Timestamp created_at = 40;
@@ -549,7 +552,8 @@ message WatchVideoResponse {
   // Current video state.
   Video video = 1;
 
-  // Type of event that triggered this update (e.g., "snapshot", "status_change", "completed").
+  // Type of event that triggered this update. One of: "snapshot" (initial
+  // state on subscribe), "status_change", "progress", "completed".
   string event_type = 2;
 }
 
@@ -592,4 +596,7 @@ message UsageSummary {
 
   // Total cost across all categories.
   double total_cost = 30;
+
+  // ISO 4217 currency code for all monetary fields in this summary (e.g. "EUR").
+  string currency = 31;
 }
