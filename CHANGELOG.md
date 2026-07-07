@@ -4,6 +4,13 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.1.4](https://github.com/transcodely/transcodely-js/compare/v0.1.3...v0.1.4) (2026-07-07)
+
+
+### Documentation
+
+* **examples:** add S3-compatible (custom-endpoint) origin example ([#11](https://github.com/transcodely/transcodely-js/issues/11)) ([1d262f7](https://github.com/transcodely/transcodely-js/commit/1d262f7193fefd09f63279921d8781c6f45ae14f))
+
 ## [0.1.3](https://github.com/transcodely/transcodely-js/compare/v0.1.2...v0.1.3) (2026-07-02)
 
 
