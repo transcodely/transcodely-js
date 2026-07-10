@@ -626,6 +626,46 @@ message JobOutput {
   // Lets webhook consumers and polyglot SDKs identify the resource without
   // out-of-band knowledge of the field name. Server-set; ignored on requests.
   string object = 21;
+
+  // Actual encoded frame width in pixels, measured from the produced media
+  // (rotation applied, so it matches what players display). For multi-variant
+  // outputs (ABR ladders) this is the highest-resolution variant's width;
+  // per-variant dimensions are in variant_results. Set when completed.
+  optional int32 width = 22;
+
+  // Actual encoded frame height in pixels (see width for semantics).
+  optional int32 height = 23;
+
+  // Measured average bitrate of the encoded output in kbps
+  // (total bytes × 8 / encoded duration). For multi-variant outputs this
+  // aggregates all variants; per-variant bitrates are in variant_results.
+  // Set when completed.
+  optional int32 average_bitrate_kbps = 24;
+
+  // Per-variant encode results for multi-variant outputs (ABR ladders),
+  // indexed like variant_pricing. Empty for single-variant outputs (use
+  // width/height/average_bitrate_kbps instead). Set when completed.
+  repeated OutputVariantResult variant_results = 25;
+}
+
+// Measured encode results for one variant of a multi-variant output.
+// Reported by the worker after encoding; index matches the variant's
+// position in the output spec (and VariantPricingSnapshot.index).
+message OutputVariantResult {
+  // Variant index within the output (0-based).
+  int32 index = 1;
+
+  // Actual encoded frame width in pixels.
+  int32 width = 2;
+
+  // Actual encoded frame height in pixels.
+  int32 height = 3;
+
+  // Measured average bitrate for this variant in kbps.
+  optional int32 average_bitrate_kbps = 4;
+
+  // Total encoded size of this variant in bytes.
+  optional int64 size_bytes = 5;
 }
 
 // Execution timing and telemetry for a job.

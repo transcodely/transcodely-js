@@ -35,10 +35,13 @@ message VideoStreamInfo {
   // Codec name (h264, hevc, vp9, av1, prores, etc.).
   string codec = 1;
 
-  // Frame width in pixels.
+  // Frame width in pixels, as displayed (container rotation applied).
+  // For a portrait phone recording stored as 1920x1440 with a 90° rotation
+  // side-matrix this is 1440 — matching the media players render and the
+  // outputs Transcodely produces. See `rotation` for the stored orientation.
   int32 width = 2;
 
-  // Frame height in pixels.
+  // Frame height in pixels, as displayed (container rotation applied).
   int32 height = 3;
 
   // Frame rate (e.g., 23.976, 29.97, 30.0, 59.94, 60.0).
@@ -74,11 +77,20 @@ message VideoStreamInfo {
   // Total number of frames (if known).
   optional int64 frame_count = 14;
 
-  // Display aspect ratio as string (e.g., "16:9", "2.35:1").
+  // Display aspect ratio as string (e.g., "16:9", "2.35:1"), rotation-aware:
+  // for a 90°/270° rotated stream the ratio describes the displayed frame
+  // (consistent with width/height above), not the coded one.
   optional string display_aspect_ratio = 15;
 
   // Sample aspect ratio as string (e.g., "1:1").
   optional string sample_aspect_ratio = 16;
+
+  // Container-level rotation metadata in degrees clockwise: 0, 90, 180 or
+  // 270. Parsed from the display-matrix side data (or legacy rotate tag).
+  // width/height/display_aspect_ratio already have this rotation applied;
+  // the field is informational so callers can recover the coded orientation.
+  // Absent when the stream carries no rotation metadata.
+  optional int32 rotation = 17;
 }
 
 // AudioStreamInfo contains metadata about an audio stream.
