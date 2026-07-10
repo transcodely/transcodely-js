@@ -30,6 +30,8 @@ interface Vector {
     event_id?: string;
     data_id?: string;
     idempotency_key?: string;
+    /** `null` for events emitted outside a request scope; omit the key entirely to skip this assertion. */
+    request_id?: string | null;
   };
 }
 
@@ -61,6 +63,9 @@ describe("conformance corpus", () => {
           }
           if (v.expect.idempotency_key) {
             expect(event.request.idempotencyKey).toBe(v.expect.idempotency_key);
+          }
+          if (v.expect.request_id !== undefined) {
+            expect(event.request.id).toBe(v.expect.request_id);
           }
           break;
         }
