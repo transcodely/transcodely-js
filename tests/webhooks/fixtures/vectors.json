@@ -57,6 +57,15 @@
       "expect": { "result": "ok", "event_type": "job.created", "event_id": "evt_t6", "data_id": "job_t6", "idempotency_key": "customer_supplied_key_abc" }
     },
     {
+      "name": "ok_worker_callback_null_request_ids",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t11\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.succeeded\",\"data\":{\"id\":\"job_t11\",\"object\":\"job\",\"status\":\"completed\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":null,\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "job.succeeded", "event_id": "evt_t11", "data_id": "job_t11" }
+    },
+    {
       "name": "ok_multi_secret_rotation",
       "secrets": ["whsec_old_secret", "whsec_test_12345678901234567890abcdef"],
       "signing_secret": "whsec_test_12345678901234567890abcdef",
