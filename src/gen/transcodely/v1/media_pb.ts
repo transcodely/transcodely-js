@@ -112,14 +112,17 @@ export class VideoStreamInfo extends Message<VideoStreamInfo> {
   codec = "";
 
   /**
-   * Frame width in pixels.
+   * Frame width in pixels, as displayed (container rotation applied).
+   * For a portrait phone recording stored as 1920x1440 with a 90° rotation
+   * side-matrix this is 1440 — matching the media players render and the
+   * outputs Transcodely produces. See `rotation` for the stored orientation.
    *
    * @generated from field: int32 width = 2;
    */
   width = 0;
 
   /**
-   * Frame height in pixels.
+   * Frame height in pixels, as displayed (container rotation applied).
    *
    * @generated from field: int32 height = 3;
    */
@@ -203,7 +206,9 @@ export class VideoStreamInfo extends Message<VideoStreamInfo> {
   frameCount?: bigint;
 
   /**
-   * Display aspect ratio as string (e.g., "16:9", "2.35:1").
+   * Display aspect ratio as string (e.g., "16:9", "2.35:1"), rotation-aware:
+   * for a 90°/270° rotated stream the ratio describes the displayed frame
+   * (consistent with width/height above), not the coded one.
    *
    * @generated from field: optional string display_aspect_ratio = 15;
    */
@@ -215,6 +220,17 @@ export class VideoStreamInfo extends Message<VideoStreamInfo> {
    * @generated from field: optional string sample_aspect_ratio = 16;
    */
   sampleAspectRatio?: string;
+
+  /**
+   * Container-level rotation metadata in degrees clockwise: 0, 90, 180 or
+   * 270. Parsed from the display-matrix side data (or legacy rotate tag).
+   * width/height/display_aspect_ratio already have this rotation applied;
+   * the field is informational so callers can recover the coded orientation.
+   * Absent when the stream carries no rotation metadata.
+   *
+   * @generated from field: optional int32 rotation = 17;
+   */
+  rotation?: number;
 
   constructor(data?: PartialMessage<VideoStreamInfo>) {
     super();
@@ -240,6 +256,7 @@ export class VideoStreamInfo extends Message<VideoStreamInfo> {
     { no: 14, name: "frame_count", kind: "scalar", T: 3 /* ScalarType.INT64 */, opt: true },
     { no: 15, name: "display_aspect_ratio", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 16, name: "sample_aspect_ratio", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 17, name: "rotation", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VideoStreamInfo {

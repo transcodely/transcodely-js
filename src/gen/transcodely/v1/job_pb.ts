@@ -1266,6 +1266,42 @@ export class JobOutput extends Message<JobOutput> {
    */
   object = "";
 
+  /**
+   * Actual encoded frame width in pixels, measured from the produced media
+   * (rotation applied, so it matches what players display). For multi-variant
+   * outputs (ABR ladders) this is the highest-resolution variant's width;
+   * per-variant dimensions are in variant_results. Set when completed.
+   *
+   * @generated from field: optional int32 width = 22;
+   */
+  width?: number;
+
+  /**
+   * Actual encoded frame height in pixels (see width for semantics).
+   *
+   * @generated from field: optional int32 height = 23;
+   */
+  height?: number;
+
+  /**
+   * Measured average bitrate of the encoded output in kbps
+   * (total bytes × 8 / encoded duration). For multi-variant outputs this
+   * aggregates all variants; per-variant bitrates are in variant_results.
+   * Set when completed.
+   *
+   * @generated from field: optional int32 average_bitrate_kbps = 24;
+   */
+  averageBitrateKbps?: number;
+
+  /**
+   * Per-variant encode results for multi-variant outputs (ABR ladders),
+   * indexed like variant_pricing. Empty for single-variant outputs (use
+   * width/height/average_bitrate_kbps instead). Set when completed.
+   *
+   * @generated from field: repeated transcodely.v1.OutputVariantResult variant_results = 25;
+   */
+  variantResults: OutputVariantResult[] = [];
+
   constructor(data?: PartialMessage<JobOutput>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1293,6 +1329,10 @@ export class JobOutput extends Message<JobOutput> {
     { no: 17, name: "preset_slug", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 20, name: "variant_pricing", kind: "message", T: VariantPricingSnapshot, repeated: true },
     { no: 21, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 22, name: "width", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 23, name: "height", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 24, name: "average_bitrate_kbps", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 25, name: "variant_results", kind: "message", T: OutputVariantResult, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JobOutput {
@@ -1309,6 +1349,81 @@ export class JobOutput extends Message<JobOutput> {
 
   static equals(a: JobOutput | PlainMessage<JobOutput> | undefined, b: JobOutput | PlainMessage<JobOutput> | undefined): boolean {
     return proto3.util.equals(JobOutput, a, b);
+  }
+}
+
+/**
+ * Measured encode results for one variant of a multi-variant output.
+ * Reported by the worker after encoding; index matches the variant's
+ * position in the output spec (and VariantPricingSnapshot.index).
+ *
+ * @generated from message transcodely.v1.OutputVariantResult
+ */
+export class OutputVariantResult extends Message<OutputVariantResult> {
+  /**
+   * Variant index within the output (0-based).
+   *
+   * @generated from field: int32 index = 1;
+   */
+  index = 0;
+
+  /**
+   * Actual encoded frame width in pixels.
+   *
+   * @generated from field: int32 width = 2;
+   */
+  width = 0;
+
+  /**
+   * Actual encoded frame height in pixels.
+   *
+   * @generated from field: int32 height = 3;
+   */
+  height = 0;
+
+  /**
+   * Measured average bitrate for this variant in kbps.
+   *
+   * @generated from field: optional int32 average_bitrate_kbps = 4;
+   */
+  averageBitrateKbps?: number;
+
+  /**
+   * Total encoded size of this variant in bytes.
+   *
+   * @generated from field: optional int64 size_bytes = 5;
+   */
+  sizeBytes?: bigint;
+
+  constructor(data?: PartialMessage<OutputVariantResult>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.OutputVariantResult";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "index", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "width", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "height", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "average_bitrate_kbps", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 5, name: "size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputVariantResult {
+    return new OutputVariantResult().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): OutputVariantResult {
+    return new OutputVariantResult().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): OutputVariantResult {
+    return new OutputVariantResult().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: OutputVariantResult | PlainMessage<OutputVariantResult> | undefined, b: OutputVariantResult | PlainMessage<OutputVariantResult> | undefined): boolean {
+    return proto3.util.equals(OutputVariantResult, a, b);
   }
 }
 

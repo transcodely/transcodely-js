@@ -202,6 +202,10 @@ app.post(
 
 The signed payload is the **raw HTTP body** — use `express.raw()` (or the equivalent in your framework) to receive a `Buffer`, never `express.json()`.
 
+Every event carries a `request` object. Events emitted **inside** an API request scope (e.g. `job.created`, from your `jobs.create` call) set `request.id` to the originating `req_*` ID. Events emitted **outside** a request scope — every worker-driven `job.*` / `output.*` event (`job.succeeded`, `job.failed`, `job.canceled`, `job.progress`, `output.ready`, …) — set `request.id` to `null`. `request.idempotencyKey` is `null` whenever the originating request didn't supply one.
+
+`constructEvent` accepts `request.id: null` from **v0.1.3** onward. v0.1.2 and earlier rejected such deliveries with a `WebhookPayloadError` — upgrade if you validate worker-driven events.
+
 ### Multi-secret rotation
 
 Pass an array to verify against both your previous and current secrets during a rotation window:
@@ -353,6 +357,18 @@ catch (err) {
 ## Wire format
 
 The SDK uses Connect-RPC over HTTP+JSON with snake_case field names and lowercase simplified enum values (e.g. `"pending"` instead of `"JOB_STATUS_PENDING"`). A custom codec handles the transformation transparently — the surface you write against is fully typed.
+
+A few in-memory vs. on-the-wire representations are worth knowing:
+
+- **64-bit integers** (byte sizes, millisecond durations — e.g. `sizeBytes`) are `bigint` in memory and serialize as decimal **strings** on the wire.
+- **Enums** are numeric in memory but serialize to their lowercase string names via `toJSON()` (`JobStatus.COMPLETED` ⇄ `"completed"`).
+- **`output_url` and thumbnail URL values are storage URLs** (e.g. `s3://bucket/key`, `gs://bucket/key`), not HTTP URLs — resolve them through your origin or CDN to fetch bytes.
+
+### Measured output & input metadata
+
+When an output completes, its `JobOutput` reports the real encoded geometry measured from the produced media — `width`, `height`, and `averageBitrateKbps`. For multi-variant outputs (ABR ladders) those aggregate the ladder, and `variantResults` (an `OutputVariantResult[]`, indexed like `variantPricing`) carries per-variant `width` / `height` / `averageBitrateKbps` / `sizeBytes`. Thumbnail results (`ThumbnailResult`) likewise carry their real rendered `width` / `height`.
+
+On the input side, `VideoStreamInfo.rotation` exposes container rotation in degrees clockwise (`0` / `90` / `180` / `270`, absent when the stream has no rotation metadata), and `width` / `height` / `displayAspectRatio` are **display-oriented** — rotation is already applied, so they match what a player shows.
 
 ## Versioning
 

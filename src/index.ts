@@ -70,6 +70,7 @@ export {
 export {
   type Job,
   type JobOutput,
+  type OutputVariantResult,
   type OutputSpec,
   type VideoVariant,
   type AudioTrackConfig,
