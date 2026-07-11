@@ -1,6 +1,6 @@
 {
   "$schema_version": "1",
-  "$description": "Language-agnostic conformance vectors for Transcodely webhook verification. Every SDK that implements constructEvent must pass each vector. Producers: language-agnostic inputs (secret, body, ts, tolerance, now). Consumers: derive the signature header at runtime as `t=<ts>,v1=<HMAC-SHA-256(secret, <ts>.<body>)>` unless `signature_header` is provided literally (used to seed signature_error vectors).",
+  "$description": "Language-agnostic conformance vectors for Transcodely webhook verification. Every SDK that implements constructEvent must pass each vector. Producers: language-agnostic inputs (secret, body, ts, tolerance, now). Consumers: derive the signature header at runtime as `t=<ts>,v1=<HMAC-SHA-256(secret, <ts>.<body>)>` unless `signature_header` is provided literally (used to seed signature_error vectors). Note: `request.id` is `null` (not omitted) for events emitted outside a request scope — worker-callback events (e.g. `job.succeeded`) and `SendTestWebhook` deliveries. See `ok_null_request_id` / `payload_error_empty_request_id` below; `request.id: \"\"` is invalid and must be rejected, only `null` or a non-empty string (by convention `req_`-prefixed) are accepted. Keep these two vectors' bodies byte-identical with transcodely-python's local copy (see python PR #10).",
   "vectors": [
     {
       "name": "ok_job_succeeded",
@@ -65,6 +65,24 @@
       "tolerance": 300,
       "now": 1716480293,
       "expect": { "result": "ok", "event_type": "job.succeeded", "event_id": "evt_t7", "data_id": "job_t7" }
+    },
+    {
+      "name": "ok_null_request_id",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t11\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.succeeded\",\"data\":{\"id\":\"job_t11\",\"object\":\"job\",\"status\":\"completed\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":null,\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "job.succeeded", "event_id": "evt_t11", "data_id": "job_t11", "request_id": null }
+    },
+    {
+      "name": "payload_error_empty_request_id",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t12\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"job.succeeded\",\"data\":{\"id\":\"job_t12\",\"object\":\"job\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":\"\",\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "payload_error" }
     },
     {
       "name": "signature_error_wrong_secret",
