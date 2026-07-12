@@ -28,7 +28,6 @@ function fakeProtoEvent(): APIEvent {
     pendingWebhooks: 0,
     createdAt: Timestamp.fromDate(new Date("2026-05-24T10:55:08Z")),
     apiVersion: "2026-05-23",
-    livemode: true,
     object: "event",
   });
 }
@@ -45,7 +44,6 @@ describe("Events facade", () => {
     expect(event.type).toBe("job.succeeded");
     expect(event.apiVersion).toBe("2026-05-23");
     expect(event.created).toBe("2026-05-24T10:55:08.000Z");
-    expect(event.livemode).toBe(true);
     expect(event.pendingWebhooks).toBe(0);
     expect(event.request).toEqual({ id: "req_pe1", idempotencyKey: null });
     expect(event.data).toBeInstanceOf(Job);

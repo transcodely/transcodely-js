@@ -10,40 +10,6 @@ import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
 import { PaginationRequest, PaginationResponse } from "./common_pb.js";
 
 /**
- * API key environment.
- *
- * @generated from enum transcodely.v1.APIKeyEnvironment
- */
-export enum APIKeyEnvironment {
-  /**
-   * Default value, should not be used.
-   *
-   * @generated from enum value: API_KEY_ENVIRONMENT_UNSPECIFIED = 0;
-   */
-  API_KEY_ENVIRONMENT_UNSPECIFIED = 0,
-
-  /**
-   * Production environment (ak_live_...).
-   *
-   * @generated from enum value: API_KEY_ENVIRONMENT_LIVE = 1;
-   */
-  API_KEY_ENVIRONMENT_LIVE = 1,
-
-  /**
-   * Sandbox/development environment (ak_test_...).
-   *
-   * @generated from enum value: API_KEY_ENVIRONMENT_TEST = 2;
-   */
-  API_KEY_ENVIRONMENT_TEST = 2,
-}
-// Retrieve enum metadata with: proto3.getEnumType(APIKeyEnvironment)
-proto3.util.setEnumType(APIKeyEnvironment, "transcodely.v1.APIKeyEnvironment", [
-  { no: 0, name: "API_KEY_ENVIRONMENT_UNSPECIFIED" },
-  { no: 1, name: "API_KEY_ENVIRONMENT_LIVE" },
-  { no: 2, name: "API_KEY_ENVIRONMENT_TEST" },
-]);
-
-/**
  * An API key for programmatic access.
  * Note: The actual secret is only returned during creation.
  *
@@ -72,7 +38,7 @@ export class APIKey extends Message<APIKey> {
   description = "";
 
   /**
-   * Key prefix for identification (e.g., "ak_live_" or "ak_test_").
+   * Key prefix for identification (e.g., "ak_...").
    * Safe to display in logs and dashboards.
    *
    * @generated from field: string key_prefix = 4;
@@ -86,13 +52,6 @@ export class APIKey extends Message<APIKey> {
    * @generated from field: string key_hint = 5;
    */
   keyHint = "";
-
-  /**
-   * Environment the key is valid for.
-   *
-   * @generated from field: transcodely.v1.APIKeyEnvironment environment = 6;
-   */
-  environment = APIKeyEnvironment.API_KEY_ENVIRONMENT_UNSPECIFIED;
 
   /**
    * Permission scopes (empty means full access).
@@ -150,7 +109,6 @@ export class APIKey extends Message<APIKey> {
     { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "key_prefix", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "key_hint", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "environment", kind: "enum", T: proto3.getEnumType(APIKeyEnvironment) },
     { no: 7, name: "scopes", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 8, name: "last_used_at", kind: "message", T: Timestamp, opt: true },
     { no: 9, name: "expires_at", kind: "message", T: Timestamp, opt: true },
@@ -197,13 +155,6 @@ export class CreateAPIKeyRequest extends Message<CreateAPIKeyRequest> {
   description = "";
 
   /**
-   * Environment for the key.
-   *
-   * @generated from field: transcodely.v1.APIKeyEnvironment environment = 3;
-   */
-  environment = APIKeyEnvironment.API_KEY_ENVIRONMENT_UNSPECIFIED;
-
-  /**
    * Optional expiration time. Null means the key never expires.
    *
    * @generated from field: optional google.protobuf.Timestamp expires_at = 4;
@@ -228,7 +179,6 @@ export class CreateAPIKeyRequest extends Message<CreateAPIKeyRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "environment", kind: "enum", T: proto3.getEnumType(APIKeyEnvironment) },
     { no: 4, name: "expires_at", kind: "message", T: Timestamp, opt: true },
     { no: 5, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
@@ -390,13 +340,6 @@ export class GetAPIKeyResponse extends Message<GetAPIKeyResponse> {
  */
 export class ListAPIKeysRequest extends Message<ListAPIKeysRequest> {
   /**
-   * Optional filter by environment.
-   *
-   * @generated from field: optional transcodely.v1.APIKeyEnvironment environment = 1;
-   */
-  environment?: APIKeyEnvironment;
-
-  /**
    * If true, include revoked keys in the response.
    *
    * @generated from field: bool include_revoked = 2;
@@ -418,7 +361,6 @@ export class ListAPIKeysRequest extends Message<ListAPIKeysRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "transcodely.v1.ListAPIKeysRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "environment", kind: "enum", T: proto3.getEnumType(APIKeyEnvironment), opt: true },
     { no: 2, name: "include_revoked", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 3, name: "pagination", kind: "message", T: PaginationRequest },
   ]);

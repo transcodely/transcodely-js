@@ -239,14 +239,6 @@ export class Event extends Message<Event> {
   apiVersion = "";
 
   /**
-   * True when the event was emitted from production (live mode) traffic.
-   * Reserved for a future test-mode concept; always `true` today.
-   *
-   * @generated from field: bool livemode = 9;
-   */
-  livemode = false;
-
-  /**
    * Resource type discriminator. Always "event" for this message.
    * Mirrored into the webhook envelope as the top-level `object`.
    *
@@ -270,7 +262,6 @@ export class Event extends Message<Event> {
     { no: 6, name: "pending_webhooks", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 7, name: "created_at", kind: "message", T: Timestamp },
     { no: 8, name: "api_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 9, name: "livemode", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 10, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
@@ -320,8 +311,11 @@ export class WebhookDelivery extends Message<WebhookDelivery> {
   eventId = "";
 
   /**
-   * Delivery status: "pending", "succeeded", or "failed".
-   * Wire value is lowercase per project convention.
+   * Delivery status: "pending", "succeeded", "failed", or "exhausted".
+   * "exhausted" means the retry curve ran out (attempt 15) without a success;
+   * "failed" is a single failed attempt (a retry may still be scheduled) or an
+   * early stop on a non-retryable 4xx. Wire value is lowercase per project
+   * convention.
    *
    * @generated from field: string status = 4;
    */
@@ -382,7 +376,8 @@ export class WebhookDelivery extends Message<WebhookDelivery> {
 
   /**
    * Reason a response was not received. Absent when response_status is set.
-   * One of: "timeout", "connection_refused", "dns_failure",
+   * One of: "timeout", "connection_refused", "connection_reset",
+   * "connection_closed", "host_unreachable", "dns_failure",
    * "tls_handshake_failed", "ssrf_blocked", "unknown".
    * Wire value is lowercase per project convention.
    *
@@ -402,6 +397,16 @@ export class WebhookDelivery extends Message<WebhookDelivery> {
    * @generated from field: optional string response_headers = 13;
    */
   responseHeaders?: string;
+
+  /**
+   * Human-readable detail for the failure: the transport error text when
+   * transport_error is set, or "non-2xx response: <status>" for a completed
+   * request that the endpoint rejected. Absent for pending or succeeded
+   * deliveries.
+   *
+   * @generated from field: optional string error_message = 14;
+   */
+  errorMessage?: string;
 
   constructor(data?: PartialMessage<WebhookDelivery>) {
     super();
@@ -424,6 +429,7 @@ export class WebhookDelivery extends Message<WebhookDelivery> {
     { no: 11, name: "latency_ms", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
     { no: 12, name: "transport_error", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 13, name: "response_headers", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 14, name: "error_message", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): WebhookDelivery {
@@ -1448,7 +1454,7 @@ export class ListWebhookDeliveriesRequest extends Message<ListWebhookDeliveriesR
   eventId?: string;
 
   /**
-   * Filter by status: "pending", "succeeded", or "failed".
+   * Filter by status: "pending", "succeeded", "failed", or "exhausted".
    *
    * @generated from field: optional string status = 3;
    */

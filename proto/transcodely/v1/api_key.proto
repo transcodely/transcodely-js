@@ -25,21 +25,12 @@ service APIKeyService {
   rpc Revoke(RevokeAPIKeyRequest) returns (RevokeAPIKeyResponse);
 }
 
-// API key environment.
-enum APIKeyEnvironment {
-  // Default value, should not be used.
-  API_KEY_ENVIRONMENT_UNSPECIFIED = 0;
-
-  // Production environment (ak_live_...).
-  API_KEY_ENVIRONMENT_LIVE = 1;
-
-  // Sandbox/development environment (ak_test_...).
-  API_KEY_ENVIRONMENT_TEST = 2;
-}
-
 // An API key for programmatic access.
 // Note: The actual secret is only returned during creation.
 message APIKey {
+  reserved 6;
+  reserved "environment";
+
   // Unique API key identifier (e.g., "ak_a1b2c3d4...").
   string id = 1;
 
@@ -49,16 +40,13 @@ message APIKey {
   // Optional description of the key's purpose.
   string description = 3;
 
-  // Key prefix for identification (e.g., "ak_live_" or "ak_test_").
+  // Key prefix for identification (e.g., "ak_...").
   // Safe to display in logs and dashboards.
   string key_prefix = 4;
 
   // Last 4 characters of the key for identification.
   // Safe to display for customer support lookups.
   string key_hint = 5;
-
-  // Environment the key is valid for.
-  APIKeyEnvironment environment = 6;
 
   // Permission scopes (empty means full access).
   // Future: granular permissions like "jobs:read", "jobs:write".
@@ -82,6 +70,9 @@ message APIKey {
 
 // Request to create a new API key.
 message CreateAPIKeyRequest {
+  reserved 3;
+  reserved "environment";
+
   // Human-readable name for the key (e.g., "Production API Key", "CI/CD").
   string name = 1 [
     (buf.validate.field).required = true,
@@ -92,12 +83,6 @@ message CreateAPIKeyRequest {
   // Optional description of the key's purpose.
   string description = 2 [
     (buf.validate.field).string.max_len = 1000
-  ];
-
-  // Environment for the key.
-  APIKeyEnvironment environment = 3 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).enum = {not_in: [0]}
   ];
 
   // Optional expiration time. Null means the key never expires.
@@ -138,8 +123,8 @@ message GetAPIKeyResponse {
 
 // Request to list API keys.
 message ListAPIKeysRequest {
-  // Optional filter by environment.
-  optional APIKeyEnvironment environment = 1;
+  reserved 1;
+  reserved "environment";
 
   // If true, include revoked keys in the response.
   bool include_revoked = 2;

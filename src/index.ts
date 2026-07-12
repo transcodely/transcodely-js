@@ -263,7 +263,6 @@ export {
   type ListAPIKeysRequest,
   type ListAPIKeysResponse,
   type RevokeAPIKeyRequest,
-  APIKeyEnvironment,
 } from "./gen/transcodely/v1/api_key_pb.js";
 
 // Organizations.

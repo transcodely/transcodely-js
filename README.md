@@ -42,8 +42,6 @@ Pass your API key in the constructor:
 const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 ```
 
-Test-mode keys (`ak_test_*`) and live-mode keys (`ak_live_*`) hit the same base URL — the environment is encoded in the key prefix.
-
 ## Resources
 
 ```ts
