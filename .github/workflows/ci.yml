@@ -9,13 +9,16 @@ on:
       - master
 
 env:
-  NODE_VERSION: "20"
   PNPM_VERSION: "10"
 
 jobs:
-  ci:
-    name: Typecheck, Test, Build
+  build:
+    name: Typecheck, Test, Build (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["20", "22", "24"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ matrix.node-version }}
           cache: "pnpm"
 
       - name: Install dependencies
@@ -49,3 +52,17 @@ jobs:
           test -f dist/index.cjs
           test -f dist/index.d.ts
           test -f dist/index.d.cts
+
+  ci:
+    name: Typecheck, Test, Build
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check matrix result
+        run: |
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "One or more Node matrix legs failed: ${{ needs.build.result }}"
+            exit 1
+          fi
+          echo "All Node matrix legs passed."
