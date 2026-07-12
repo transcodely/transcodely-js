@@ -23,7 +23,6 @@ interface EnvelopeInput {
   created?: string;
   type?: string;
   data?: unknown;
-  livemode?: boolean;
   pendingWebhooks?: number;
   request?: unknown;
 }
@@ -36,7 +35,6 @@ function envelope(overrides: EnvelopeInput = {}): string {
     created: "2026-05-24T10:55:08Z",
     type: "job.succeeded",
     data: { id: "job_abc", object: "job", status: "completed", input_url: "https://x/in.mp4" },
-    livemode: true,
     pending_webhooks: 0,
     request: { id: "req_xyz", idempotency_key: null as string | null },
   };
@@ -46,7 +44,6 @@ function envelope(overrides: EnvelopeInput = {}): string {
   if (overrides.created !== undefined) base.created = overrides.created;
   if (overrides.type !== undefined) base.type = overrides.type;
   if (overrides.data !== undefined) (base as Record<string, unknown>).data = overrides.data;
-  if (overrides.livemode !== undefined) base.livemode = overrides.livemode;
   if (overrides.pendingWebhooks !== undefined) base.pending_webhooks = overrides.pendingWebhooks;
   if (overrides.request !== undefined) (base as Record<string, unknown>).request = overrides.request;
   return JSON.stringify(base);
@@ -66,7 +63,6 @@ describe("constructEvent — happy paths", () => {
     expect(event.object).toBe("event");
     expect(event.apiVersion).toBe("2026-05-23");
     expect(event.created).toBe("2026-05-24T10:55:08Z");
-    expect(event.livemode).toBe(true);
     expect(event.pendingWebhooks).toBe(0);
     expect(event.request).toEqual({ id: "req_xyz", idempotencyKey: null });
     expect(event.data).toBeInstanceOf(Job);
@@ -214,7 +210,6 @@ describe("constructEvent — error paths", () => {
       created: "2026-05-24T10:55:08Z",
       type: "job.succeeded",
       data: "not an object",
-      livemode: true,
       pending_webhooks: 0,
       request: { id: "req_x", idempotency_key: null },
     });
@@ -231,7 +226,6 @@ describe("constructEvent — error paths", () => {
       created: "2026-05-24T10:55:08Z",
       type: "job.succeeded",
       data: {},
-      livemode: true,
       pending_webhooks: 0,
       request: { id: "req_x", idempotency_key: null },
     });

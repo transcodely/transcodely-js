@@ -25,7 +25,7 @@ function simpleEnumName(enumType: EnumType): string {
   return dot >= 0 ? enumType.typeName.slice(dot + 1) : enumType.typeName;
 }
 
-/** "JobStatus" → "JOB_STATUS"; "APIKeyEnvironment" → "API_KEY_ENVIRONMENT". */
+/** "JobStatus" → "JOB_STATUS"; "HLSSegmentFormat" → "HLS_SEGMENT_FORMAT". */
 export function camelToScreamingSnake(s: string): string {
   let result = "";
   for (let i = 0; i < s.length; i++) {

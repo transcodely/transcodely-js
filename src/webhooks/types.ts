@@ -21,8 +21,6 @@ export interface EventBase {
   apiVersion: string;
   /** RFC 3339 UTC timestamp of when the event was created. */
   created: string;
-  /** `true` for production-mode events. Reserved for a future test-mode concept. */
-  livemode: boolean;
   /** Number of delivery attempts still pending across all subscribed endpoints. */
   pendingWebhooks: number;
   /**

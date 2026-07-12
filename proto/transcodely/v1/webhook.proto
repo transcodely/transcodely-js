@@ -133,6 +133,9 @@ message WebhookEndpoint {
 
 // An immutable record of a platform event emitted for an app.
 message Event {
+  reserved 9;
+  reserved "livemode";
+
   // Unique identifier (e.g., "evt_a1b2c3d4e5f6g7h8").
   string id = 1;
 
@@ -161,10 +164,6 @@ message Event {
   // lifetime. Mirrored into the webhook envelope as the top-level `api_version`.
   string api_version = 8;
 
-  // True when the event was emitted from production (live mode) traffic.
-  // Reserved for a future test-mode concept; always `true` today.
-  bool livemode = 9;
-
   // Resource type discriminator. Always "event" for this message.
   // Mirrored into the webhook envelope as the top-level `object`.
   string object = 10;
@@ -182,8 +181,11 @@ message WebhookDelivery {
   // Event that was delivered.
   string event_id = 3;
 
-  // Delivery status: "pending", "succeeded", or "failed".
-  // Wire value is lowercase per project convention.
+  // Delivery status: "pending", "succeeded", "failed", or "exhausted".
+  // "exhausted" means the retry curve ran out (attempt 15) without a success;
+  // "failed" is a single failed attempt (a retry may still be scheduled) or an
+  // early stop on a non-retryable 4xx. Wire value is lowercase per project
+  // convention.
   string status = 4;
 
   // Attempt number starting at 1. Incremented by the retry scheduler
@@ -212,7 +214,8 @@ message WebhookDelivery {
   optional int32 latency_ms = 11;
 
   // Reason a response was not received. Absent when response_status is set.
-  // One of: "timeout", "connection_refused", "dns_failure",
+  // One of: "timeout", "connection_refused", "connection_reset",
+  // "connection_closed", "host_unreachable", "dns_failure",
   // "tls_handshake_failed", "ssrf_blocked", "unknown".
   // Wire value is lowercase per project convention.
   optional string transport_error = 12;
@@ -225,6 +228,12 @@ message WebhookDelivery {
   // Decode as map<string, string[]> (multi-value headers are preserved).
   // Absent on transport errors.
   optional string response_headers = 13;
+
+  // Human-readable detail for the failure: the transport error text when
+  // transport_error is set, or "non-2xx response: <status>" for a completed
+  // request that the endpoint rejected. Absent for pending or succeeded
+  // deliveries.
+  optional string error_message = 14;
 }
 
 // =============================================================================
@@ -490,7 +499,7 @@ message ListWebhookDeliveriesRequest {
     (buf.validate.field).string.pattern = "^evt_[a-zA-Z0-9_-]+$"
   ];
 
-  // Filter by status: "pending", "succeeded", or "failed".
+  // Filter by status: "pending", "succeeded", "failed", or "exhausted".
   optional string status = 3;
 
   // Pagination (cursor-based; limit ≤ 100).

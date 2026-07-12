@@ -41,7 +41,7 @@ describe("camelToScreamingSnake", () => {
   });
 
   it("keeps adjacent uppercase together when followed by lowercase", () => {
-    expect(camelToScreamingSnake("APIKeyEnvironment")).toBe("API_KEY_ENVIRONMENT");
+    expect(camelToScreamingSnake("HLSSegmentFormat")).toBe("HLS_SEGMENT_FORMAT");
     expect(camelToScreamingSnake("HTTPCredentials")).toBe("HTTP_CREDENTIALS");
   });
 

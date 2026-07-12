@@ -50,14 +50,6 @@ function requireString(obj: Record<string, unknown>, key: string): string {
   return v;
 }
 
-function requireBoolean(obj: Record<string, unknown>, key: string): boolean {
-  const v = obj[key];
-  if (typeof v !== "boolean") {
-    throw new WebhookPayloadError(`Webhook envelope field \`${key}\` must be a boolean`);
-  }
-  return v;
-}
-
 function requireNumber(obj: Record<string, unknown>, key: string): number {
   const v = obj[key];
   if (typeof v !== "number" || !Number.isFinite(v)) {
@@ -78,7 +70,6 @@ function buildEvent(parsed: unknown): WebhookEvent {
   const apiVersion = requireString(parsed, "api_version");
   const created = requireString(parsed, "created");
   const type = requireString(parsed, "type");
-  const livemode = requireBoolean(parsed, "livemode");
   const pendingWebhooks = requireNumber(parsed, "pending_webhooks");
 
   const dataRaw = parsed["data"];
@@ -115,7 +106,6 @@ function buildEvent(parsed: unknown): WebhookEvent {
     created,
     type,
     data,
-    livemode,
     pendingWebhooks,
     request: { id: requestIdRaw, idempotencyKey: idempotencyKeyRaw },
   } as WebhookEvent;

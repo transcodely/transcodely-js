@@ -107,7 +107,6 @@ export function protoEventToSdk(proto: APIEvent): WebhookEvent {
     created: proto.createdAt ? proto.createdAt.toDate().toISOString() : "",
     type: proto.type,
     data,
-    livemode: proto.livemode,
     pendingWebhooks: proto.pendingWebhooks,
     // proto Event carries only `request_id`; `idempotency_key` is always
     // null until JobService.Create propagates it (out-of-scope feature).
