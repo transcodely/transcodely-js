@@ -4,6 +4,23 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.2.0](https://github.com/transcodely/transcodely-js/compare/v0.1.4...v0.2.0) (2026-07-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* The APIKeyEnvironment enum and its API-key `environment` field are removed, and webhook events no longer expose `livemode`. Code that read `event.livemode` or referenced `APIKeyEnvironment` must be updated.
+
+### Features
+
+* proto resync (rotation + measured output metrics), null request.id vector, wire-type docs ([#15](https://github.com/transcodely/transcodely-js/issues/15)) ([b50fac9](https://github.com/transcodely/transcodely-js/commit/b50fac9a5778642ab5887347bd117fed32ac5a2d))
+* remove API-key environment and webhook livemode ([#18](https://github.com/transcodely/transcodely-js/issues/18)) ([80d05ab](https://github.com/transcodely/transcodely-js/commit/80d05ab5a45a592e8b42487c420074d23f2228e1))
+
+
+### Documentation
+
+* commit CLAUDE.md (was untracked — the routine fleet reads it via the GitHub API) ([3a494f3](https://github.com/transcodely/transcodely-js/commit/3a494f36d7f2416984097ec9cec72a58efb6ea37))
+
 ## [0.1.4](https://github.com/transcodely/transcodely-js/compare/v0.1.3...v0.1.4) (2026-07-07)
 
 
