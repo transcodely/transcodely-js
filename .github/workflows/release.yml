@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+  # Manual re-publish path: publishes the version currently on master (e.g.
+  # after a publish-step failure) without cutting a new release.
+  workflow_dispatch:
 
 env:
   NODE_VERSION: "20"
@@ -42,7 +45,7 @@ jobs:
   publish-npm:
     name: Publish to npm
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -76,10 +79,12 @@ jobs:
         run: pnpm build
 
       # Trusted publishing (OIDC) requires npm >= 11.5.1; the runner ships an
-      # older npm by default. `access` and `provenance` come from the token
-      # exchange + publishConfig, so no `--access` or `NODE_AUTH_TOKEN` needed.
+      # older npm by default. Pinned to npm 11 — npm 12 dropped Node 20 support
+      # and `npm@latest` broke the 0.2.0 publish. `access` and `provenance`
+      # come from the token exchange + publishConfig, so no `--access` or
+      # `NODE_AUTH_TOKEN` needed.
       - name: Upgrade npm for trusted publishing
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - name: Publish to npm
         run: npm publish --provenance
