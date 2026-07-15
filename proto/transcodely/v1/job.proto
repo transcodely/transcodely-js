@@ -869,7 +869,8 @@ message CreateJobRequest {
     (buf.validate.field).repeated.max_items = 10
   ];
 
-  // Job priority (affects processing order and cost).
+  // Job priority (affects worker selection and scheduling order; has no
+  // effect on cost — pricing is driven by codec/resolution/framerate/quality).
   JobPriority priority = 3 [
     (buf.validate.field).enum.defined_only = true
   ];

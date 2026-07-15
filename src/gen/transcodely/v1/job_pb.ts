@@ -1997,7 +1997,8 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
   outputs: OutputSpec[] = [];
 
   /**
-   * Job priority (affects processing order and cost).
+   * Job priority (affects worker selection and scheduling order; has no
+   * effect on cost — pricing is driven by codec/resolution/framerate/quality).
    *
    * @generated from field: transcodely.v1.JobPriority priority = 3;
    */
