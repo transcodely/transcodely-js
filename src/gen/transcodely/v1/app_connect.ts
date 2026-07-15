@@ -39,7 +39,7 @@ export const AppService = {
       kind: MethodKind.Unary,
     },
     /**
-     * Update an app's name, description, and webhook configuration.
+     * Update an app's name and description.
      *
      * @generated from rpc transcodely.v1.AppService.Update
      */

@@ -1679,6 +1679,13 @@ export class Job extends Message<Job> {
   id = "";
 
   /**
+   * Parent app that owns this job. Server-set; ignored on requests.
+   *
+   * @generated from field: string app_id = 29;
+   */
+  appId = "";
+
+  /**
    * URL of the input video file (direct URL mode).
    * Set if the job was created with input_url.
    *
@@ -1893,6 +1900,7 @@ export class Job extends Message<Job> {
   static readonly typeName = "transcodely.v1.Job";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 29, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "input_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 22, name: "input_origin", kind: "message", T: OriginRef, opt: true },
     { no: 23, name: "output_origin", kind: "message", T: OriginRef, opt: true },
@@ -2065,6 +2073,16 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
    */
   managed?: boolean;
 
+  /**
+   * Optional target app. API-key callers may omit it (their key's app is used)
+   * or pass their own app; a different app is rejected with PermissionDenied.
+   * Portal/JWT callers pass it to create in a specific app in their org;
+   * omitted selects the org's first active app.
+   *
+   * @generated from field: optional string app_id = 21;
+   */
+  appId?: string;
+
   constructor(data?: PartialMessage<CreateJobRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2086,6 +2104,7 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
     { no: 8, name: "thumbnails", kind: "message", T: ThumbnailSpec, repeated: true },
     { no: 12, name: "output_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 20, name: "managed", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 21, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateJobRequest {
@@ -2256,6 +2275,16 @@ export class ListJobsRequest extends Message<ListJobsRequest> {
    */
   pagination?: PaginationRequest;
 
+  /**
+   * Optional app filter. API-key callers may omit it (their key's app is used)
+   * or pass their own app; a different app is rejected with PermissionDenied.
+   * Portal/JWT callers pass it to list a specific app in their org; omitted
+   * returns jobs across all apps in the org.
+   *
+   * @generated from field: optional string app_id = 3;
+   */
+  appId?: string;
+
   constructor(data?: PartialMessage<ListJobsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2266,6 +2295,7 @@ export class ListJobsRequest extends Message<ListJobsRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "status", kind: "enum", T: proto3.getEnumType(JobStatus), opt: true },
     { no: 2, name: "pagination", kind: "message", T: PaginationRequest },
+    { no: 3, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListJobsRequest {

@@ -481,6 +481,14 @@ message ListVideosRequest {
 
   // Optional filter by status (e.g., "ready", "processing").
   optional string status = 3;
+
+  // Optional app filter. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to list a specific app in their org; omitted
+  // returns videos across all apps in the org.
+  optional string app_id = 4 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
 }
 
 // Response from listing videos.

@@ -45,7 +45,8 @@ proto3.util.setEnumType(AppStatus, "transcodely.v1.AppStatus", [
 
 /**
  * An app is a project within an organization.
- * Each app has its own API keys, jobs, origins, and webhook configuration.
+ * Each app has its own API keys, jobs, and origins. Webhook endpoints are
+ * managed via WebhookService (webhook.proto).
  *
  * @generated from message transcodely.v1.App
  */
@@ -78,18 +79,6 @@ export class App extends Message<App> {
    * @generated from field: optional string description = 4;
    */
   description?: string;
-
-  /**
-   * Webhook configuration.
-   * Deprecated: Use WebhookService (webhook.proto) to manage webhook endpoints
-   * instead. The new WebhookEndpoint resource supports multiple endpoints per
-   * app, HMAC-SHA-256 signing with secret rotation, and per-event type
-   * subscriptions. This field is retained for backwards compatibility;
-   * field number 5 must never be reused.
-   *
-   * @generated from field: optional transcodely.v1.WebhookConfig webhook = 5;
-   */
-  webhook?: WebhookConfig;
 
   /**
    * App status.
@@ -168,7 +157,6 @@ export class App extends Message<App> {
     { no: 2, name: "org_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
-    { no: 5, name: "webhook", kind: "message", T: WebhookConfig, opt: true },
     { no: 6, name: "status", kind: "enum", T: proto3.getEnumType(AppStatus) },
     { no: 7, name: "created_at", kind: "message", T: Timestamp },
     { no: 8, name: "updated_at", kind: "message", T: Timestamp },
@@ -194,75 +182,6 @@ export class App extends Message<App> {
 
   static equals(a: App | PlainMessage<App> | undefined, b: App | PlainMessage<App> | undefined): boolean {
     return proto3.util.equals(App, a, b);
-  }
-}
-
-/**
- * Webhook configuration for an app.
- *
- * @generated from message transcodely.v1.WebhookConfig
- */
-export class WebhookConfig extends Message<WebhookConfig> {
-  /**
-   * HTTPS endpoint for receiving webhooks.
-   *
-   * @generated from field: string url = 1;
-   */
-  url = "";
-
-  /**
-   * Secret for HMAC-SHA256 signature verification.
-   * Only the last 4 characters are shown (hint).
-   * Full secret is only returned when first configured.
-   *
-   * @generated from field: optional string secret_hint = 2;
-   */
-  secretHint?: string;
-
-  /**
-   * Whether a secret is configured.
-   *
-   * @generated from field: bool has_secret = 3;
-   */
-  hasSecret = false;
-
-  /**
-   * Events to send.
-   * Possible values: job.completed, job.failed, job.progress, job.canceled,
-   *                  output.completed, output.failed
-   *
-   * @generated from field: repeated string events = 4;
-   */
-  events: string[] = [];
-
-  constructor(data?: PartialMessage<WebhookConfig>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "transcodely.v1.WebhookConfig";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "secret_hint", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
-    { no: 3, name: "has_secret", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 4, name: "events", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): WebhookConfig {
-    return new WebhookConfig().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): WebhookConfig {
-    return new WebhookConfig().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): WebhookConfig {
-    return new WebhookConfig().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: WebhookConfig | PlainMessage<WebhookConfig> | undefined, b: WebhookConfig | PlainMessage<WebhookConfig> | undefined): boolean {
-    return proto3.util.equals(WebhookConfig, a, b);
   }
 }
 
@@ -294,13 +213,6 @@ export class CreateAppRequest extends Message<CreateAppRequest> {
   description?: string;
 
   /**
-   * Optional webhook configuration.
-   *
-   * @generated from field: optional transcodely.v1.CreateWebhookConfig webhook = 4;
-   */
-  webhook?: CreateWebhookConfig;
-
-  /**
    * Enable video hosting for this app. Provisions CDN infrastructure.
    * This cannot be disabled once enabled.
    *
@@ -319,7 +231,6 @@ export class CreateAppRequest extends Message<CreateAppRequest> {
     { no: 1, name: "org_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
-    { no: 4, name: "webhook", kind: "message", T: CreateWebhookConfig, opt: true },
     { no: 5, name: "enable_hosting", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
@@ -341,65 +252,6 @@ export class CreateAppRequest extends Message<CreateAppRequest> {
 }
 
 /**
- * Webhook configuration for app creation.
- *
- * @generated from message transcodely.v1.CreateWebhookConfig
- */
-export class CreateWebhookConfig extends Message<CreateWebhookConfig> {
-  /**
-   * HTTPS endpoint for receiving webhooks.
-   *
-   * @generated from field: string url = 1;
-   */
-  url = "";
-
-  /**
-   * If true, a webhook secret will be generated.
-   * The secret is returned once in the response.
-   *
-   * @generated from field: bool generate_secret = 2;
-   */
-  generateSecret = false;
-
-  /**
-   * Events to send.
-   * Default: ["job.completed", "job.failed"] if not specified.
-   *
-   * @generated from field: repeated string events = 3;
-   */
-  events: string[] = [];
-
-  constructor(data?: PartialMessage<CreateWebhookConfig>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "transcodely.v1.CreateWebhookConfig";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "generate_secret", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 3, name: "events", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateWebhookConfig {
-    return new CreateWebhookConfig().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateWebhookConfig {
-    return new CreateWebhookConfig().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateWebhookConfig {
-    return new CreateWebhookConfig().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: CreateWebhookConfig | PlainMessage<CreateWebhookConfig> | undefined, b: CreateWebhookConfig | PlainMessage<CreateWebhookConfig> | undefined): boolean {
-    return proto3.util.equals(CreateWebhookConfig, a, b);
-  }
-}
-
-/**
  * Response from creating an app.
  *
  * @generated from message transcodely.v1.CreateAppResponse
@@ -412,14 +264,6 @@ export class CreateAppResponse extends Message<CreateAppResponse> {
    */
   app?: App;
 
-  /**
-   * Webhook secret (only returned if generate_secret was true).
-   * WARNING: This is the only time the secret is returned.
-   *
-   * @generated from field: optional string webhook_secret = 2;
-   */
-  webhookSecret?: string;
-
   constructor(data?: PartialMessage<CreateAppResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -429,7 +273,6 @@ export class CreateAppResponse extends Message<CreateAppResponse> {
   static readonly typeName = "transcodely.v1.CreateAppResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "app", kind: "message", T: App },
-    { no: 2, name: "webhook_secret", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateAppResponse {
@@ -558,14 +401,6 @@ export class UpdateAppRequest extends Message<UpdateAppRequest> {
    */
   description?: string;
 
-  /**
-   * New webhook configuration (if provided).
-   * Set to empty message to clear webhook config.
-   *
-   * @generated from field: optional transcodely.v1.UpdateWebhookConfig webhook = 4;
-   */
-  webhook?: UpdateWebhookConfig;
-
   constructor(data?: PartialMessage<UpdateAppRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -577,7 +412,6 @@ export class UpdateAppRequest extends Message<UpdateAppRequest> {
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
-    { no: 4, name: "webhook", kind: "message", T: UpdateWebhookConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateAppRequest {
@@ -598,66 +432,6 @@ export class UpdateAppRequest extends Message<UpdateAppRequest> {
 }
 
 /**
- * Webhook configuration for app update.
- *
- * @generated from message transcodely.v1.UpdateWebhookConfig
- */
-export class UpdateWebhookConfig extends Message<UpdateWebhookConfig> {
-  /**
-   * New webhook URL. HTTPS only (same constraint as CreateWebhookConfig).
-   * Set to empty string to disable webhooks.
-   *
-   * @generated from field: optional string url = 1;
-   */
-  url?: string;
-
-  /**
-   * If true, regenerate the webhook secret.
-   * The new secret is returned in the response.
-   *
-   * @generated from field: bool regenerate_secret = 2;
-   */
-  regenerateSecret = false;
-
-  /**
-   * New events to send.
-   * Only applied if explicitly provided.
-   *
-   * @generated from field: repeated string events = 3;
-   */
-  events: string[] = [];
-
-  constructor(data?: PartialMessage<UpdateWebhookConfig>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "transcodely.v1.UpdateWebhookConfig";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
-    { no: 2, name: "regenerate_secret", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 3, name: "events", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateWebhookConfig {
-    return new UpdateWebhookConfig().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateWebhookConfig {
-    return new UpdateWebhookConfig().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateWebhookConfig {
-    return new UpdateWebhookConfig().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: UpdateWebhookConfig | PlainMessage<UpdateWebhookConfig> | undefined, b: UpdateWebhookConfig | PlainMessage<UpdateWebhookConfig> | undefined): boolean {
-    return proto3.util.equals(UpdateWebhookConfig, a, b);
-  }
-}
-
-/**
  * Response from updating an app.
  *
  * @generated from message transcodely.v1.UpdateAppResponse
@@ -670,13 +444,6 @@ export class UpdateAppResponse extends Message<UpdateAppResponse> {
    */
   app?: App;
 
-  /**
-   * New webhook secret (only returned if regenerate_secret was true).
-   *
-   * @generated from field: optional string webhook_secret = 2;
-   */
-  webhookSecret?: string;
-
   constructor(data?: PartialMessage<UpdateAppResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -686,7 +453,6 @@ export class UpdateAppResponse extends Message<UpdateAppResponse> {
   static readonly typeName = "transcodely.v1.UpdateAppResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "app", kind: "message", T: App },
-    { no: 2, name: "webhook_secret", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateAppResponse {

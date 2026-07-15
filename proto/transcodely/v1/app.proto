@@ -15,7 +15,7 @@ service AppService {
   // Get an app by ID.
   rpc Get(GetAppRequest) returns (GetAppResponse);
 
-  // Update an app's name, description, and webhook configuration.
+  // Update an app's name and description.
   rpc Update(UpdateAppRequest) returns (UpdateAppResponse);
 
   // List apps within an organization.
@@ -49,8 +49,17 @@ enum AppStatus {
 }
 
 // An app is a project within an organization.
-// Each app has its own API keys, jobs, origins, and webhook configuration.
+// Each app has its own API keys, jobs, and origins. Webhook endpoints are
+// managed via WebhookService (webhook.proto).
 message App {
+  // Removed: the legacy per-app webhook config (field 5, "webhook"). Webhook
+  // endpoints now live in the WebhookEndpoint resource (WebhookService), which
+  // supports multiple endpoints per app, HMAC-SHA-256 signing with secret
+  // rotation, and per-event-type subscriptions. The number and name must never
+  // be reused.
+  reserved 5;
+  reserved "webhook";
+
   // Unique app identifier (e.g., "app_a1b2c3d4e5").
   string id = 1;
 
@@ -63,14 +72,6 @@ message App {
 
   // Optional description.
   optional string description = 4;
-
-  // Webhook configuration.
-  // Deprecated: Use WebhookService (webhook.proto) to manage webhook endpoints
-  // instead. The new WebhookEndpoint resource supports multiple endpoints per
-  // app, HMAC-SHA-256 signing with secret rotation, and per-event type
-  // subscriptions. This field is retained for backwards compatibility;
-  // field number 5 must never be reused.
-  optional WebhookConfig webhook = 5;
 
   // App status.
   AppStatus status = 6;
@@ -104,27 +105,14 @@ message App {
   string object = 14;
 }
 
-// Webhook configuration for an app.
-message WebhookConfig {
-  // HTTPS endpoint for receiving webhooks.
-  string url = 1;
-
-  // Secret for HMAC-SHA256 signature verification.
-  // Only the last 4 characters are shown (hint).
-  // Full secret is only returned when first configured.
-  optional string secret_hint = 2;
-
-  // Whether a secret is configured.
-  bool has_secret = 3;
-
-  // Events to send.
-  // Possible values: job.completed, job.failed, job.progress, job.canceled,
-  //                  output.completed, output.failed
-  repeated string events = 4;
-}
-
 // Request to create a new app.
 message CreateAppRequest {
+  // Removed: the legacy webhook config (field 4, "webhook"). Create webhook
+  // endpoints via WebhookService after the app exists. The number and name
+  // must never be reused.
+  reserved 4;
+  reserved "webhook";
+
   // Parent organization ID.
   string org_id = 1 [
     (buf.validate.field).required = true,
@@ -143,40 +131,21 @@ message CreateAppRequest {
     (buf.validate.field).string.max_len = 500
   ];
 
-  // Optional webhook configuration.
-  optional CreateWebhookConfig webhook = 4;
-
   // Enable video hosting for this app. Provisions CDN infrastructure.
   // This cannot be disabled once enabled.
   optional bool enable_hosting = 5;
 }
 
-// Webhook configuration for app creation.
-message CreateWebhookConfig {
-  // HTTPS endpoint for receiving webhooks.
-  string url = 1 [
-    (buf.validate.field).required = true,
-    (buf.validate.field).string.uri = true,
-    (buf.validate.field).string.prefix = "https://"
-  ];
-
-  // If true, a webhook secret will be generated.
-  // The secret is returned once in the response.
-  bool generate_secret = 2;
-
-  // Events to send.
-  // Default: ["job.completed", "job.failed"] if not specified.
-  repeated string events = 3;
-}
-
 // Response from creating an app.
 message CreateAppResponse {
+  // Removed: webhook_secret (field 2). Legacy per-app webhook secrets no longer
+  // exist; use WebhookService.CreateWebhookEndpoint, which returns the signing
+  // secret once. The number and name must never be reused.
+  reserved 2;
+  reserved "webhook_secret";
+
   // The created app.
   App app = 1;
-
-  // Webhook secret (only returned if generate_secret was true).
-  // WARNING: This is the only time the secret is returned.
-  optional string webhook_secret = 2;
 }
 
 // Request to get an app.
@@ -196,6 +165,12 @@ message GetAppResponse {
 
 // Request to update an app.
 message UpdateAppRequest {
+  // Removed: the legacy webhook config (field 4, "webhook"). Manage webhook
+  // endpoints via WebhookService.UpdateWebhookEndpoint. The number and name
+  // must never be reused.
+  reserved 4;
+  reserved "webhook";
+
   // App ID.
   string id = 1 [
     (buf.validate.field).required = true,
@@ -212,40 +187,17 @@ message UpdateAppRequest {
   optional string description = 3 [
     (buf.validate.field).string.max_len = 500
   ];
-
-  // New webhook configuration (if provided).
-  // Set to empty message to clear webhook config.
-  optional UpdateWebhookConfig webhook = 4;
-}
-
-// Webhook configuration for app update.
-message UpdateWebhookConfig {
-  // New webhook URL. HTTPS only (same constraint as CreateWebhookConfig).
-  // Set to empty string to disable webhooks.
-  optional string url = 1 [
-    (buf.validate.field).cel = {
-      id: "update_webhook_config.url_https_or_empty"
-      message: "webhook url must be empty or an https:// URL"
-      expression: "this == '' || (this.isUri() && this.startsWith('https://'))"
-    }
-  ];
-
-  // If true, regenerate the webhook secret.
-  // The new secret is returned in the response.
-  bool regenerate_secret = 2;
-
-  // New events to send.
-  // Only applied if explicitly provided.
-  repeated string events = 3;
 }
 
 // Response from updating an app.
 message UpdateAppResponse {
+  // Removed: webhook_secret (field 2). Rotate a webhook endpoint's secret via
+  // WebhookService.RotateWebhookSecret. The number and name must never be reused.
+  reserved 2;
+  reserved "webhook_secret";
+
   // The updated app.
   App app = 1;
-
-  // New webhook secret (only returned if regenerate_secret was true).
-  optional string webhook_secret = 2;
 }
 
 // Request to list apps.

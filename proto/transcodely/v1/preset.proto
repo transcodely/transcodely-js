@@ -268,6 +268,10 @@ message Preset {
   // Unique preset identifier (e.g., "pst_x9y8z7w6v5").
   string id = 1;
 
+  // Parent app that owns this preset. Server-set; ignored on requests.
+  // Empty for system presets, which belong to no app and are visible to all.
+  string app_id = 20;
+
   // URL-safe slug identifier (e.g., "film_1080p_standard").
   // Used for referencing presets in job creation.
   string slug = 2;
@@ -413,6 +417,14 @@ message CreatePresetRequest {
 
   // Produce video-only outputs (no audio). Default: false.
   optional bool disable_audio = 15;
+
+  // Optional target app. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to create in a specific app in their org;
+  // omitted selects the org's first active app.
+  optional string app_id = 16 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
 }
 
 // Response from creating a preset.
@@ -471,6 +483,15 @@ message ListPresetsRequest {
 
   // Pagination parameters.
   PaginationRequest pagination = 5;
+
+  // Optional app filter for custom presets. API-key callers may omit it (their
+  // key's app is used) or pass their own app; a different app is rejected with
+  // PermissionDenied. Portal/JWT callers pass it to scope custom presets to a
+  // specific app in their org; omitted spans all apps in the org. System
+  // presets are unaffected (governed by include_system).
+  optional string app_id = 7 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
 }
 
 // Response from listing presets.

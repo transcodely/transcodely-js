@@ -184,9 +184,6 @@ export {
 // Apps.
 export {
   type App,
-  type WebhookConfig,
-  type CreateWebhookConfig,
-  type UpdateWebhookConfig,
   type HostingConfig,
   type AutoProfileDefaults,
   type CreateAppRequest,

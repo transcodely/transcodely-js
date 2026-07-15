@@ -1345,6 +1345,16 @@ export class ListVideosRequest extends Message<ListVideosRequest> {
    */
   status?: string;
 
+  /**
+   * Optional app filter. API-key callers may omit it (their key's app is used)
+   * or pass their own app; a different app is rejected with PermissionDenied.
+   * Portal/JWT callers pass it to list a specific app in their org; omitted
+   * returns videos across all apps in the org.
+   *
+   * @generated from field: optional string app_id = 4;
+   */
+  appId?: string;
+
   constructor(data?: PartialMessage<ListVideosRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1356,6 +1366,7 @@ export class ListVideosRequest extends Message<ListVideosRequest> {
     { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 3, name: "status", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListVideosRequest {

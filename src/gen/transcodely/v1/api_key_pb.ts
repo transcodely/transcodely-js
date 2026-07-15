@@ -24,6 +24,13 @@ export class APIKey extends Message<APIKey> {
   id = "";
 
   /**
+   * Parent app this key authenticates. Server-set; ignored on requests.
+   *
+   * @generated from field: string app_id = 13;
+   */
+  appId = "";
+
+  /**
    * Human-readable name for the key.
    *
    * @generated from field: string name = 2;
@@ -105,6 +112,7 @@ export class APIKey extends Message<APIKey> {
   static readonly typeName = "transcodely.v1.APIKey";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 13, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "key_prefix", kind: "scalar", T: 9 /* ScalarType.STRING */ },
@@ -353,6 +361,16 @@ export class ListAPIKeysRequest extends Message<ListAPIKeysRequest> {
    */
   pagination?: PaginationRequest;
 
+  /**
+   * Optional app filter. API-key callers may omit it (their key's app is used)
+   * or pass their own app; a different app is rejected with PermissionDenied.
+   * Portal/JWT callers pass it to list a specific app in their org; omitted
+   * returns keys across all apps in the org.
+   *
+   * @generated from field: optional string app_id = 4;
+   */
+  appId?: string;
+
   constructor(data?: PartialMessage<ListAPIKeysRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -363,6 +381,7 @@ export class ListAPIKeysRequest extends Message<ListAPIKeysRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 2, name: "include_revoked", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 3, name: "pagination", kind: "message", T: PaginationRequest },
+    { no: 4, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListAPIKeysRequest {
