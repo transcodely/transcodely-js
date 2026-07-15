@@ -10,6 +10,26 @@ authoritative for wire/enum/error behavior.
 - Regenerate from proto: `./scripts/sync-protos.sh && buf generate`
 - Build / check / test: `pnpm build` (tsup) · `pnpm typecheck` (tsc --noEmit) · `pnpm test` (vitest)
 
+## Docs are the contract (drift)
+
+The public docs (`transcodely/web` → `src/routes/(docs)/docs/**`, especially
+`getting-started/sdks/typescript` and the per-resource SDK method maps such as the one
+in `api-reference/webhooks`) document this SDK's exact public surface. Rules:
+
+- Any public-surface change (methods, param object shapes, exported enums, webhook
+  event types, error classes) must be mirrored in those web docs pages **in the same
+  release window**. Web's mechanical drift gate validates proto-level facts but does
+  NOT parse `ts` code fences — whoever changes this SDK owns the docs snippets.
+- Before renaming/removing anything public, grep the web repo's docs for usages
+  (` ```typescript ` fences calling `client.<resource>.<method>` and named imports
+  from `@transcodely/sdk`); docs may also reference capabilities that shipped here first.
+- Six generated enums keep their full proto prefix in member identifiers
+  (`DRMSystem.DRM_SYSTEM_WIDEVINE`, `HDRFormat.HDR_FORMAT_HDR10`, `HDRMode`,
+  `HLSSegmentFormat`, `HLSPlaylistType`, `GOPAlignmentMode`) — docs snippets using
+  shorthand members for these will not type-check.
+- Vendored proto comments flow into generated code and docs — when resyncing, take
+  the api repo's comments verbatim (they are maintained as public documentation there).
+
 ---
 
 ## TODO: surface `disable_audio` + single-variant streaming presets
@@ -33,8 +53,8 @@ Upstream API changes this SDK still needs to expose (api PR #119, worker PR #57)
    HLS stream). No proto change — just relax any client-side mirror and update examples.
 
 ### Work items
-- [ ] `./scripts/sync-protos.sh && buf generate` — `disableAudio?: boolean` on the
-      `OutputSpec` type and the preset fields then appear in `src/gen` automatically.
+- [x] `./scripts/sync-protos.sh && buf generate` — DONE: `disableAudio` is present in
+      `src/gen/transcodely/v1/job_pb.ts` and the preset types (verified 2026-07-15).
       Pass via `{ type: OutputFormat.HLS, video: [...], disableAudio: true }`.
 - [ ] Add an `examples/` demo creating a video-only output (and/or a single-variant
       streaming preset).
