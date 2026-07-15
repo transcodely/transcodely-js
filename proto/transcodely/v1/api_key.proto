@@ -34,6 +34,9 @@ message APIKey {
   // Unique API key identifier (e.g., "ak_a1b2c3d4...").
   string id = 1;
 
+  // Parent app this key authenticates. Server-set; ignored on requests.
+  string app_id = 13;
+
   // Human-readable name for the key.
   string name = 2;
 
@@ -131,6 +134,14 @@ message ListAPIKeysRequest {
 
   // Pagination parameters.
   PaginationRequest pagination = 3;
+
+  // Optional app filter. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to list a specific app in their org; omitted
+  // returns keys across all apps in the org.
+  optional string app_id = 4 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
 }
 
 // Response from listing API keys.

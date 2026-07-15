@@ -713,6 +713,9 @@ message Job {
   // Unique job identifier (e.g., "job_a1b2c3d4e5f6").
   string id = 1;
 
+  // Parent app that owns this job. Server-set; ignored on requests.
+  string app_id = 29;
+
   // URL of the input video file (direct URL mode).
   // Set if the job was created with input_url.
   string input_url = 2;
@@ -930,6 +933,14 @@ message CreateJobRequest {
   // Write outputs to managed hosting storage and create a video record.
   // When true, output_origin_id is not required.
   optional bool managed = 20;
+
+  // Optional target app. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to create in a specific app in their org;
+  // omitted selects the org's first active app.
+  optional string app_id = 21 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
 }
 
 // Response from creating a job.
@@ -963,6 +974,14 @@ message ListJobsRequest {
 
   // Pagination parameters.
   PaginationRequest pagination = 2;
+
+  // Optional app filter. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to list a specific app in their org; omitted
+  // returns jobs across all apps in the org.
+  optional string app_id = 3 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
 }
 
 // Response from listing jobs.

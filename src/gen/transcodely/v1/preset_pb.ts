@@ -433,6 +433,14 @@ export class Preset extends Message<Preset> {
   id = "";
 
   /**
+   * Parent app that owns this preset. Server-set; ignored on requests.
+   * Empty for system presets, which belong to no app and are visible to all.
+   *
+   * @generated from field: string app_id = 20;
+   */
+  appId = "";
+
+  /**
    * URL-safe slug identifier (e.g., "film_1080p_standard").
    * Used for referencing presets in job creation.
    *
@@ -568,6 +576,7 @@ export class Preset extends Message<Preset> {
   static readonly typeName = "transcodely.v1.Preset";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 20, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "slug", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
@@ -715,6 +724,16 @@ export class CreatePresetRequest extends Message<CreatePresetRequest> {
    */
   disableAudio?: boolean;
 
+  /**
+   * Optional target app. API-key callers may omit it (their key's app is used)
+   * or pass their own app; a different app is rejected with PermissionDenied.
+   * Portal/JWT callers pass it to create in a specific app in their org;
+   * omitted selects the org's first active app.
+   *
+   * @generated from field: optional string app_id = 16;
+   */
+  appId?: string;
+
   constructor(data?: PartialMessage<CreatePresetRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -737,6 +756,7 @@ export class CreatePresetRequest extends Message<CreatePresetRequest> {
     { no: 11, name: "quality_tier", kind: "enum", T: proto3.getEnumType(QualityTier) },
     { no: 14, name: "variants", kind: "message", T: PresetVariant, repeated: true },
     { no: 15, name: "disable_audio", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 16, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreatePresetRequest {
@@ -1009,6 +1029,17 @@ export class ListPresetsRequest extends Message<ListPresetsRequest> {
    */
   pagination?: PaginationRequest;
 
+  /**
+   * Optional app filter for custom presets. API-key callers may omit it (their
+   * key's app is used) or pass their own app; a different app is rejected with
+   * PermissionDenied. Portal/JWT callers pass it to scope custom presets to a
+   * specific app in their org; omitted spans all apps in the org. System
+   * presets are unaffected (governed by include_system).
+   *
+   * @generated from field: optional string app_id = 7;
+   */
+  appId?: string;
+
   constructor(data?: PartialMessage<ListPresetsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1023,6 +1054,7 @@ export class ListPresetsRequest extends Message<ListPresetsRequest> {
     { no: 4, name: "video_codec", kind: "enum", T: proto3.getEnumType(VideoCodec), opt: true },
     { no: 6, name: "delivery_format", kind: "enum", T: proto3.getEnumType(DeliveryFormat), opt: true },
     { no: 5, name: "pagination", kind: "message", T: PaginationRequest },
+    { no: 7, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListPresetsRequest {

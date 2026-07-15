@@ -666,6 +666,13 @@ export class Origin extends Message<Origin> {
   id = "";
 
   /**
+   * Parent app that owns this origin. Server-set; ignored on requests.
+   *
+   * @generated from field: string app_id = 19;
+   */
+  appId = "";
+
+  /**
    * Human-readable name for the origin.
    *
    * @generated from field: string name = 2;
@@ -810,6 +817,7 @@ export class Origin extends Message<Origin> {
   static readonly typeName = "transcodely.v1.Origin";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 19, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "provider", kind: "enum", T: proto3.getEnumType(OriginProvider) },
@@ -918,6 +926,16 @@ export class CreateOriginRequest extends Message<CreateOriginRequest> {
    */
   r2?: R2OriginConfig;
 
+  /**
+   * Optional target app. API-key callers may omit it (their key's app is used)
+   * or pass their own app; a different app is rejected with PermissionDenied.
+   * Portal/JWT callers pass it to create in a specific app in their org;
+   * omitted selects the org's first active app.
+   *
+   * @generated from field: optional string app_id = 10;
+   */
+  appId?: string;
+
   constructor(data?: PartialMessage<CreateOriginRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -935,6 +953,7 @@ export class CreateOriginRequest extends Message<CreateOriginRequest> {
     { no: 7, name: "s3", kind: "message", T: S3OriginConfig },
     { no: 8, name: "http", kind: "message", T: HttpOriginConfig },
     { no: 9, name: "r2", kind: "message", T: R2OriginConfig },
+    { no: 10, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateOriginRequest {
@@ -1207,6 +1226,16 @@ export class ListOriginsRequest extends Message<ListOriginsRequest> {
    */
   pagination?: PaginationRequest;
 
+  /**
+   * Optional app filter. API-key callers may omit it (their key's app is used)
+   * or pass their own app; a different app is rejected with PermissionDenied.
+   * Portal/JWT callers pass it to list a specific app in their org; omitted
+   * returns origins across all apps in the org.
+   *
+   * @generated from field: optional string app_id = 6;
+   */
+  appId?: string;
+
   constructor(data?: PartialMessage<ListOriginsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1220,6 +1249,7 @@ export class ListOriginsRequest extends Message<ListOriginsRequest> {
     { no: 3, name: "permission", kind: "enum", T: proto3.getEnumType(OriginPermission), opt: true },
     { no: 4, name: "include_archived", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 5, name: "pagination", kind: "message", T: PaginationRequest },
+    { no: 6, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListOriginsRequest {
