@@ -46,10 +46,11 @@ export class WebhookEndpoint extends Message<WebhookEndpoint> {
   /**
    * Event types this endpoint subscribes to.
    * Use "*" to subscribe to all event types.
-   * Possible values: "job.created", "job.updated", "job.succeeded",
-   * "job.failed", "job.canceled", "job.progress", "output.created",
-   * "output.ready", "output.failed", "output.progress",
-   * "video.uploaded", "video.deleted", "app.created", "app.updated", or "*".
+   * Possible values: "job.created", "job.succeeded", "job.failed",
+   * "job.canceled", "job.progress", "output.created", "output.ready",
+   * "output.failed", "output.progress", "video.uploaded", "video.deleted",
+   * "app.created", "app.updated", or "*".
+   * Keep in sync with domain.WebhookEventTypes() ("job.updated" does not exist).
    *
    * @generated from field: repeated string enabled_events = 5;
    */
