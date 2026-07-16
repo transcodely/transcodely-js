@@ -19,7 +19,7 @@ import type { Message, MessageType } from "@bufbuild/protobuf";
 import { MethodKind } from "@bufbuild/protobuf";
 
 import { TranscodelyError } from "../errors.js";
-import { API_VERSION, DEFAULT_BASE_URL, SDK_VERSION } from "../version.js";
+import { API_VERSION, DEFAULT_BASE_URL } from "../version.js";
 
 import { deserialize, serialize } from "../codec/json.js";
 import {
