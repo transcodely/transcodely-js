@@ -4,6 +4,9 @@ const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 
 const job = await client.jobs.create({
   inputUrl: "https://download.samplelib.com/mp4/sample-30s.mp4",
+  // Write outputs to Transcodely-managed storage. Drop `managed` and set
+  // `outputOriginId: "ori_..."` to write to your own configured origin.
+  managed: true,
   outputs: [
     {
       type: OutputFormat.HLS,
