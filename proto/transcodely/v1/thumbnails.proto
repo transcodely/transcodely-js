@@ -94,6 +94,13 @@ message ThumbnailSpec {
   // {format} (image format: jpeg|png|webp), {thumb_index} (0-based),
   // {thumb_time} (seconds, file-safe), {thumb_time_ms} (milliseconds).
   //
+  // Output-only variables ({output_id}, {codec}, {resolution}, {bitrate},
+  // {quality}, {preset_id}, {output_index}, {segment_*}) are NOT valid here — a
+  // thumbnail is not a rendition, so a thumbnail render context can't resolve
+  // them and the literal token would land in the storage key. Setting one is a
+  // validation error. (When a thumbnail INHERITS the output origin's template
+  // instead, those variables are stripped automatically.)
+  //
   // Example: "video/{video_id}/poster/{thumb_index}".
   //
   // Must not start with `/` or contain `..` (no path traversal). When set, it

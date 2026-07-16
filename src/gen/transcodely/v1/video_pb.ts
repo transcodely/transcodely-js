@@ -1883,6 +1883,20 @@ export class UsageSummary extends Message<UsageSummary> {
    */
   currency = "";
 
+  /**
+   * Per-day usage breakdown for the billing period identified by
+   * billing_month, oldest day first. With a billing anchor day other than 1,
+   * the period spans into the following calendar month, so dates are not
+   * limited to the named month. Only days with recorded activity are present
+   * (no zero-fill): a day is omitted when it had no storage snapshot, no
+   * egress, and no video encoded. Powers the dashboard's usage-trend charts.
+   * Populated for both app-scoped and org-scoped (aggregated across the
+   * org's apps) calls.
+   *
+   * @generated from field: repeated transcodely.v1.DailyUsage daily = 40;
+   */
+  daily: DailyUsage[] = [];
+
   constructor(data?: PartialMessage<UsageSummary>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1903,6 +1917,7 @@ export class UsageSummary extends Message<UsageSummary> {
     { no: 22, name: "total_requests", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 30, name: "total_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 31, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 40, name: "daily", kind: "message", T: DailyUsage, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UsageSummary {
@@ -1919,6 +1934,84 @@ export class UsageSummary extends Message<UsageSummary> {
 
   static equals(a: UsageSummary | PlainMessage<UsageSummary> | undefined, b: UsageSummary | PlainMessage<UsageSummary> | undefined): boolean {
     return proto3.util.equals(UsageSummary, a, b);
+  }
+}
+
+/**
+ * One calendar day's slice of usage within a billing period (see
+ * UsageSummary.daily for period semantics). All monetary fields are in the
+ * parent UsageSummary's `currency`.
+ *
+ * @generated from message transcodely.v1.DailyUsage
+ */
+export class DailyUsage extends Message<DailyUsage> {
+  /**
+   * Calendar day in YYYY-MM-DD format (UTC).
+   *
+   * @generated from field: string date = 1;
+   */
+  date = "";
+
+  /**
+   * Total stored bytes as of this day's snapshot. Point-in-time (the day's
+   * recorded storage level), not an increment over the prior day. Zero when
+   * no snapshot was taken that day.
+   *
+   * @generated from field: int64 storage_bytes = 2;
+   */
+  storageBytes = protoInt64.zero;
+
+  /**
+   * Bytes egressed during this day (sum of the day's hourly egress records).
+   *
+   * @generated from field: int64 egress_bytes = 3;
+   */
+  egressBytes = protoInt64.zero;
+
+  /**
+   * CDN requests served during this day (sum of the day's hourly records).
+   *
+   * @generated from field: int64 request_count = 4;
+   */
+  requestCount = protoInt64.zero;
+
+  /**
+   * Encoding cost for videos created on this day, derived from the linked
+   * transcoding jobs' actual cost. Zero when no billable video was created.
+   *
+   * @generated from field: double encoding_cost = 5;
+   */
+  encodingCost = 0;
+
+  constructor(data?: PartialMessage<DailyUsage>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.DailyUsage";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "date", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "storage_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "egress_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 4, name: "request_count", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 5, name: "encoding_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DailyUsage {
+    return new DailyUsage().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DailyUsage {
+    return new DailyUsage().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DailyUsage {
+    return new DailyUsage().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DailyUsage | PlainMessage<DailyUsage> | undefined, b: DailyUsage | PlainMessage<DailyUsage> | undefined): boolean {
+    return proto3.util.equals(DailyUsage, a, b);
   }
 }
 
