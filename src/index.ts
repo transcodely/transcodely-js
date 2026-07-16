@@ -127,6 +127,7 @@ export {
   type GetUsageRequest,
   type GetUsageResponse,
   type UsageSummary,
+  type DailyUsage,
   VideoStatus,
   VideoVisibility,
 } from "./gen/transcodely/v1/video_pb.js";
@@ -234,6 +235,7 @@ export {
   type GetEndpointHealthRequest,
   type GetEndpointHealthResponse,
   type HealthBucket,
+  type EndpointHealthSummary,
 } from "./gen/transcodely/v1/webhook_pb.js";
 
 export {

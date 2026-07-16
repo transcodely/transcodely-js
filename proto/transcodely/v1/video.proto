@@ -607,4 +607,37 @@ message UsageSummary {
 
   // ISO 4217 currency code for all monetary fields in this summary (e.g. "EUR").
   string currency = 31;
+
+  // Per-day usage breakdown for the billing period identified by
+  // billing_month, oldest day first. With a billing anchor day other than 1,
+  // the period spans into the following calendar month, so dates are not
+  // limited to the named month. Only days with recorded activity are present
+  // (no zero-fill): a day is omitted when it had no storage snapshot, no
+  // egress, and no video encoded. Powers the dashboard's usage-trend charts.
+  // Populated for both app-scoped and org-scoped (aggregated across the
+  // org's apps) calls.
+  repeated DailyUsage daily = 40;
+}
+
+// One calendar day's slice of usage within a billing period (see
+// UsageSummary.daily for period semantics). All monetary fields are in the
+// parent UsageSummary's `currency`.
+message DailyUsage {
+  // Calendar day in YYYY-MM-DD format (UTC).
+  string date = 1;
+
+  // Total stored bytes as of this day's snapshot. Point-in-time (the day's
+  // recorded storage level), not an increment over the prior day. Zero when
+  // no snapshot was taken that day.
+  int64 storage_bytes = 2;
+
+  // Bytes egressed during this day (sum of the day's hourly egress records).
+  int64 egress_bytes = 3;
+
+  // CDN requests served during this day (sum of the day's hourly records).
+  int64 request_count = 4;
+
+  // Encoding cost for videos created on this day, derived from the linked
+  // transcoding jobs' actual cost. Zero when no billable video was created.
+  double encoding_cost = 5;
 }

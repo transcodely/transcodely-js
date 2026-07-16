@@ -132,6 +132,16 @@ export class WebhookEndpoint extends Message<WebhookEndpoint> {
    */
   previousSecretExpiresAt?: Timestamp;
 
+  /**
+   * Compact rolling-24h delivery-health summary. Populated ONLY by
+   * ListWebhookEndpoints when the request sets include_health=true; absent on
+   * every other RPC and when include_health is false. Shares the
+   * GetEndpointHealth cache, so values may be up to ~30 s stale.
+   *
+   * @generated from field: optional transcodely.v1.EndpointHealthSummary health = 15;
+   */
+  health?: EndpointHealthSummary;
+
   constructor(data?: PartialMessage<WebhookEndpoint>) {
     super();
     proto3.util.initPartial(data, this);
@@ -154,6 +164,7 @@ export class WebhookEndpoint extends Message<WebhookEndpoint> {
     { no: 12, name: "disabled_reason", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 13, name: "last_rotated_at", kind: "message", T: Timestamp, opt: true },
     { no: 14, name: "previous_secret_expires_at", kind: "message", T: Timestamp, opt: true },
+    { no: 15, name: "health", kind: "message", T: EndpointHealthSummary, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): WebhookEndpoint {
@@ -170,6 +181,68 @@ export class WebhookEndpoint extends Message<WebhookEndpoint> {
 
   static equals(a: WebhookEndpoint | PlainMessage<WebhookEndpoint> | undefined, b: WebhookEndpoint | PlainMessage<WebhookEndpoint> | undefined): boolean {
     return proto3.util.equals(WebhookEndpoint, a, b);
+  }
+}
+
+/**
+ * Compact delivery-health summary attached to a WebhookEndpoint in
+ * ListWebhookEndpoints responses when include_health=true. A minimal
+ * rolling-24h rollup; call GetEndpointHealth for the full bucketed series,
+ * pending count, and latency percentiles. Values may be up to ~30 s stale.
+ *
+ * @generated from message transcodely.v1.EndpointHealthSummary
+ */
+export class EndpointHealthSummary extends Message<EndpointHealthSummary> {
+  /**
+   * Total delivery attempts in the last 24 h.
+   *
+   * @generated from field: int32 total_attempts = 1;
+   */
+  totalAttempts = 0;
+
+  /**
+   * Failed terminal attempts in the last 24 h.
+   *
+   * @generated from field: int32 failed = 2;
+   */
+  failed = 0;
+
+  /**
+   * succeeded / (succeeded + failed) over the last 24 h; in-flight (pending)
+   * attempts are excluded from the denominator. Zero when there were no
+   * terminal attempts in the window.
+   *
+   * @generated from field: double success_rate = 3;
+   */
+  successRate = 0;
+
+  constructor(data?: PartialMessage<EndpointHealthSummary>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.EndpointHealthSummary";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "total_attempts", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "failed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "success_rate", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): EndpointHealthSummary {
+    return new EndpointHealthSummary().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): EndpointHealthSummary {
+    return new EndpointHealthSummary().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): EndpointHealthSummary {
+    return new EndpointHealthSummary().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: EndpointHealthSummary | PlainMessage<EndpointHealthSummary> | undefined, b: EndpointHealthSummary | PlainMessage<EndpointHealthSummary> | undefined): boolean {
+    return proto3.util.equals(EndpointHealthSummary, a, b);
   }
 }
 
@@ -873,6 +946,20 @@ export class ListWebhookEndpointsRequest extends Message<ListWebhookEndpointsReq
    */
   pagination?: PaginationRequest;
 
+  /**
+   * When true, populate each returned endpoint's `health` field with a compact
+   * rolling-24h delivery summary (success_rate, total_attempts, failed),
+   * replacing N client-side GetEndpointHealth calls with this one list call.
+   * The summary is computed from the same server-side rollup as
+   * GetEndpointHealth and shares its ~30 s cache, so values may be up to ~30 s
+   * stale; on a cold cache the server still computes one rollup per listed
+   * endpoint, so expect a slower first response on apps with many endpoints.
+   * Defaults to false (health omitted).
+   *
+   * @generated from field: bool include_health = 3;
+   */
+  includeHealth = false;
+
   constructor(data?: PartialMessage<ListWebhookEndpointsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -883,6 +970,7 @@ export class ListWebhookEndpointsRequest extends Message<ListWebhookEndpointsReq
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "pagination", kind: "message", T: PaginationRequest },
+    { no: 3, name: "include_health", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListWebhookEndpointsRequest {
@@ -1075,6 +1163,19 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
    */
   pagination?: PaginationRequest;
 
+  /**
+   * Filter to events concerning a specific resource, matched against the
+   * resource id embedded in the event's data snapshot (data.id). Accepts any
+   * prefixed Transcodely resource id — e.g. a job ("job_…") or a video
+   * ("vid_…") — and returns every event whose snapshot carries that id. Lets a
+   * dashboard resource page (e.g. a job page) load that resource's webhook
+   * history in one call. Synthetic SendTestWebhook events are stored separately
+   * and never match.
+   *
+   * @generated from field: optional string object_id = 6;
+   */
+  objectId?: string;
+
   constructor(data?: PartialMessage<ListEventsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1088,6 +1189,7 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
     { no: 3, name: "created_after", kind: "message", T: Timestamp, opt: true },
     { no: 4, name: "created_before", kind: "message", T: Timestamp, opt: true },
     { no: 5, name: "pagination", kind: "message", T: PaginationRequest },
+    { no: 6, name: "object_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListEventsRequest {

@@ -130,6 +130,29 @@ message WebhookEndpoint {
   // `last_rotated_at + 24h` on rotation; absent once the overlap closes
   // or when no rotation has happened yet.
   optional google.protobuf.Timestamp previous_secret_expires_at = 14;
+
+  // Compact rolling-24h delivery-health summary. Populated ONLY by
+  // ListWebhookEndpoints when the request sets include_health=true; absent on
+  // every other RPC and when include_health is false. Shares the
+  // GetEndpointHealth cache, so values may be up to ~30 s stale.
+  optional EndpointHealthSummary health = 15;
+}
+
+// Compact delivery-health summary attached to a WebhookEndpoint in
+// ListWebhookEndpoints responses when include_health=true. A minimal
+// rolling-24h rollup; call GetEndpointHealth for the full bucketed series,
+// pending count, and latency percentiles. Values may be up to ~30 s stale.
+message EndpointHealthSummary {
+  // Total delivery attempts in the last 24 h.
+  int32 total_attempts = 1;
+
+  // Failed terminal attempts in the last 24 h.
+  int32 failed = 2;
+
+  // succeeded / (succeeded + failed) over the last 24 h; in-flight (pending)
+  // attempts are excluded from the denominator. Zero when there were no
+  // terminal attempts in the window.
+  double success_rate = 3;
 }
 
 // An immutable record of a platform event emitted for an app.
@@ -354,6 +377,16 @@ message ListWebhookEndpointsRequest {
 
   // Pagination (cursor-based; limit ≤ 100).
   PaginationRequest pagination = 2;
+
+  // When true, populate each returned endpoint's `health` field with a compact
+  // rolling-24h delivery summary (success_rate, total_attempts, failed),
+  // replacing N client-side GetEndpointHealth calls with this one list call.
+  // The summary is computed from the same server-side rollup as
+  // GetEndpointHealth and shares its ~30 s cache, so values may be up to ~30 s
+  // stale; on a cold cache the server still computes one rollup per listed
+  // endpoint, so expect a slower first response on apps with many endpoints.
+  // Defaults to false (health omitted).
+  bool include_health = 3;
 }
 
 // Response from listing webhook endpoints.
@@ -400,6 +433,17 @@ message ListEventsRequest {
 
   // Pagination (cursor-based, newest first; limit ≤ 100).
   PaginationRequest pagination = 5;
+
+  // Filter to events concerning a specific resource, matched against the
+  // resource id embedded in the event's data snapshot (data.id). Accepts any
+  // prefixed Transcodely resource id — e.g. a job ("job_…") or a video
+  // ("vid_…") — and returns every event whose snapshot carries that id. Lets a
+  // dashboard resource page (e.g. a job page) load that resource's webhook
+  // history in one call. Synthetic SendTestWebhook events are stored separately
+  // and never match.
+  optional string object_id = 6 [
+    (buf.validate.field).string = {min_len: 3, max_len: 64, pattern: "^[a-z]+_[a-zA-Z0-9_-]+$"}
+  ];
 }
 
 // Response from listing events.
