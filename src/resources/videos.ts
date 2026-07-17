@@ -9,9 +9,13 @@ import {
   CreateMultipartUploadRequest,
   CreateUploadRequest,
   DeleteVideoRequest,
+  GetStatsRequest,
+  type GetStatsResponse,
   GetUploadPartUrlsRequest,
   GetUsageRequest,
   GetVideoRequest,
+  ListTopVideosRequest,
+  type ListTopVideosResponse,
   ListVideosRequest,
   UpdateVideoRequest,
   type Video,
@@ -175,6 +179,36 @@ export class Videos {
       VideoService,
       VideoService.methods.getUsage,
       new GetUsageRequest(req),
+      opts,
+    );
+  }
+
+  /** Get playback analytics for a single video: plays, watch time, and unique
+   * viewers aggregated per UTC day, plus range totals. Stats come from a
+   * best-effort playback beacon rolled up hourly, so recent activity may lag by
+   * up to an hour. Returns the full response (`daily` rows + `totals`). */
+  async getStats(
+    req: PartialMessage<GetStatsRequest>,
+    opts?: CallOptions,
+  ): Promise<GetStatsResponse> {
+    return this.transport.unary(
+      VideoService,
+      VideoService.methods.getStats,
+      new GetStatsRequest(req),
+      opts,
+    );
+  }
+
+  /** List an app's top videos ranked by plays over a date range. Returns the
+   * full response (`items`). */
+  async listTopVideos(
+    req: PartialMessage<ListTopVideosRequest> = {},
+    opts?: CallOptions,
+  ): Promise<ListTopVideosResponse> {
+    return this.transport.unary(
+      VideoService,
+      VideoService.methods.listTopVideos,
+      new ListTopVideosRequest(req),
       opts,
     );
   }

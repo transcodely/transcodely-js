@@ -223,6 +223,10 @@ export class Video extends Message<Video> {
   embedUrl?: string;
 
   /**
+   * Ready-to-paste responsive HTML embed snippet: a 16:9 aspect-ratio wrapper
+   * div containing a lazy-loaded, borderless <iframe src=embed_url> that fills
+   * its container (no fixed width/height). Same population rules as embed_url.
+   *
    * @generated from field: optional string embed_code = 22;
    */
   embedCode?: string;
@@ -2174,6 +2178,433 @@ export class DailyUsage extends Message<DailyUsage> {
 
   static equals(a: DailyUsage | PlainMessage<DailyUsage> | undefined, b: DailyUsage | PlainMessage<DailyUsage> | undefined): boolean {
     return proto3.util.equals(DailyUsage, a, b);
+  }
+}
+
+/**
+ * Request for a single video's playback stats.
+ *
+ * @generated from message transcodely.v1.GetStatsRequest
+ */
+export class GetStatsRequest extends Message<GetStatsRequest> {
+  /**
+   * Video ID to fetch stats for.
+   *
+   * @generated from field: string video_id = 1;
+   */
+  videoId = "";
+
+  /**
+   * Optional inclusive start of the UTC date range, YYYY-MM-DD (e.g.
+   * "2026-07-01"). Omitted means unbounded (all retained history).
+   *
+   * @generated from field: optional string start_date = 2;
+   */
+  startDate?: string;
+
+  /**
+   * Optional inclusive end of the UTC date range, YYYY-MM-DD. Omitted means
+   * unbounded (up to today).
+   *
+   * @generated from field: optional string end_date = 3;
+   */
+  endDate?: string;
+
+  constructor(data?: PartialMessage<GetStatsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetStatsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "start_date", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "end_date", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetStatsRequest {
+    return new GetStatsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetStatsRequest {
+    return new GetStatsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetStatsRequest {
+    return new GetStatsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetStatsRequest | PlainMessage<GetStatsRequest> | undefined, b: GetStatsRequest | PlainMessage<GetStatsRequest> | undefined): boolean {
+    return proto3.util.equals(GetStatsRequest, a, b);
+  }
+}
+
+/**
+ * Response with a video's daily playback stats and range totals.
+ *
+ * @generated from message transcodely.v1.GetStatsResponse
+ */
+export class GetStatsResponse extends Message<GetStatsResponse> {
+  /**
+   * Per-day rows within the requested range, oldest day first. Only days with
+   * recorded activity are present (no zero-fill).
+   *
+   * @generated from field: repeated transcodely.v1.VideoStatsDay daily = 1;
+   */
+  daily: VideoStatsDay[] = [];
+
+  /**
+   * Totals across the returned days.
+   *
+   * @generated from field: transcodely.v1.VideoStatsTotals totals = 2;
+   */
+  totals?: VideoStatsTotals;
+
+  constructor(data?: PartialMessage<GetStatsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetStatsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "daily", kind: "message", T: VideoStatsDay, repeated: true },
+    { no: 2, name: "totals", kind: "message", T: VideoStatsTotals },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetStatsResponse {
+    return new GetStatsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetStatsResponse {
+    return new GetStatsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetStatsResponse {
+    return new GetStatsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetStatsResponse | PlainMessage<GetStatsResponse> | undefined, b: GetStatsResponse | PlainMessage<GetStatsResponse> | undefined): boolean {
+    return proto3.util.equals(GetStatsResponse, a, b);
+  }
+}
+
+/**
+ * One UTC day of playback stats for a video.
+ *
+ * @generated from message transcodely.v1.VideoStatsDay
+ */
+export class VideoStatsDay extends Message<VideoStatsDay> {
+  /**
+   * Calendar day in YYYY-MM-DD format (UTC).
+   *
+   * @generated from field: string date = 1;
+   */
+  date = "";
+
+  /**
+   * Number of playback starts (one 'play' beacon per pageview that began
+   * playing).
+   *
+   * @generated from field: int32 plays = 2;
+   */
+  plays = 0;
+
+  /**
+   * Approximate watch time in seconds. Derived from playback heartbeats
+   * (heartbeat count × the ~10s heartbeat interval), not exact wall-clock
+   * time — a partial final interval still counts as a whole one.
+   *
+   * @generated from field: int64 watch_seconds = 3;
+   */
+  watchSeconds = protoInt64.zero;
+
+  /**
+   * Distinct viewers, counted by an anonymous per-pageview session id (no PII).
+   *
+   * @generated from field: int32 unique_viewers = 4;
+   */
+  uniqueViewers = 0;
+
+  constructor(data?: PartialMessage<VideoStatsDay>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.VideoStatsDay";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "date", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "plays", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "watch_seconds", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 4, name: "unique_viewers", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VideoStatsDay {
+    return new VideoStatsDay().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): VideoStatsDay {
+    return new VideoStatsDay().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): VideoStatsDay {
+    return new VideoStatsDay().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: VideoStatsDay | PlainMessage<VideoStatsDay> | undefined, b: VideoStatsDay | PlainMessage<VideoStatsDay> | undefined): boolean {
+    return proto3.util.equals(VideoStatsDay, a, b);
+  }
+}
+
+/**
+ * Aggregated playback totals over a date range.
+ *
+ * @generated from message transcodely.v1.VideoStatsTotals
+ */
+export class VideoStatsTotals extends Message<VideoStatsTotals> {
+  /**
+   * Sum of daily plays.
+   *
+   * @generated from field: int32 plays = 1;
+   */
+  plays = 0;
+
+  /**
+   * Sum of daily approximate watch seconds.
+   *
+   * @generated from field: int64 watch_seconds = 2;
+   */
+  watchSeconds = protoInt64.zero;
+
+  /**
+   * Sum of per-day unique viewers. A viewer active on N distinct days counts N
+   * times (it is not de-duplicated across days); for a single-day range it is
+   * exact.
+   *
+   * @generated from field: int32 unique_viewers = 3;
+   */
+  uniqueViewers = 0;
+
+  constructor(data?: PartialMessage<VideoStatsTotals>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.VideoStatsTotals";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "plays", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "watch_seconds", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "unique_viewers", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VideoStatsTotals {
+    return new VideoStatsTotals().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): VideoStatsTotals {
+    return new VideoStatsTotals().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): VideoStatsTotals {
+    return new VideoStatsTotals().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: VideoStatsTotals | PlainMessage<VideoStatsTotals> | undefined, b: VideoStatsTotals | PlainMessage<VideoStatsTotals> | undefined): boolean {
+    return proto3.util.equals(VideoStatsTotals, a, b);
+  }
+}
+
+/**
+ * Request for an app's top videos by plays.
+ *
+ * @generated from message transcodely.v1.ListTopVideosRequest
+ */
+export class ListTopVideosRequest extends Message<ListTopVideosRequest> {
+  /**
+   * Optional app filter. API-key callers may omit it (their key's app is used)
+   * or pass their own app; a different app is rejected with PermissionDenied.
+   * Portal/JWT callers pass the app to scope the leaderboard; omitted resolves
+   * to the org's first app.
+   *
+   * @generated from field: optional string app_id = 1;
+   */
+  appId?: string;
+
+  /**
+   * Optional inclusive UTC date range bounds, YYYY-MM-DD. Omitted means
+   * unbounded on that side.
+   *
+   * @generated from field: optional string start_date = 2;
+   */
+  startDate?: string;
+
+  /**
+   * @generated from field: optional string end_date = 3;
+   */
+  endDate?: string;
+
+  /**
+   * Maximum number of videos to return (1-100). Defaults to 10.
+   *
+   * @generated from field: optional int32 limit = 4;
+   */
+  limit?: number;
+
+  constructor(data?: PartialMessage<ListTopVideosRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.ListTopVideosRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 2, name: "start_date", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "end_date", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "limit", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListTopVideosRequest {
+    return new ListTopVideosRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListTopVideosRequest {
+    return new ListTopVideosRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListTopVideosRequest {
+    return new ListTopVideosRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListTopVideosRequest | PlainMessage<ListTopVideosRequest> | undefined, b: ListTopVideosRequest | PlainMessage<ListTopVideosRequest> | undefined): boolean {
+    return proto3.util.equals(ListTopVideosRequest, a, b);
+  }
+}
+
+/**
+ * Response with an app's ranked videos.
+ *
+ * @generated from message transcodely.v1.ListTopVideosResponse
+ */
+export class ListTopVideosResponse extends Message<ListTopVideosResponse> {
+  /**
+   * Videos ordered by plays (then watch time) descending.
+   *
+   * @generated from field: repeated transcodely.v1.TopVideo items = 1;
+   */
+  items: TopVideo[] = [];
+
+  constructor(data?: PartialMessage<ListTopVideosResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.ListTopVideosResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "items", kind: "message", T: TopVideo, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListTopVideosResponse {
+    return new ListTopVideosResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListTopVideosResponse {
+    return new ListTopVideosResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListTopVideosResponse {
+    return new ListTopVideosResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListTopVideosResponse | PlainMessage<ListTopVideosResponse> | undefined, b: ListTopVideosResponse | PlainMessage<ListTopVideosResponse> | undefined): boolean {
+    return proto3.util.equals(ListTopVideosResponse, a, b);
+  }
+}
+
+/**
+ * A single ranked video with its playback totals over the requested range.
+ *
+ * @generated from message transcodely.v1.TopVideo
+ */
+export class TopVideo extends Message<TopVideo> {
+  /**
+   * Video ID.
+   *
+   * @generated from field: string video_id = 1;
+   */
+  videoId = "";
+
+  /**
+   * Video title, if set.
+   *
+   * @generated from field: optional string title = 2;
+   */
+  title?: string;
+
+  /**
+   * Poster image URL, computed from the app's CDN config. Absent when no CDN
+   * is configured or the video has no poster.
+   *
+   * @generated from field: optional string poster_url = 3;
+   */
+  posterUrl?: string;
+
+  /**
+   * Total plays over the range.
+   *
+   * @generated from field: int64 plays = 4;
+   */
+  plays = protoInt64.zero;
+
+  /**
+   * Total approximate watch seconds over the range.
+   *
+   * @generated from field: int64 watch_seconds = 5;
+   */
+  watchSeconds = protoInt64.zero;
+
+  /**
+   * Unique viewers over the range, summed per day (a viewer active on N days
+   * counts N times; exact for a single-day range). See VideoStatsTotals.
+   *
+   * @generated from field: int64 unique_viewers = 6;
+   */
+  uniqueViewers = protoInt64.zero;
+
+  constructor(data?: PartialMessage<TopVideo>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.TopVideo";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "poster_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "plays", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 5, name: "watch_seconds", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 6, name: "unique_viewers", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TopVideo {
+    return new TopVideo().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): TopVideo {
+    return new TopVideo().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): TopVideo {
+    return new TopVideo().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: TopVideo | PlainMessage<TopVideo> | undefined, b: TopVideo | PlainMessage<TopVideo> | undefined): boolean {
+    return proto3.util.equals(TopVideo, a, b);
   }
 }
 
