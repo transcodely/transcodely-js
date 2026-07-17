@@ -49,13 +49,15 @@ export type WebhookEvent =
   | (EventBase & { type: "output.failed";   data: JobOutput })
   | (EventBase & { type: "output.progress"; data: JobOutput })
   | (EventBase & { type: "video.uploaded";  data: Video })
+  | (EventBase & { type: "video.ready";     data: Video })
+  | (EventBase & { type: "video.failed";    data: Video })
   | (EventBase & { type: "video.deleted";   data: Video })
   | (EventBase & { type: "app.created";     data: App })
   | (EventBase & { type: "app.updated";     data: App })
   | (EventBase & { type: string;            data: unknown });
 
 /**
- * The 13 concrete webhook event types the API can emit. Mirrors the source of
+ * The 15 concrete webhook event types the API can emit. Mirrors the source of
  * truth in `domain.WebhookEventTypes()` (api/internal/domain/webhook.go). The
  * `"*"` wildcard is a subscription-only value and is intentionally absent.
  *
@@ -74,6 +76,8 @@ export const WEBHOOK_EVENT_TYPES = [
   "output.failed",
   "output.progress",
   "video.uploaded",
+  "video.ready",
+  "video.failed",
   "video.deleted",
   "app.created",
   "app.updated",

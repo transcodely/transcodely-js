@@ -6,7 +6,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
+import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -39,6 +39,22 @@ export const VideoService = {
       name: "CompleteUpload",
       I: CompleteUploadRequest,
       O: CompleteUploadResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Create a hosted video from a publicly-reachable http(s) URL in one call.
+     * The API fetches nothing itself: it records the video in "processing" and
+     * hands the URL to the transcoding pipeline, which downloads it at run time.
+     * Returns a Video in "processing" status (no upload step). Playback/embed
+     * URLs populate once the video reaches "ready" (subscribe to video.ready or
+     * Watch). The app must have managed hosting enabled.
+     *
+     * @generated from rpc transcodely.v1.VideoService.CreateFromUrl
+     */
+    createFromUrl: {
+      name: "CreateFromUrl",
+      I: CreateFromUrlRequest,
+      O: CreateFromUrlResponse,
       kind: MethodKind.Unary,
     },
     /**

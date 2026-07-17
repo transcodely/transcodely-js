@@ -106,6 +106,8 @@ export {
   type CreateUploadResponse,
   type CompleteUploadRequest,
   type CompleteUploadResponse,
+  type CreateFromUrlRequest,
+  type CreateFromUrlResponse,
   type UploadPart,
   type CompletedPart,
   type CreateMultipartUploadRequest,
