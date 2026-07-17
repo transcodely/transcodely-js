@@ -130,6 +130,13 @@ export {
   type GetUsageResponse,
   type UsageSummary,
   type DailyUsage,
+  type GetStatsRequest,
+  type GetStatsResponse,
+  type VideoStatsDay,
+  type VideoStatsTotals,
+  type ListTopVideosRequest,
+  type ListTopVideosResponse,
+  type TopVideo,
   VideoStatus,
   VideoVisibility,
 } from "./gen/transcodely/v1/video_pb.js";

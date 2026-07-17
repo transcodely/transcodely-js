@@ -46,7 +46,7 @@ const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 
 ```ts
 client.jobs            // create / get / list / cancel / confirm / watch
-client.videos          // upload helpers, multipart, createFromUrl, get / list / update / delete / watch
+client.videos          // upload helpers, multipart, createFromUrl, get / list / update / delete / watch / getStats / listTopVideos
 client.presets         // create / get / getBySlug / list / update / duplicate / archive
 client.origins         // create / get / list / update / validate / archive
 client.apps            // create / get / list / update / archive / enableHosting

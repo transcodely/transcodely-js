@@ -6,7 +6,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
+import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -171,6 +171,31 @@ export const VideoService = {
       name: "GetUsage",
       I: GetUsageRequest,
       O: GetUsageResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Get playback analytics for a single video: plays, watch time, and unique
+     * viewers aggregated per UTC day. Stats are collected from a lightweight,
+     * best-effort playback beacon and rolled up hourly, so recent activity may
+     * lag by up to an hour.
+     *
+     * @generated from rpc transcodely.v1.VideoService.GetStats
+     */
+    getStats: {
+      name: "GetStats",
+      I: GetStatsRequest,
+      O: GetStatsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * List an app's top videos ranked by plays over a date range.
+     *
+     * @generated from rpc transcodely.v1.VideoService.ListTopVideos
+     */
+    listTopVideos: {
+      name: "ListTopVideos",
+      I: ListTopVideosRequest,
+      O: ListTopVideosResponse,
       kind: MethodKind.Unary,
     },
   }
