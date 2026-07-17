@@ -341,6 +341,12 @@ export {
   ToneMapping,
 } from "./gen/transcodely/v1/hdr_pb.js";
 
+// Content-aware encoding is currently unavailable. The API rejects any job
+// create request that sets `content_aware` (per-title or auto-ABR) on an output
+// with InvalidArgument — rule `parameter_unsupported` on
+// `outputs[i].content_aware` — until worker support ships. These types stay
+// exported for forward compatibility. See
+// https://github.com/transcodely/api/issues/167.
 export {
   type ContentAwareConfig,
   type AutoABRConfig,
