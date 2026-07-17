@@ -103,7 +103,9 @@ export enum VideoVisibility {
   UNLISTED = 2,
 
   /**
-   * Requires authentication to view.
+   * Not playable via the public player or embed. Playback and embed URLs are
+   * not issued for private videos (authenticated playback is not yet
+   * available).
    *
    * @generated from enum value: VIDEO_VISIBILITY_PRIVATE = 3;
    */
@@ -138,7 +140,8 @@ export class Video extends Message<Video> {
   appId = "";
 
   /**
-   * How the video was created: "upload" (direct upload) or "job" (from transcoding job).
+   * How the video was created: "upload" (direct upload or CreateFromUrl ingest)
+   * or "job" (from a managed transcoding job created via JobService.Create).
    *
    * @generated from field: string source = 3;
    */
@@ -204,7 +207,11 @@ export class Video extends Message<Video> {
   preset?: string;
 
   /**
-   * Playback (computed per-request, not stored — signed CDN tokens).
+   * Playback surface — all computed per-request and never stored. Only
+   * populated for playable videos (status "ready" and not private); absent
+   * otherwise. Playback URLs are currently unsigned: CDN token signing is not
+   * yet enabled, so access control comes from the managed-storage bucket policy
+   * rather than tokens.
    *
    * @generated from field: optional string playback_url = 20;
    */
@@ -221,6 +228,9 @@ export class Video extends Message<Video> {
   embedCode?: string;
 
   /**
+   * Poster image URL. Worker-side poster generation is not emitted yet, so this
+   * may reference an object that does not exist until poster support lands.
+   *
    * @generated from field: optional string poster_url = 23;
    */
   posterUrl?: string;
@@ -422,7 +432,8 @@ export class VideoRendition extends Message<VideoRendition> {
  */
 export class CreateUploadRequest extends Message<CreateUploadRequest> {
   /**
-   * App to create the video under. Required — must have hosting enabled.
+   * App to create the video under. Required. The app must have managed hosting
+   * enabled (AppService.EnableHosting) or the call fails with FailedPrecondition.
    *
    * @generated from field: string app_id = 8;
    */
@@ -471,7 +482,7 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
   tags: string[] = [];
 
   /**
-   * Visibility setting. Defaults to "private" if not specified.
+   * Visibility setting. Defaults to "unlisted" if not specified.
    *
    * @generated from field: optional string visibility = 7;
    */
@@ -664,6 +675,146 @@ export class CompleteUploadResponse extends Message<CompleteUploadResponse> {
 }
 
 /**
+ * Request to create a hosted video from a remote URL (one-call ingest).
+ *
+ * @generated from message transcodely.v1.CreateFromUrlRequest
+ */
+export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
+  /**
+   * App to create the video under. Required. The app must have managed hosting
+   * enabled (AppService.EnableHosting) or the call fails with FailedPrecondition.
+   *
+   * @generated from field: string app_id = 1;
+   */
+  appId = "";
+
+  /**
+   * Publicly-reachable source URL to ingest. Must be http:// or https:// —
+   * storage-origin schemes (gs://, s3://) are not accepted here; use an origin
+   * and JobService.Create for those. The URL is fetched by the worker at
+   * transcode time (the API never fetches it); private/internal addresses are
+   * rejected up front and again, authoritatively, at fetch time (SSRF defense).
+   *
+   * @generated from field: string url = 2;
+   */
+  url = "";
+
+  /**
+   * Optional title for the video.
+   *
+   * @generated from field: optional string title = 3;
+   */
+  title?: string;
+
+  /**
+   * Optional description.
+   *
+   * @generated from field: optional string description = 4;
+   */
+  description?: string;
+
+  /**
+   * Optional tags for categorization (max 20).
+   *
+   * @generated from field: repeated string tags = 5;
+   */
+  tags: string[] = [];
+
+  /**
+   * Visibility setting. Defaults to "unlisted" if not specified.
+   *
+   * @generated from field: optional string visibility = 6;
+   */
+  visibility?: string;
+
+  /**
+   * Optional preset reference for the auto-transcode job.
+   * Accepts either a preset ID (e.g., "pst_abc123") or slug (e.g., "gaming_1080p_60_standard").
+   * When provided, the preset's settings drive the encoding instead of the
+   * app's default auto-profile ABR ladder.
+   *
+   * @generated from field: optional string preset = 7;
+   */
+  preset?: string;
+
+  constructor(data?: PartialMessage<CreateFromUrlRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.CreateFromUrlRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 5, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 6, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 7, name: "preset", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateFromUrlRequest {
+    return new CreateFromUrlRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateFromUrlRequest {
+    return new CreateFromUrlRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateFromUrlRequest {
+    return new CreateFromUrlRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateFromUrlRequest | PlainMessage<CreateFromUrlRequest> | undefined, b: CreateFromUrlRequest | PlainMessage<CreateFromUrlRequest> | undefined): boolean {
+    return proto3.util.equals(CreateFromUrlRequest, a, b);
+  }
+}
+
+/**
+ * Response from creating a video from a URL.
+ *
+ * @generated from message transcodely.v1.CreateFromUrlResponse
+ */
+export class CreateFromUrlResponse extends Message<CreateFromUrlResponse> {
+  /**
+   * The created video (status: "processing"). No video.uploaded event fires for
+   * URL ingest (no bytes are uploaded); the job lifecycle plus video.ready /
+   * video.failed cover the outcome.
+   *
+   * @generated from field: transcodely.v1.Video video = 1;
+   */
+  video?: Video;
+
+  constructor(data?: PartialMessage<CreateFromUrlResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.CreateFromUrlResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "video", kind: "message", T: Video },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateFromUrlResponse {
+    return new CreateFromUrlResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateFromUrlResponse {
+    return new CreateFromUrlResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateFromUrlResponse {
+    return new CreateFromUrlResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateFromUrlResponse | PlainMessage<CreateFromUrlResponse> | undefined, b: CreateFromUrlResponse | PlainMessage<CreateFromUrlResponse> | undefined): boolean {
+    return proto3.util.equals(CreateFromUrlResponse, a, b);
+  }
+}
+
+/**
  * A single part in a multipart upload with its presigned URL.
  *
  * @generated from message transcodely.v1.UploadPart
@@ -768,7 +919,8 @@ export class CompletedPart extends Message<CompletedPart> {
  */
 export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadRequest> {
   /**
-   * App to create the video under. Required — must have hosting enabled.
+   * App to create the video under. Required. The app must have managed hosting
+   * enabled (AppService.EnableHosting) or the call fails with FailedPrecondition.
    *
    * @generated from field: string app_id = 1;
    */
@@ -1471,7 +1623,9 @@ export class UpdateVideoRequest extends Message<UpdateVideoRequest> {
   description?: string;
 
   /**
-   * Updated tags (replaces existing tags).
+   * Updated tags (replaces existing tags). Because proto3 repeated fields carry
+   * no presence, an empty list is indistinguishable from "unset" on the wire
+   * and leaves existing tags unchanged. To remove all tags, set clear_tags.
    *
    * @generated from field: repeated string tags = 4;
    */
@@ -1483,6 +1637,13 @@ export class UpdateVideoRequest extends Message<UpdateVideoRequest> {
    * @generated from field: optional string visibility = 5;
    */
   visibility?: string;
+
+  /**
+   * Set to true to remove all tags. Mutually exclusive with tags.
+   *
+   * @generated from field: optional bool clear_tags = 6;
+   */
+  clearTags?: boolean;
 
   constructor(data?: PartialMessage<UpdateVideoRequest>) {
     super();
@@ -1497,6 +1658,7 @@ export class UpdateVideoRequest extends Message<UpdateVideoRequest> {
     { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 4, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 6, name: "clear_tags", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateVideoRequest {

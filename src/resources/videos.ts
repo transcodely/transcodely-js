@@ -5,6 +5,7 @@ import {
   AbortMultipartUploadRequest,
   CompleteMultipartUploadRequest,
   CompleteUploadRequest,
+  CreateFromUrlRequest,
   CreateMultipartUploadRequest,
   CreateUploadRequest,
   DeleteVideoRequest,
@@ -41,6 +42,23 @@ export class Videos {
       new CompleteUploadRequest(req),
       opts,
     );
+  }
+
+  /** Create a hosted video from a publicly-reachable http(s) URL in one call —
+   * no separate upload step. Returns the video in "processing" status; the
+   * app must have managed hosting enabled. Playback/embed URLs populate once
+   * the video reaches "ready" (subscribe to `video.ready` or `watch`). */
+  async createFromUrl(
+    req: PartialMessage<CreateFromUrlRequest>,
+    opts?: CallOptions,
+  ): Promise<Video> {
+    const res = await this.transport.unary(
+      VideoService,
+      VideoService.methods.createFromUrl,
+      new CreateFromUrlRequest(req),
+      opts,
+    );
+    return res.video!;
   }
 
   createMultipartUpload(
