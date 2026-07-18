@@ -174,17 +174,22 @@ app.post(
         process.env.WEBHOOK_SECRET!,
       );
 
-      switch (event.type) {
-        case "job.succeeded":
-          // event.data is a fully-typed Job
-          console.log("Job done:", event.data.id);
-          break;
-        case "video.uploaded":
-          console.log("Video uploaded:", event.data.id);
-          break;
-        default:
-          // Forward-compat: unknown types still parse.
-          console.log("Unhandled:", event.type);
+      // `isKnownEvent` narrows `event` to the events this SDK types precisely,
+      // so inside the switch `event.data` is the exact resource — no casts.
+      if (client.webhooks.isKnownEvent(event)) {
+        switch (event.type) {
+          case "job.succeeded":
+            console.log("Job done:", event.data.id); // event.data is a fully-typed Job
+            break;
+          case "video.uploaded":
+            console.log("Video uploaded:", event.data.id); // event.data is a Video
+            break;
+          // ...handle the other known types you care about
+        }
+      } else {
+        // Forward-compat: an event type added to the API after this SDK
+        // release still verifies and parses; `event.data` is raw `unknown`.
+        console.log("Unhandled future type:", event.type);
       }
       res.sendStatus(200);
     } catch (err) {
@@ -199,6 +204,21 @@ app.post(
 ```
 
 The signed payload is the **raw HTTP body** — use `express.raw()` (or the equivalent in your framework) to receive a `Buffer`, never `express.json()`.
+
+#### Narrowing the event
+
+`constructEvent` (and `client.events.retrieve` / `.list`) return a `WebhookEvent`: the closed, precisely-typed `KnownWebhookEvent` union **plus** an open `UnknownWebhookEvent` arm (`type: string; data: unknown`) so a payload for an event type added after this SDK release still verifies and parses instead of being dropped. That open arm means a bare `switch (event.type)` can't narrow `event.data` on its own — funnel through one of two guards first:
+
+- **`isKnownEvent(event)`** narrows to `KnownWebhookEvent`, re-enabling a `switch (event.type)` where every `case` narrows `event.data` to the right resource (and TypeScript flags a `case` you left out if you keep the switch exhaustive). The `else` branch is your forward-compat handler.
+- **`isEventType(event, "job.succeeded")`** narrows to a single event type — ideal for a receiver that only cares about one or two:
+
+```ts
+if (client.webhooks.isEventType(event, "output.ready")) {
+  console.log(event.data.outputUrl); // event.data is a fully-typed JobOutput
+}
+```
+
+Both are also exported standalone (`import { isKnownEvent, isEventType } from "@transcodely/sdk"`) for code that doesn't hold a client. `WebhookEvent`, `KnownWebhookEvent`, and `UnknownWebhookEvent` are all exported for annotating your own handler signatures.
 
 Every event carries a `request` object. Events emitted **inside** an API request scope (e.g. `job.created`, from your `jobs.create` call) set `request.id` to the originating `req_*` ID. Events emitted **outside** a request scope — every worker-driven `job.*` / `output.*` event (`job.succeeded`, `job.failed`, `job.canceled`, `job.progress`, `output.ready`, …) — set `request.id` to `null`. `request.idempotencyKey` is `null` whenever the originating request didn't supply one.
 

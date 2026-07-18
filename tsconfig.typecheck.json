@@ -1,0 +1,16 @@
+{
+  // Typecheck-only project: the same strict options as the build, but no
+  // emit and a widened root so the type-level tests under `tests/types` are
+  // checked alongside `src`. `pnpm typecheck` points here; the build still
+  // uses tsconfig.json.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*", "tests/types/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
