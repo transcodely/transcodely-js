@@ -278,6 +278,8 @@ export {
   Webhooks,
   constructEvent,
   verifySignature,
+  isKnownEvent,
+  isEventType,
   DEFAULT_TOLERANCE_SECONDS,
   EVENT_ID_HEADER,
   SIGNATURE_HEADER,
@@ -285,6 +287,8 @@ export {
   type EventBase,
   type SpendLimitNotification,
   type WebhookEvent,
+  type KnownWebhookEvent,
+  type UnknownWebhookEvent,
   type WebhookEventType,
   type VerifyOptions,
 } from "./webhooks/index.js";
