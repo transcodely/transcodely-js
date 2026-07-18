@@ -103,9 +103,11 @@ export enum VideoVisibility {
   UNLISTED = 2,
 
   /**
-   * Not playable via the public player or embed. Playback and embed URLs are
-   * not issued for private videos (authenticated playback is not yet
-   * available).
+   * Not playable via the public player or embed: the player page returns 404 and
+   * embed_url/embed_code are never populated. Authenticated API reads
+   * (VideoService.Get/List/Watch) for the owning app DO return signed, expiring
+   * playback_url/poster_url once the video is "ready", so the owner can watch a
+   * private video via the API even though it stays off the public player.
    *
    * @generated from enum value: VIDEO_VISIBILITY_PRIVATE = 3;
    */
@@ -207,17 +209,23 @@ export class Video extends Message<Video> {
   preset?: string;
 
   /**
-   * Playback surface — all computed per-request and never stored. Only
-   * populated for playable videos (status "ready" and not private); absent
-   * otherwise. Playback URLs are currently unsigned: CDN token signing is not
-   * yet enabled, so access control comes from the managed-storage bucket policy
-   * rather than tokens.
+   * Playback surface — all computed per-request and never stored. Populated for
+   * "ready" videos of any visibility (public, unlisted, and — on authenticated
+   * owner reads — private); absent otherwise. On apps with CDN token auth
+   * enabled the URL is signed and expiring (HMAC token + expiry query params);
+   * it is re-issued on every read, so clients should use the value from the
+   * latest response rather than caching it. On apps not yet migrated to token
+   * auth the URL is unsigned and access control comes from the managed-storage
+   * bucket policy; unsigned URLs are never issued for private videos.
    *
    * @generated from field: optional string playback_url = 20;
    */
   playbackUrl?: string;
 
   /**
+   * Public embed surface — populated only for playable videos (status "ready"
+   * and NOT private). Always absent for private videos.
+   *
    * @generated from field: optional string embed_url = 21;
    */
   embedUrl?: string;
@@ -232,8 +240,9 @@ export class Video extends Message<Video> {
   embedCode?: string;
 
   /**
-   * Poster image URL. Worker-side poster generation is not emitted yet, so this
-   * may reference an object that does not exist until poster support lands.
+   * Poster image URL, resolved from the worker-reported poster key. Signed and
+   * expiring on token-auth apps, unsigned otherwise — same rules and per-request
+   * re-issuance as playback_url. Absent when the video has no generated poster.
    *
    * @generated from field: optional string poster_url = 23;
    */
