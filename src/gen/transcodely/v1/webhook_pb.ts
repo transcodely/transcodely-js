@@ -106,8 +106,9 @@ export class WebhookEndpoint extends Message<WebhookEndpoint> {
    * Reason the endpoint is in `status: "disabled"`. Absent when status is "enabled".
    * One of:
    *   "manual"        — operator paused via UpdateWebhookEndpoint
-   *   "auto_failures" — scheduler tripped after 10 consecutive terminal failures
-   *                     spanning ≥72 h
+   *   "auto_failures" — scheduler tripped after an opt-in sustained-failure
+   *                     rule: 50+ consecutive terminal failures with zero
+   *                     successes for at least 168 h (7 days)
    * Wire value is lowercase per project convention.
    *
    * @generated from field: optional string disabled_reason = 12;

@@ -1,5 +1,6 @@
 // Origin service for managing storage origins (inputs/outputs).
-// Origins are storage locations (GCS, S3, HTTP) used for video inputs and outputs.
+// Origins are storage locations (GCS, S3, HTTP, Transcodely-managed, R2) used
+// for video inputs and outputs.
 syntax = "proto3";
 
 package transcodely.v1;
