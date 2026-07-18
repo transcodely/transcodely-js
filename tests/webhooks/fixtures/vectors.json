@@ -21,6 +21,24 @@
       "expect": { "result": "ok", "event_type": "video.uploaded", "event_id": "evt_t2", "data_id": "vid_t2" }
     },
     {
+      "name": "ok_video_ready",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t13\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"video.ready\",\"data\":{\"id\":\"vid_t13\",\"object\":\"video\",\"app_id\":\"app_t13\",\"source\":\"upload\",\"status\":\"ready\",\"job_id\":\"job_t13\",\"duration_seconds\":128,\"renditions\":[{\"id\":\"ren_t13\",\"resolution\":\"1080p\",\"codec\":\"h264\",\"bitrate_kbps\":4500,\"width\":1920,\"height\":1080,\"size_bytes\":\"48210564\"}],\"output_size_bytes\":\"48210564\",\"created_at\":\"2026-05-24T10:54:00Z\",\"updated_at\":\"2026-05-24T10:55:08Z\",\"ready_at\":\"2026-05-24T10:55:08Z\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":null,\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "video.ready", "event_id": "evt_t13", "data_id": "vid_t13", "request_id": null }
+    },
+    {
+      "name": "ok_video_failed",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_t14\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"video.failed\",\"data\":{\"id\":\"vid_t14\",\"object\":\"video\",\"app_id\":\"app_t14\",\"source\":\"upload\",\"status\":\"error\",\"job_id\":\"job_t14\",\"renditions\":[],\"created_at\":\"2026-05-24T10:54:00Z\",\"updated_at\":\"2026-05-24T10:55:08Z\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":null,\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "video.failed", "event_id": "evt_t14", "data_id": "vid_t14", "request_id": null }
+    },
+    {
       "name": "ok_app_created",
       "secret": "whsec_test_12345678901234567890abcdef",
       "ts": 1716480293,
