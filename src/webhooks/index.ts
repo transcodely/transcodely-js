@@ -13,9 +13,12 @@ import {
 } from "../errors.js";
 
 import { constructEvent } from "./construct-event.js";
+import { isEventType, isKnownEvent } from "./types.js";
 
 export const Webhooks = {
   constructEvent,
+  isKnownEvent,
+  isEventType,
   WebhookError,
   WebhookSignatureError,
   WebhookTimestampError,
@@ -30,5 +33,11 @@ export {
   verifySignature,
   type VerifyOptions,
 } from "./signature.js";
-export { WEBHOOK_EVENT_TYPES } from "./types.js";
-export type { EventBase, WebhookEvent, WebhookEventType } from "./types.js";
+export { WEBHOOK_EVENT_TYPES, isKnownEvent, isEventType } from "./types.js";
+export type {
+  EventBase,
+  WebhookEvent,
+  KnownWebhookEvent,
+  UnknownWebhookEvent,
+  WebhookEventType,
+} from "./types.js";
