@@ -813,6 +813,59 @@ message Job {
   // Lets webhook consumers and polyglot SDKs identify the resource without
   // out-of-band knowledge of the field name. Server-set; ignored on requests.
   string object = 27;
+
+  // Minimum charge for this job in EUR, locked at creation from the compute
+  // capacity the job is sized to. When the minimum charge is in effect, the
+  // billed total for a successfully completed job is
+  // max(sum of output costs, minimum_charge_eur) — see minimum_charge_applied
+  // for whether it determined this job's total. The minimum never applies to
+  // failed jobs (billed zero) or canceled jobs (billed for partial usage
+  // only). Absent when no minimum was computed for this job.
+  optional double minimum_charge_eur = 30;
+
+  // Whether minimum_charge_eur determined the job's most recently computed
+  // total — true when the sum of output costs came in below the minimum and
+  // the total was raised to it (estimated total after probe; actual total
+  // after successful completion). When true, total_estimated_cost or
+  // total_actual_cost exceeds the sum of the per-output cost fields, which
+  // are never raised themselves.
+  bool minimum_charge_applied = 31;
+
+  // Clip range this job encodes (echoed from request). Absent when the job
+  // encodes the full input.
+  optional ClipConfig clip = 32;
+}
+
+// ClipConfig selects a sub-range of the input to encode instead of the full
+// duration. Applies to the whole job: every output is encoded from the
+// clipped range, and thumbnails/sprites are computed within it. Cuts are
+// frame-accurate (outputs are always re-encoded). Billing keys off the
+// produced output duration, so clipping reduces cost accordingly (the
+// per-job minimum charge, when in effect, still applies).
+message ClipConfig {
+  option (buf.validate.message).cel = {
+    id: "clip.end_after_start"
+    message: "end_seconds must be greater than start_seconds (or 0 for end of input)"
+    expression: "this.end_seconds == 0.0 || this.end_seconds > this.start_seconds"
+  };
+
+  // Where the clip starts, in seconds from the beginning of the input.
+  // Default 0 (start of input). Must be within the input's duration:
+  // validated against the probed duration, failing the job with error code
+  // `input_clip_out_of_range` when out of range.
+  double start_seconds = 1 [
+    (buf.validate.field).double.gte = 0,
+    (buf.validate.field).double.finite = true
+  ];
+
+  // Where the clip ends, in seconds from the beginning of the input.
+  // 0 (or unset) means end of input. When set, must be greater than
+  // start_seconds and no greater than the probed input duration; otherwise
+  // the job fails at probe time with error code `input_clip_out_of_range`.
+  double end_seconds = 2 [
+    (buf.validate.field).double.gte = 0,
+    (buf.validate.field).double.finite = true
+  ];
 }
 
 // Request to create a new job.
@@ -942,6 +995,11 @@ message CreateJobRequest {
   optional string app_id = 21 [
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
   ];
+
+  // Encode only a sub-range of the input (job-level; applies to all outputs).
+  // Omit to encode the full input. See ClipConfig for range semantics and
+  // probe-time validation.
+  optional ClipConfig clip = 22;
 }
 
 // Response from creating a job.

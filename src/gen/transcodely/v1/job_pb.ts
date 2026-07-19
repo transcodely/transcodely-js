@@ -1891,6 +1891,39 @@ export class Job extends Message<Job> {
    */
   object = "";
 
+  /**
+   * Minimum charge for this job in EUR, locked at creation from the compute
+   * capacity the job is sized to. When the minimum charge is in effect, the
+   * billed total for a successfully completed job is
+   * max(sum of output costs, minimum_charge_eur) — see minimum_charge_applied
+   * for whether it determined this job's total. The minimum never applies to
+   * failed jobs (billed zero) or canceled jobs (billed for partial usage
+   * only). Absent when no minimum was computed for this job.
+   *
+   * @generated from field: optional double minimum_charge_eur = 30;
+   */
+  minimumChargeEur?: number;
+
+  /**
+   * Whether minimum_charge_eur determined the job's most recently computed
+   * total — true when the sum of output costs came in below the minimum and
+   * the total was raised to it (estimated total after probe; actual total
+   * after successful completion). When true, total_estimated_cost or
+   * total_actual_cost exceeds the sum of the per-output cost fields, which
+   * are never raised themselves.
+   *
+   * @generated from field: bool minimum_charge_applied = 31;
+   */
+  minimumChargeApplied = false;
+
+  /**
+   * Clip range this job encodes (echoed from request). Absent when the job
+   * encodes the full input.
+   *
+   * @generated from field: optional transcodely.v1.ClipConfig clip = 32;
+   */
+  clip?: ClipConfig;
+
   constructor(data?: PartialMessage<Job>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1928,6 +1961,9 @@ export class Job extends Message<Job> {
     { no: 28, name: "thumbnail_results", kind: "message", T: ThumbnailResult, repeated: true },
     { no: 26, name: "output_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 27, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 30, name: "minimum_charge_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 31, name: "minimum_charge_applied", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 32, name: "clip", kind: "message", T: ClipConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Job {
@@ -1944,6 +1980,66 @@ export class Job extends Message<Job> {
 
   static equals(a: Job | PlainMessage<Job> | undefined, b: Job | PlainMessage<Job> | undefined): boolean {
     return proto3.util.equals(Job, a, b);
+  }
+}
+
+/**
+ * ClipConfig selects a sub-range of the input to encode instead of the full
+ * duration. Applies to the whole job: every output is encoded from the
+ * clipped range, and thumbnails/sprites are computed within it. Cuts are
+ * frame-accurate (outputs are always re-encoded). Billing keys off the
+ * produced output duration, so clipping reduces cost accordingly (the
+ * per-job minimum charge, when in effect, still applies).
+ *
+ * @generated from message transcodely.v1.ClipConfig
+ */
+export class ClipConfig extends Message<ClipConfig> {
+  /**
+   * Where the clip starts, in seconds from the beginning of the input.
+   * Default 0 (start of input). Must be within the input's duration:
+   * validated against the probed duration, failing the job with error code
+   * `input_clip_out_of_range` when out of range.
+   *
+   * @generated from field: double start_seconds = 1;
+   */
+  startSeconds = 0;
+
+  /**
+   * Where the clip ends, in seconds from the beginning of the input.
+   * 0 (or unset) means end of input. When set, must be greater than
+   * start_seconds and no greater than the probed input duration; otherwise
+   * the job fails at probe time with error code `input_clip_out_of_range`.
+   *
+   * @generated from field: double end_seconds = 2;
+   */
+  endSeconds = 0;
+
+  constructor(data?: PartialMessage<ClipConfig>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.ClipConfig";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "start_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 2, name: "end_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ClipConfig {
+    return new ClipConfig().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ClipConfig {
+    return new ClipConfig().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ClipConfig {
+    return new ClipConfig().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ClipConfig | PlainMessage<ClipConfig> | undefined, b: ClipConfig | PlainMessage<ClipConfig> | undefined): boolean {
+    return proto3.util.equals(ClipConfig, a, b);
   }
 }
 
@@ -2084,6 +2180,15 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
    */
   appId?: string;
 
+  /**
+   * Encode only a sub-range of the input (job-level; applies to all outputs).
+   * Omit to encode the full input. See ClipConfig for range semantics and
+   * probe-time validation.
+   *
+   * @generated from field: optional transcodely.v1.ClipConfig clip = 22;
+   */
+  clip?: ClipConfig;
+
   constructor(data?: PartialMessage<CreateJobRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2106,6 +2211,7 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
     { no: 12, name: "output_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 20, name: "managed", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 21, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 22, name: "clip", kind: "message", T: ClipConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateJobRequest {
