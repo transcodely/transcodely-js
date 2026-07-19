@@ -26,6 +26,10 @@ const job = await client.jobs.create({
       { codec: VideoCodec.H264, resolution: Resolution.RESOLUTION_720P },
     ],
   }],
+  // Optional: encode only a sub-range of the input. Applies job-wide and
+  // reduces cost (billing keys off the produced output duration). Omit
+  // `endSeconds` (or leave 0) to encode through to the end of the input.
+  clip: { startSeconds: 2, endSeconds: 7 },
 });
 
 console.log(job.id); // "job_a1b2c3d4e5f6"

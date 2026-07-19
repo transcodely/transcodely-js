@@ -77,6 +77,7 @@ export {
   type HLSConfig,
   type DASHConfig,
   type SegmentConfig,
+  type ClipConfig,
   type ExecutionTiming,
   type PricingSnapshot,
   type VariantPricingSnapshot,
