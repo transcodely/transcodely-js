@@ -296,7 +296,7 @@ export class Video extends Message<Video> {
    * Whether this video's source file is exempt from the app's
    * delete_source_after_days lifecycle rule. Set via UpdateVideo.
    *
-   * @generated from field: bool source_pinned = 44;
+   * @generated from field: bool source_pinned = 46;
    */
   sourcePinned = false;
 
@@ -305,7 +305,7 @@ export class Video extends Message<Video> {
    * delete_source_after_days rule. Server-set, read-only; present only while a
    * deletion is scheduled (cleared on pin, on setting change, and on delete).
    *
-   * @generated from field: optional google.protobuf.Timestamp source_scheduled_for_deletion_at = 45;
+   * @generated from field: optional google.protobuf.Timestamp source_scheduled_for_deletion_at = 47;
    */
   sourceScheduledForDeletionAt?: Timestamp;
 
@@ -313,7 +313,7 @@ export class Video extends Message<Video> {
    * When the source file was deleted by the lifecycle rule. Server-set,
    * read-only. Once set, re-processing falls back to the best rendition.
    *
-   * @generated from field: optional google.protobuf.Timestamp source_deleted_at = 46;
+   * @generated from field: optional google.protobuf.Timestamp source_deleted_at = 48;
    */
   sourceDeletedAt?: Timestamp;
 
@@ -357,9 +357,9 @@ export class Video extends Message<Video> {
     { no: 40, name: "created_at", kind: "message", T: Timestamp },
     { no: 41, name: "updated_at", kind: "message", T: Timestamp },
     { no: 42, name: "ready_at", kind: "message", T: Timestamp, opt: true },
-    { no: 44, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 45, name: "source_scheduled_for_deletion_at", kind: "message", T: Timestamp, opt: true },
-    { no: 46, name: "source_deleted_at", kind: "message", T: Timestamp, opt: true },
+    { no: 46, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 47, name: "source_scheduled_for_deletion_at", kind: "message", T: Timestamp, opt: true },
+    { no: 48, name: "source_deleted_at", kind: "message", T: Timestamp, opt: true },
     { no: 43, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 

@@ -201,16 +201,16 @@ message Video {
   //
   // Whether this video's source file is exempt from the app's
   // delete_source_after_days lifecycle rule. Set via UpdateVideo.
-  bool source_pinned = 44;
+  bool source_pinned = 46;
 
   // When the source file is scheduled to be deleted by the app's
   // delete_source_after_days rule. Server-set, read-only; present only while a
   // deletion is scheduled (cleared on pin, on setting change, and on delete).
-  optional google.protobuf.Timestamp source_scheduled_for_deletion_at = 45;
+  optional google.protobuf.Timestamp source_scheduled_for_deletion_at = 47;
 
   // When the source file was deleted by the lifecycle rule. Server-set,
   // read-only. Once set, re-processing falls back to the best rendition.
-  optional google.protobuf.Timestamp source_deleted_at = 46;
+  optional google.protobuf.Timestamp source_deleted_at = 48;
 
   // Resource type discriminator. Always "video" for this message.
   // Lets webhook consumers and polyglot SDKs identify the resource without
