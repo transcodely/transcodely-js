@@ -290,6 +290,34 @@ export class Video extends Message<Video> {
   readyAt?: Timestamp;
 
   /**
+   * Source lifecycle (managed hosting only). These concern ONLY the original
+   * uploaded source file; renditions and playback are never affected.
+   *
+   * Whether this video's source file is exempt from the app's
+   * delete_source_after_days lifecycle rule. Set via UpdateVideo.
+   *
+   * @generated from field: bool source_pinned = 44;
+   */
+  sourcePinned = false;
+
+  /**
+   * When the source file is scheduled to be deleted by the app's
+   * delete_source_after_days rule. Server-set, read-only; present only while a
+   * deletion is scheduled (cleared on pin, on setting change, and on delete).
+   *
+   * @generated from field: optional google.protobuf.Timestamp source_scheduled_for_deletion_at = 45;
+   */
+  sourceScheduledForDeletionAt?: Timestamp;
+
+  /**
+   * When the source file was deleted by the lifecycle rule. Server-set,
+   * read-only. Once set, re-processing falls back to the best rendition.
+   *
+   * @generated from field: optional google.protobuf.Timestamp source_deleted_at = 46;
+   */
+  sourceDeletedAt?: Timestamp;
+
+  /**
    * Resource type discriminator. Always "video" for this message.
    * Lets webhook consumers and polyglot SDKs identify the resource without
    * out-of-band knowledge of the field name. Server-set; ignored on requests.
@@ -329,6 +357,9 @@ export class Video extends Message<Video> {
     { no: 40, name: "created_at", kind: "message", T: Timestamp },
     { no: 41, name: "updated_at", kind: "message", T: Timestamp },
     { no: 42, name: "ready_at", kind: "message", T: Timestamp, opt: true },
+    { no: 44, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 45, name: "source_scheduled_for_deletion_at", kind: "message", T: Timestamp, opt: true },
+    { no: 46, name: "source_deleted_at", kind: "message", T: Timestamp, opt: true },
     { no: 43, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
@@ -1658,6 +1689,16 @@ export class UpdateVideoRequest extends Message<UpdateVideoRequest> {
    */
   clearTags?: boolean;
 
+  /**
+   * Pin or unpin this video's source file against the app's
+   * delete_source_after_days lifecycle rule. Pinning also immediately clears any
+   * pending deletion schedule. Unpinning does NOT reschedule — the sweeper
+   * re-evaluates later with a fresh warning webhook.
+   *
+   * @generated from field: optional bool source_pinned = 7;
+   */
+  sourcePinned?: boolean;
+
   constructor(data?: PartialMessage<UpdateVideoRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1672,6 +1713,7 @@ export class UpdateVideoRequest extends Message<UpdateVideoRequest> {
     { no: 4, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 6, name: "clear_tags", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 7, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateVideoRequest {

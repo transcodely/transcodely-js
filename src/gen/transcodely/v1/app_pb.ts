@@ -779,6 +779,20 @@ export class HostingConfig extends Message<HostingConfig> {
    */
   autoProfileDefaults?: AutoProfileDefaults;
 
+  /**
+   * Days after a hosted video becomes ready before its ORIGINAL SOURCE FILE is
+   * deleted from managed storage (0 = disabled/clear). Applies ONLY to the
+   * uploaded source object; renditions and playback are NEVER affected, and BYO
+   * origins are out of scope. A warning webhook (video.source_scheduled_for_deletion)
+   * fires at least the configured warning lead ahead of deletion. Once the source
+   * is deleted, future re-processing (new codecs/renditions, retro-captions) falls
+   * back to the best available rendition. Per-video source_pinned exempts an
+   * individual video from this rule.
+   *
+   * @generated from field: optional int32 delete_source_after_days = 5;
+   */
+  deleteSourceAfterDays?: number;
+
   constructor(data?: PartialMessage<HostingConfig>) {
     super();
     proto3.util.initPartial(data, this);
@@ -791,6 +805,7 @@ export class HostingConfig extends Message<HostingConfig> {
     { no: 2, name: "max_upload_size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */, opt: true },
     { no: 3, name: "cors_allowed_origins", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 4, name: "auto_profile_defaults", kind: "message", T: AutoProfileDefaults, opt: true },
+    { no: 5, name: "delete_source_after_days", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): HostingConfig {
