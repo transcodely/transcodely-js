@@ -1920,7 +1920,7 @@ export class Job extends Message<Job> {
    * Clip range this job encodes (echoed from request). Absent when the job
    * encodes the full input.
    *
-   * @generated from field: optional transcodely.v1.ClipConfig clip = 32;
+   * @generated from field: optional transcodely.v1.ClipConfig clip = 36;
    */
   clip?: ClipConfig;
 
@@ -1963,7 +1963,7 @@ export class Job extends Message<Job> {
     { no: 27, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 30, name: "minimum_charge_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 31, name: "minimum_charge_applied", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 32, name: "clip", kind: "message", T: ClipConfig, opt: true },
+    { no: 36, name: "clip", kind: "message", T: ClipConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Job {
@@ -1991,6 +1991,10 @@ export class Job extends Message<Job> {
  * produced output duration, so clipping reduces cost accordingly (the
  * per-job minimum charge, when in effect, still applies).
  *
+ * Bounds are stored with 0.1ms (4-decimal) precision; finer-grained values
+ * are rounded. The minimum clip length is 1ms. A clip of {0, 0} is treated
+ * as no clip (encode the full input).
+ *
  * @generated from message transcodely.v1.ClipConfig
  */
 export class ClipConfig extends Message<ClipConfig> {
@@ -1999,6 +2003,9 @@ export class ClipConfig extends Message<ClipConfig> {
    * Default 0 (start of input). Must be within the input's duration:
    * validated against the probed duration, failing the job with error code
    * `input_clip_out_of_range` when out of range.
+   * The upper bound is a CEL expression rather than double.lte: combining
+   * gte+lte trips a broken double.gte_lte composite rule in the pinned
+   * protovalidate-go ("no such attribute(s): rules").
    *
    * @generated from field: double start_seconds = 1;
    */
@@ -2006,9 +2013,10 @@ export class ClipConfig extends Message<ClipConfig> {
 
   /**
    * Where the clip ends, in seconds from the beginning of the input.
-   * 0 (or unset) means end of input. When set, must be greater than
-   * start_seconds and no greater than the probed input duration; otherwise
-   * the job fails at probe time with error code `input_clip_out_of_range`.
+   * 0 (or unset) means end of input. When set, must be at least 0.001s
+   * greater than start_seconds and no greater than the probed input
+   * duration; otherwise the job fails at probe time with error code
+   * `input_clip_out_of_range`.
    *
    * @generated from field: double end_seconds = 2;
    */
