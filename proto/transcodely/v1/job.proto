@@ -15,6 +15,7 @@ import "transcodely/v1/origin.proto";
 import "transcodely/v1/streaming.proto";
 import "transcodely/v1/thumbnails.proto";
 import "transcodely/v1/subtitles.proto";
+import "transcodely/v1/watermark.proto";
 import "transcodely/v1/drm.proto";
 import "transcodely/v1/hdr.proto";
 import "transcodely/v1/content_aware.proto";
@@ -458,6 +459,13 @@ message OutputSpec {
   // handled gracefully (video-only) regardless of this flag.
   // Must not be combined with explicit audio[] tracks.
   optional bool disable_audio = 16;
+
+  // Watermark / logo overlay for this output. When set, the overlay is baked
+  // into the encoded video of this output (like subtitle burn-in). Billed under
+  // the unified overlay multiplier class: 1.1x once per output regardless of how
+  // many pixel-burning overlays are enabled (a watermark and burned-in subtitles
+  // together are still a single 1.1x, never 1.21x).
+  optional WatermarkConfig watermark = 17;
 }
 
 // Locked pricing snapshot for an output (captured at job creation).
@@ -813,6 +821,23 @@ message Job {
   // Lets webhook consumers and polyglot SDKs identify the resource without
   // out-of-band knowledge of the field name. Server-set; ignored on requests.
   string object = 27;
+
+  // Minimum charge for this job in EUR, locked at creation from the compute
+  // capacity the job is sized to. When the minimum charge is in effect, the
+  // billed total for a successfully completed job is
+  // max(sum of output costs, minimum_charge_eur) — see minimum_charge_applied
+  // for whether it determined this job's total. The minimum never applies to
+  // failed jobs (billed zero) or canceled jobs (billed for partial usage
+  // only). Absent when no minimum was computed for this job.
+  optional double minimum_charge_eur = 30;
+
+  // Whether minimum_charge_eur determined the job's most recently computed
+  // total — true when the sum of output costs came in below the minimum and
+  // the total was raised to it (estimated total after probe; actual total
+  // after successful completion). When true, total_estimated_cost or
+  // total_actual_cost exceeds the sum of the per-output cost fields, which
+  // are never raised themselves.
+  bool minimum_charge_applied = 31;
 }
 
 // Request to create a new job.

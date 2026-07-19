@@ -362,6 +362,12 @@ export {
 } from "./gen/transcodely/v1/subtitles_pb.js";
 
 export {
+  type WatermarkConfig,
+  type WatermarkPixelPlacement,
+  WatermarkAnchor,
+} from "./gen/transcodely/v1/watermark_pb.js";
+
+export {
   type ThumbnailSpec,
   type ThumbnailResult,
   ThumbnailMode,
