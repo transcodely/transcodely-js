@@ -303,18 +303,21 @@ message OutputSpec {
   reserved 8, 9;
   reserved "streaming";
 
-  // Validation: either preset is set, or type + video[] array must be provided
+  // Validation: either preset is set, or type + video[] array must be provided.
+  // A captions-only output is also valid: video[] may be empty (and type may be
+  // unspecified) when every subtitle track is extract (4) or generate (5).
   option (buf.validate.message).cel = {
     id: "output_spec.preset_or_inline"
-    message: "either preset must be specified, or type with video[] array must be provided"
-    expression: "has(this.preset) || (this.type != 0 && size(this.video) > 0)"
+    message: "either preset must be specified, or type with video[] array must be provided (or a captions-only output with extract/generate subtitle tracks)"
+    expression: "has(this.preset) || (this.type != 0 && size(this.video) > 0) || (size(this.subtitle_tracks) > 0 && this.subtitle_tracks.all(t, t.operation == 4 || t.operation == 5))"
   };
 
-  // video[] must have at least one variant when provided
+  // video[] must have at least one variant when provided, unless this is a
+  // captions-only output (every subtitle track is extract or generate).
   option (buf.validate.message).cel = {
     id: "output_spec.video_required"
     message: "video[] array must have at least one variant"
-    expression: "has(this.preset) || size(this.video) >= 1"
+    expression: "has(this.preset) || size(this.video) >= 1 || (size(this.subtitle_tracks) > 0 && this.subtitle_tracks.all(t, t.operation == 4 || t.operation == 5))"
   };
 
   // Audio tracks are only valid for HLS, DASH, or ADAPTIVE types
@@ -802,6 +805,13 @@ message Job {
   // how JobOutput.output_url surfaces rendition results.
   repeated ThumbnailResult thumbnail_results = 28;
 
+  // Generated/processed subtitle artifacts (populated after the job
+  // completes). Each entry carries the worker-built storage `url` plus the
+  // `output_id` it was configured on. Auto-generated captions (operation
+  // generate) additionally expose a segment-level transcript. Mirrors how
+  // JobOutput.output_url surfaces rendition results.
+  repeated SubtitleResult subtitle_results = 32;
+
   // Job-level output path template (echoed from request).
   // Variables: {job_id}, {output_id}, {date}, {timestamp}, {codec}, {resolution}, {format}, {quality}, {output_index}, {uuid}
   // Empty when the request did not specify one; outputs then fall back to
@@ -813,14 +823,80 @@ message Job {
   // Lets webhook consumers and polyglot SDKs identify the resource without
   // out-of-band knowledge of the field name. Server-set; ignored on requests.
   string object = 27;
+
+  // Minimum charge for this job in EUR, locked at creation from the compute
+  // capacity the job is sized to. When the minimum charge is in effect, the
+  // billed total for a successfully completed job is
+  // max(sum of output costs, minimum_charge_eur) — see minimum_charge_applied
+  // for whether it determined this job's total. The minimum never applies to
+  // failed jobs (billed zero) or canceled jobs (billed for partial usage
+  // only). Absent when no minimum was computed for this job.
+  optional double minimum_charge_eur = 30;
+
+  // Whether minimum_charge_eur determined the job's most recently computed
+  // total — true when the sum of output costs came in below the minimum and
+  // the total was raised to it (estimated total after probe; actual total
+  // after successful completion). When true, total_estimated_cost or
+  // total_actual_cost exceeds the sum of the per-output cost fields, which
+  // are never raised themselves.
+  bool minimum_charge_applied = 31;
+
+  // Additive fee line items (v1: AI caption generation). Fees are charged ON
+  // TOP of the encode bill and sit OUTSIDE the minimum-charge floor:
+  // billed total = max(sum of output costs, minimum_charge_eur) + sum of fees.
+  // total_estimated_cost / total_actual_cost INCLUDE fees; this list exposes
+  // the decomposition. Only live fees are listed — a fee that was voided
+  // (job failed/canceled, or the artifact was never produced) is dropped
+  // from the list and never charged. Server-set; read-only.
+  repeated JobFee fees = 33;
+
+  // Hosted video ID used as the input source (video mode), echoed from the
+  // request. Empty when the job was created with input_url or
+  // input_origin_id. Server-set; read-only.
+  string input_video_id = 34;
+}
+
+// A single additive fee line item on a job (see Job.fees). Fees are metered
+// charges for services performed alongside the encode (v1: AI caption
+// generation at EUR 0.05 per source minute). A fee is charged once per job,
+// estimated when the input probe supplies the source duration, and only
+// billed when the completion report shows the fee's artifact was actually
+// produced (no artifact, no fee). Fees are never absorbed by the per-job
+// minimum charge: billed total = max(sum of output costs, minimum_charge_eur)
+// + sum of fees. Read-only.
+message JobFee {
+  // Fee discriminator — the fee pricing rule's key. v1: "captions".
+  string fee_type = 1;
+
+  // Human-readable description of what the fee is for
+  // (e.g., "AI Caption Generation").
+  string description = 2;
+
+  // Metering unit. v1: "source_minute" (input duration in minutes).
+  string unit = 3;
+
+  // Metered quantity in `unit`s — the exact fraction, e.g. a 90-second
+  // source is 1.5 source minutes. 0 until the input probe completes.
+  double quantity = 4;
+
+  // Price per unit in `currency`, locked at job creation from the
+  // then-effective fee pricing rule (e.g., 0.05).
+  double rate = 5;
+
+  // quantity x rate, in `currency`. 0 until the input probe completes.
+  double amount = 6;
+
+  // Currency for rate/amount (ISO 4217 code, e.g., "EUR"). Matches the
+  // job-level currency field.
+  string currency = 7;
 }
 
 // Request to create a new job.
 message CreateJobRequest {
   option (buf.validate.message).cel = {
     id: "create_job.input_source"
-    message: "either input_url or input_origin_id must be specified (not both)"
-    expression: "(this.input_url != '' && !has(this.input_origin_id)) || (this.input_url == '' && has(this.input_origin_id))"
+    message: "exactly one input source must be specified: input_url, input_origin_id, or input_video_id"
+    expression: "(this.input_url != '' && !has(this.input_origin_id) && !has(this.input_video_id)) || (this.input_url == '' && has(this.input_origin_id) && !has(this.input_video_id)) || (this.input_url == '' && !has(this.input_origin_id) && has(this.input_video_id))"
   };
   option (buf.validate.message).cel = {
     id: "create_job.input_path_requires_origin"
@@ -830,7 +906,7 @@ message CreateJobRequest {
   option (buf.validate.message).cel = {
     id: "create_job.output_origin_required"
     message: "output_origin_id is required when managed is not true"
-    expression: "has(this.output_origin_id) || (has(this.managed) && this.managed)"
+    expression: "has(this.output_origin_id) || (has(this.managed) && this.managed) || has(this.input_video_id)"
   };
 
   // URL of the input video file (direct URL mode).
@@ -854,6 +930,18 @@ message CreateJobRequest {
   // Example: "uploads/video.mp4" or "{job_id}/source.mp4"
   optional string input_path = 10 [
     (buf.validate.field).string.max_len = 2048
+  ];
+
+  // Hosted video ID to use as the input source (video mode).
+  // The job's input is resolved server-side from the referenced video's
+  // original source (falling back to its highest-bitrate rendition if the
+  // ingest source is gone). Outputs are written to the video's managed
+  // storage and linked to it. Use this OR input_url OR input_origin_id.
+  // Primarily for retro-captioning an existing hosted video with a
+  // captions-only output.
+  optional string input_video_id = 13 [
+    (buf.validate.field).string.max_len = 32,
+    (buf.validate.field).string.pattern = "^vid_[a-zA-Z0-9_-]+$"
   ];
 
   // Origin ID for outputs (origin mode).
