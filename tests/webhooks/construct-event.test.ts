@@ -114,6 +114,25 @@ describe("constructEvent — happy paths", () => {
     expect((event.data as App).status).toBe(AppStatus.ACTIVE);
   });
 
+  it("leaves a spend-limit event's data as the raw notification (not a mis-decoded App)", () => {
+    const notification = {
+      app_id: "app_sl",
+      period_start: "2026-05-01",
+      period_end: "2026-06-01",
+      limit_eur: 100,
+      spent_eur: 82.5,
+      threshold_pct: 80,
+      currency: "EUR",
+    };
+    const body = envelope({ type: "app.spend_limit_warning", data: notification });
+    const event = constructEvent(body, header(body), SECRET, { now: NOW });
+    expect(event.type).toBe("app.spend_limit_warning");
+    // Despite the "app." prefix, these events carry a notification payload, not
+    // an App snapshot — data must be the raw parsed object, not an App instance.
+    expect(event.data).not.toBeInstanceOf(App);
+    expect(event.data).toEqual(notification);
+  });
+
   it("preserves a non-null request.idempotencyKey", () => {
     const body = envelope({ request: { id: "req_xyz", idempotency_key: "user_supplied_key" } });
     const event = constructEvent(body, header(body), SECRET, { now: NOW });
