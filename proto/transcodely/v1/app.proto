@@ -34,6 +34,14 @@ service AppService {
   // Merges provided fields into the existing hosting config.
   // Returns failed_precondition if hosting is not enabled.
   rpc UpdateHostingConfig(UpdateHostingConfigRequest) returns (UpdateHostingConfigResponse);
+
+  // Set or clear an app's monthly spend limit for transcoding charges.
+  // Providing monthly_spend_limit_eur sets the cap (must be > 0); omitting it
+  // clears the cap and returns the app to unlimited. Returns the updated app.
+  rpc UpdateSpendLimit(UpdateSpendLimitRequest) returns (UpdateSpendLimitResponse);
+
+  // Get an app's current-period transcoding spend against its limit.
+  rpc GetSpend(GetSpendRequest) returns (GetSpendResponse);
 }
 
 // App status.
@@ -103,6 +111,15 @@ message App {
   // Lets webhook consumers and polyglot SDKs identify the resource without
   // out-of-band knowledge of the field name. Server-set; ignored on requests.
   string object = 14;
+
+  // Monthly spend limit in EUR for transcoding charges. Unset = unlimited (the
+  // default). Once the app's spend for the current period reaches this limit,
+  // new jobs are rejected with `limit_exceeded`; in-flight jobs are never
+  // stopped. A warning webhook (`app.spend_limit_warning`) fires once at 80% of
+  // the limit and `app.spend_limit_exceeded` fires once on breach. The period
+  // follows the app's billing anchor day in UTC. Set or clear via
+  // AppService.UpdateSpendLimit; read current spend via AppService.GetSpend.
+  optional double monthly_spend_limit_eur = 15;
 }
 
 // Request to create a new app.
@@ -308,4 +325,68 @@ message UpdateHostingConfigRequest {
 message UpdateHostingConfigResponse {
   // The updated app with merged hosting config.
   App app = 1;
+}
+
+// Request to set or clear an app's monthly spend limit.
+message UpdateSpendLimitRequest {
+  // App ID.
+  string app_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Monthly spend limit in EUR. When present, sets the cap (must be > 0). When
+  // ABSENT, the cap is cleared and the app returns to unlimited (the default).
+  // The upper bound matches the NUMERIC(12,2) storage column.
+  optional double monthly_spend_limit_eur = 2 [
+    (buf.validate.field).double.gt = 0,
+    (buf.validate.field).double.lte = 9999999999.99
+  ];
+}
+
+// Response from updating a spend limit.
+message UpdateSpendLimitResponse {
+  // The updated app (monthly_spend_limit_eur reflects the new value, or is
+  // unset when the limit was cleared).
+  App app = 1;
+}
+
+// Request to read an app's current-period transcoding spend.
+message GetSpendRequest {
+  // App ID.
+  string app_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response with an app's current-period transcoding spend.
+//
+// Spend is the sum of billed charges for terminal jobs plus recorded estimates
+// for in-flight jobs, and includes the per-job minimum charge where applied.
+// Jobs are attributed to the period by their creation time. All amounts are in
+// EUR.
+message GetSpendResponse {
+  // Start of the current billing period (inclusive), UTC.
+  google.protobuf.Timestamp period_start = 1;
+
+  // End of the current billing period (exclusive), UTC.
+  google.protobuf.Timestamp period_end = 2;
+
+  // Transcoding spend recorded so far this period, in EUR.
+  double spent_eur = 3;
+
+  // The app's monthly spend limit in EUR. Unset = unlimited.
+  optional double monthly_spend_limit_eur = 4;
+
+  // Currency of all amounts in this response. Always "EUR".
+  string currency = 5;
+
+  // True once the 80% warning event (`app.spend_limit_warning`) has fired this
+  // period. Fire-once per period; not re-armed by a mid-period limit change.
+  bool warning_triggered = 6;
+
+  // True once the breach event (`app.spend_limit_exceeded`) has fired this
+  // period. Fire-once per period; not re-armed by a mid-period limit change.
+  bool limit_reached = 7;
 }

@@ -1891,6 +1891,31 @@ export class Job extends Message<Job> {
    */
   object = "";
 
+  /**
+   * Minimum charge for this job in EUR, locked at creation from the compute
+   * capacity the job is sized to. When the minimum charge is in effect, the
+   * billed total for a successfully completed job is
+   * max(sum of output costs, minimum_charge_eur) — see minimum_charge_applied
+   * for whether it determined this job's total. The minimum never applies to
+   * failed jobs (billed zero) or canceled jobs (billed for partial usage
+   * only). Absent when no minimum was computed for this job.
+   *
+   * @generated from field: optional double minimum_charge_eur = 30;
+   */
+  minimumChargeEur?: number;
+
+  /**
+   * Whether minimum_charge_eur determined the job's most recently computed
+   * total — true when the sum of output costs came in below the minimum and
+   * the total was raised to it (estimated total after probe; actual total
+   * after successful completion). When true, total_estimated_cost or
+   * total_actual_cost exceeds the sum of the per-output cost fields, which
+   * are never raised themselves.
+   *
+   * @generated from field: bool minimum_charge_applied = 31;
+   */
+  minimumChargeApplied = false;
+
   constructor(data?: PartialMessage<Job>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1928,6 +1953,8 @@ export class Job extends Message<Job> {
     { no: 28, name: "thumbnail_results", kind: "message", T: ThumbnailResult, repeated: true },
     { no: 26, name: "output_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 27, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 30, name: "minimum_charge_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 31, name: "minimum_charge_applied", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Job {

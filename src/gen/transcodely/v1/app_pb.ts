@@ -145,6 +145,19 @@ export class App extends Message<App> {
    */
   object = "";
 
+  /**
+   * Monthly spend limit in EUR for transcoding charges. Unset = unlimited (the
+   * default). Once the app's spend for the current period reaches this limit,
+   * new jobs are rejected with `limit_exceeded`; in-flight jobs are never
+   * stopped. A warning webhook (`app.spend_limit_warning`) fires once at 80% of
+   * the limit and `app.spend_limit_exceeded` fires once on breach. The period
+   * follows the app's billing anchor day in UTC. Set or clear via
+   * AppService.UpdateSpendLimit; read current spend via AppService.GetSpend.
+   *
+   * @generated from field: optional double monthly_spend_limit_eur = 15;
+   */
+  monthlySpendLimitEur?: number;
+
   constructor(data?: PartialMessage<App>) {
     super();
     proto3.util.initPartial(data, this);
@@ -166,6 +179,7 @@ export class App extends Message<App> {
     { no: 12, name: "cdn_hostname", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 13, name: "hosting_config", kind: "message", T: HostingConfig, opt: true },
     { no: 14, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 15, name: "monthly_spend_limit_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): App {
@@ -972,6 +986,236 @@ export class UpdateHostingConfigResponse extends Message<UpdateHostingConfigResp
 
   static equals(a: UpdateHostingConfigResponse | PlainMessage<UpdateHostingConfigResponse> | undefined, b: UpdateHostingConfigResponse | PlainMessage<UpdateHostingConfigResponse> | undefined): boolean {
     return proto3.util.equals(UpdateHostingConfigResponse, a, b);
+  }
+}
+
+/**
+ * Request to set or clear an app's monthly spend limit.
+ *
+ * @generated from message transcodely.v1.UpdateSpendLimitRequest
+ */
+export class UpdateSpendLimitRequest extends Message<UpdateSpendLimitRequest> {
+  /**
+   * App ID.
+   *
+   * @generated from field: string app_id = 1;
+   */
+  appId = "";
+
+  /**
+   * Monthly spend limit in EUR. When present, sets the cap (must be > 0). When
+   * ABSENT, the cap is cleared and the app returns to unlimited (the default).
+   * The upper bound matches the NUMERIC(12,2) storage column.
+   *
+   * @generated from field: optional double monthly_spend_limit_eur = 2;
+   */
+  monthlySpendLimitEur?: number;
+
+  constructor(data?: PartialMessage<UpdateSpendLimitRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.UpdateSpendLimitRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "monthly_spend_limit_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateSpendLimitRequest {
+    return new UpdateSpendLimitRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateSpendLimitRequest {
+    return new UpdateSpendLimitRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateSpendLimitRequest {
+    return new UpdateSpendLimitRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdateSpendLimitRequest | PlainMessage<UpdateSpendLimitRequest> | undefined, b: UpdateSpendLimitRequest | PlainMessage<UpdateSpendLimitRequest> | undefined): boolean {
+    return proto3.util.equals(UpdateSpendLimitRequest, a, b);
+  }
+}
+
+/**
+ * Response from updating a spend limit.
+ *
+ * @generated from message transcodely.v1.UpdateSpendLimitResponse
+ */
+export class UpdateSpendLimitResponse extends Message<UpdateSpendLimitResponse> {
+  /**
+   * The updated app (monthly_spend_limit_eur reflects the new value, or is
+   * unset when the limit was cleared).
+   *
+   * @generated from field: transcodely.v1.App app = 1;
+   */
+  app?: App;
+
+  constructor(data?: PartialMessage<UpdateSpendLimitResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.UpdateSpendLimitResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "app", kind: "message", T: App },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateSpendLimitResponse {
+    return new UpdateSpendLimitResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateSpendLimitResponse {
+    return new UpdateSpendLimitResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateSpendLimitResponse {
+    return new UpdateSpendLimitResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdateSpendLimitResponse | PlainMessage<UpdateSpendLimitResponse> | undefined, b: UpdateSpendLimitResponse | PlainMessage<UpdateSpendLimitResponse> | undefined): boolean {
+    return proto3.util.equals(UpdateSpendLimitResponse, a, b);
+  }
+}
+
+/**
+ * Request to read an app's current-period transcoding spend.
+ *
+ * @generated from message transcodely.v1.GetSpendRequest
+ */
+export class GetSpendRequest extends Message<GetSpendRequest> {
+  /**
+   * App ID.
+   *
+   * @generated from field: string app_id = 1;
+   */
+  appId = "";
+
+  constructor(data?: PartialMessage<GetSpendRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetSpendRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetSpendRequest {
+    return new GetSpendRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetSpendRequest {
+    return new GetSpendRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetSpendRequest {
+    return new GetSpendRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetSpendRequest | PlainMessage<GetSpendRequest> | undefined, b: GetSpendRequest | PlainMessage<GetSpendRequest> | undefined): boolean {
+    return proto3.util.equals(GetSpendRequest, a, b);
+  }
+}
+
+/**
+ * Response with an app's current-period transcoding spend.
+ *
+ * Spend is the sum of billed charges for terminal jobs plus recorded estimates
+ * for in-flight jobs, and includes the per-job minimum charge where applied.
+ * Jobs are attributed to the period by their creation time. All amounts are in
+ * EUR.
+ *
+ * @generated from message transcodely.v1.GetSpendResponse
+ */
+export class GetSpendResponse extends Message<GetSpendResponse> {
+  /**
+   * Start of the current billing period (inclusive), UTC.
+   *
+   * @generated from field: google.protobuf.Timestamp period_start = 1;
+   */
+  periodStart?: Timestamp;
+
+  /**
+   * End of the current billing period (exclusive), UTC.
+   *
+   * @generated from field: google.protobuf.Timestamp period_end = 2;
+   */
+  periodEnd?: Timestamp;
+
+  /**
+   * Transcoding spend recorded so far this period, in EUR.
+   *
+   * @generated from field: double spent_eur = 3;
+   */
+  spentEur = 0;
+
+  /**
+   * The app's monthly spend limit in EUR. Unset = unlimited.
+   *
+   * @generated from field: optional double monthly_spend_limit_eur = 4;
+   */
+  monthlySpendLimitEur?: number;
+
+  /**
+   * Currency of all amounts in this response. Always "EUR".
+   *
+   * @generated from field: string currency = 5;
+   */
+  currency = "";
+
+  /**
+   * True once the 80% warning event (`app.spend_limit_warning`) has fired this
+   * period. Fire-once per period; not re-armed by a mid-period limit change.
+   *
+   * @generated from field: bool warning_triggered = 6;
+   */
+  warningTriggered = false;
+
+  /**
+   * True once the breach event (`app.spend_limit_exceeded`) has fired this
+   * period. Fire-once per period; not re-armed by a mid-period limit change.
+   *
+   * @generated from field: bool limit_reached = 7;
+   */
+  limitReached = false;
+
+  constructor(data?: PartialMessage<GetSpendResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetSpendResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "period_start", kind: "message", T: Timestamp },
+    { no: 2, name: "period_end", kind: "message", T: Timestamp },
+    { no: 3, name: "spent_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 4, name: "monthly_spend_limit_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 5, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "warning_triggered", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 7, name: "limit_reached", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetSpendResponse {
+    return new GetSpendResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetSpendResponse {
+    return new GetSpendResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetSpendResponse {
+    return new GetSpendResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetSpendResponse | PlainMessage<GetSpendResponse> | undefined, b: GetSpendResponse | PlainMessage<GetSpendResponse> | undefined): boolean {
+    return proto3.util.equals(GetSpendResponse, a, b);
   }
 }
 
