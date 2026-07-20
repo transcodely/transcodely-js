@@ -5,7 +5,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ArchiveAppRequest, ArchiveAppResponse, CreateAppRequest, CreateAppResponse, EnableHostingRequest, EnableHostingResponse, GetAppRequest, GetAppResponse, ListAppsRequest, ListAppsResponse, UpdateAppRequest, UpdateAppResponse, UpdateHostingConfigRequest, UpdateHostingConfigResponse } from "./app_pb.js";
+import { ArchiveAppRequest, ArchiveAppResponse, CreateAppRequest, CreateAppResponse, EnableHostingRequest, EnableHostingResponse, GetAppRequest, GetAppResponse, GetSpendRequest, GetSpendResponse, ListAppsRequest, ListAppsResponse, UpdateAppRequest, UpdateAppResponse, UpdateHostingConfigRequest, UpdateHostingConfigResponse, UpdateSpendLimitRequest, UpdateSpendLimitResponse } from "./app_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -96,6 +96,30 @@ export const AppService = {
       name: "UpdateHostingConfig",
       I: UpdateHostingConfigRequest,
       O: UpdateHostingConfigResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Set or clear an app's monthly spend limit for transcoding charges.
+     * Providing monthly_spend_limit_eur sets the cap (must be > 0); omitting it
+     * clears the cap and returns the app to unlimited. Returns the updated app.
+     *
+     * @generated from rpc transcodely.v1.AppService.UpdateSpendLimit
+     */
+    updateSpendLimit: {
+      name: "UpdateSpendLimit",
+      I: UpdateSpendLimitRequest,
+      O: UpdateSpendLimitResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Get an app's current-period transcoding spend against its limit.
+     *
+     * @generated from rpc transcodely.v1.AppService.GetSpend
+     */
+    getSpend: {
+      name: "GetSpend",
+      I: GetSpendRequest,
+      O: GetSpendResponse,
       kind: MethodKind.Unary,
     },
   }

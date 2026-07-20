@@ -48,6 +48,24 @@
       "expect": { "result": "ok", "event_type": "app.created", "event_id": "evt_t3", "data_id": "app_t3" }
     },
     {
+      "name": "ok_app_spend_limit_warning",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_sl1\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"app.spend_limit_warning\",\"data\":{\"app_id\":\"app_sl\",\"period_start\":\"2026-05-01\",\"period_end\":\"2026-06-01\",\"limit_eur\":100,\"spent_eur\":82.5,\"threshold_pct\":80,\"currency\":\"EUR\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":null,\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "app.spend_limit_warning", "event_id": "evt_sl1", "request_id": null }
+    },
+    {
+      "name": "ok_app_spend_limit_exceeded",
+      "secret": "whsec_test_12345678901234567890abcdef",
+      "ts": 1716480293,
+      "body": "{\"id\":\"evt_sl2\",\"object\":\"event\",\"api_version\":\"2026-05-23\",\"created\":\"2026-05-24T10:55:08Z\",\"type\":\"app.spend_limit_exceeded\",\"data\":{\"app_id\":\"app_sl\",\"period_start\":\"2026-05-01\",\"period_end\":\"2026-06-01\",\"limit_eur\":100,\"spent_eur\":101.25,\"threshold_pct\":100,\"currency\":\"EUR\"},\"livemode\":true,\"pending_webhooks\":0,\"request\":{\"id\":null,\"idempotency_key\":null}}",
+      "tolerance": 300,
+      "now": 1716480293,
+      "expect": { "result": "ok", "event_type": "app.spend_limit_exceeded", "event_id": "evt_sl2", "request_id": null }
+    },
+    {
       "name": "ok_output_ready",
       "secret": "whsec_test_12345678901234567890abcdef",
       "ts": 1716480293,

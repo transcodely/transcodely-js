@@ -254,6 +254,24 @@ export class Video extends Message<Video> {
   durationSeconds?: number;
 
   /**
+   * Animated hover-preview URLs, populated when the video was created with
+   * hover_previews enabled and its transcode produced the animated artifacts.
+   * Same resolution and per-request re-issuance rules as poster_url: signed and
+   * expiring on token-auth apps, unsigned otherwise, absent for private videos
+   * without a signable key. hover_preview_url is the animated WebP; the muted
+   * MP4 loop rides hover_preview_mp4_url. Either may be absent (e.g. the WebP is
+   * skipped for previews longer than 10 s). Field numbers 44/45.
+   *
+   * @generated from field: optional string hover_preview_url = 44;
+   */
+  hoverPreviewUrl?: string;
+
+  /**
+   * @generated from field: optional string hover_preview_mp4_url = 45;
+   */
+  hoverPreviewMp4Url?: string;
+
+  /**
    * Renditions available for playback.
    *
    * @generated from field: repeated transcodely.v1.VideoRendition renditions = 25;
@@ -290,6 +308,34 @@ export class Video extends Message<Video> {
   readyAt?: Timestamp;
 
   /**
+   * Source lifecycle (managed hosting only). These concern ONLY the original
+   * uploaded source file; renditions and playback are never affected.
+   *
+   * Whether this video's source file is exempt from the app's
+   * delete_source_after_days lifecycle rule. Set via UpdateVideo.
+   *
+   * @generated from field: bool source_pinned = 46;
+   */
+  sourcePinned = false;
+
+  /**
+   * When the source file is scheduled to be deleted by the app's
+   * delete_source_after_days rule. Server-set, read-only; present only while a
+   * deletion is scheduled (cleared on pin, on setting change, and on delete).
+   *
+   * @generated from field: optional google.protobuf.Timestamp source_scheduled_for_deletion_at = 47;
+   */
+  sourceScheduledForDeletionAt?: Timestamp;
+
+  /**
+   * When the source file was deleted by the lifecycle rule. Server-set,
+   * read-only. Once set, re-processing falls back to the best rendition.
+   *
+   * @generated from field: optional google.protobuf.Timestamp source_deleted_at = 48;
+   */
+  sourceDeletedAt?: Timestamp;
+
+  /**
    * Resource type discriminator. Always "video" for this message.
    * Lets webhook consumers and polyglot SDKs identify the resource without
    * out-of-band knowledge of the field name. Server-set; ignored on requests.
@@ -323,12 +369,17 @@ export class Video extends Message<Video> {
     { no: 22, name: "embed_code", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 23, name: "poster_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 24, name: "duration_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 44, name: "hover_preview_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 45, name: "hover_preview_mp4_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 25, name: "renditions", kind: "message", T: VideoRendition, repeated: true },
     { no: 30, name: "output_size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 31, name: "encoding_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 40, name: "created_at", kind: "message", T: Timestamp },
     { no: 41, name: "updated_at", kind: "message", T: Timestamp },
     { no: 42, name: "ready_at", kind: "message", T: Timestamp, opt: true },
+    { no: 46, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 47, name: "source_scheduled_for_deletion_at", kind: "message", T: Timestamp, opt: true },
+    { no: 48, name: "source_deleted_at", kind: "message", T: Timestamp, opt: true },
     { no: 43, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
@@ -512,6 +563,16 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
    */
   preset?: string;
 
+  /**
+   * When true, attach an animated hover-preview (mode=animated, worker smart
+   * defaults: ~4 s, 12 fps, 320 px) to the managed transcode, in addition to the
+   * poster. Free — animated previews add no cost. The produced WebP/MP4 loop
+   * surface as Video.hover_preview_url / hover_preview_mp4_url once ready.
+   *
+   * @generated from field: bool hover_previews = 10;
+   */
+  hoverPreviews = false;
+
   constructor(data?: PartialMessage<CreateUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -529,6 +590,7 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
     { no: 6, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 7, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 9, name: "preset", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 10, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateUploadRequest {
@@ -750,6 +812,15 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
    */
   preset?: string;
 
+  /**
+   * When true, attach an animated hover-preview (mode=animated, worker smart
+   * defaults) to the managed transcode, in addition to the poster. Free. The
+   * produced loop surfaces as Video.hover_preview_url / hover_preview_mp4_url.
+   *
+   * @generated from field: bool hover_previews = 8;
+   */
+  hoverPreviews = false;
+
   constructor(data?: PartialMessage<CreateFromUrlRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -765,6 +836,7 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
     { no: 5, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 6, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 7, name: "preset", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 8, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateFromUrlRequest {
@@ -1011,6 +1083,15 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
    */
   preset?: string;
 
+  /**
+   * When true, attach an animated hover-preview (mode=animated, worker smart
+   * defaults) to the managed transcode, in addition to the poster. Free. The
+   * produced loop surfaces as Video.hover_preview_url / hover_preview_mp4_url.
+   *
+   * @generated from field: bool hover_previews = 15;
+   */
+  hoverPreviews = false;
+
   constructor(data?: PartialMessage<CreateMultipartUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1030,6 +1111,7 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
     { no: 12, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 13, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 14, name: "preset", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 15, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateMultipartUploadRequest {
@@ -1658,6 +1740,16 @@ export class UpdateVideoRequest extends Message<UpdateVideoRequest> {
    */
   clearTags?: boolean;
 
+  /**
+   * Pin or unpin this video's source file against the app's
+   * delete_source_after_days lifecycle rule. Pinning also immediately clears any
+   * pending deletion schedule. Unpinning does NOT reschedule — the sweeper
+   * re-evaluates later with a fresh warning webhook.
+   *
+   * @generated from field: optional bool source_pinned = 7;
+   */
+  sourcePinned?: boolean;
+
   constructor(data?: PartialMessage<UpdateVideoRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1672,6 +1764,7 @@ export class UpdateVideoRequest extends Message<UpdateVideoRequest> {
     { no: 4, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 6, name: "clear_tags", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 7, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateVideoRequest {

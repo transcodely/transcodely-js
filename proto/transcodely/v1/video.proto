@@ -179,6 +179,16 @@ message Video {
   optional string poster_url = 23;
   optional double duration_seconds = 24;
 
+  // Animated hover-preview URLs, populated when the video was created with
+  // hover_previews enabled and its transcode produced the animated artifacts.
+  // Same resolution and per-request re-issuance rules as poster_url: signed and
+  // expiring on token-auth apps, unsigned otherwise, absent for private videos
+  // without a signable key. hover_preview_url is the animated WebP; the muted
+  // MP4 loop rides hover_preview_mp4_url. Either may be absent (e.g. the WebP is
+  // skipped for previews longer than 10 s). Field numbers 44/45.
+  optional string hover_preview_url = 44;
+  optional string hover_preview_mp4_url = 45;
+
   // Renditions available for playback.
   repeated VideoRendition renditions = 25;
 
@@ -195,6 +205,22 @@ message Video {
   google.protobuf.Timestamp created_at = 40;
   google.protobuf.Timestamp updated_at = 41;
   optional google.protobuf.Timestamp ready_at = 42;
+
+  // Source lifecycle (managed hosting only). These concern ONLY the original
+  // uploaded source file; renditions and playback are never affected.
+  //
+  // Whether this video's source file is exempt from the app's
+  // delete_source_after_days lifecycle rule. Set via UpdateVideo.
+  bool source_pinned = 46;
+
+  // When the source file is scheduled to be deleted by the app's
+  // delete_source_after_days rule. Server-set, read-only; present only while a
+  // deletion is scheduled (cleared on pin, on setting change, and on delete).
+  optional google.protobuf.Timestamp source_scheduled_for_deletion_at = 47;
+
+  // When the source file was deleted by the lifecycle rule. Server-set,
+  // read-only. Once set, re-processing falls back to the best rendition.
+  optional google.protobuf.Timestamp source_deleted_at = 48;
 
   // Resource type discriminator. Always "video" for this message.
   // Lets webhook consumers and polyglot SDKs identify the resource without
@@ -283,6 +309,12 @@ message CreateUploadRequest {
     (buf.validate.field).string.min_len = 1,
     (buf.validate.field).string.max_len = 128
   ];
+
+  // When true, attach an animated hover-preview (mode=animated, worker smart
+  // defaults: ~4 s, 12 fps, 320 px) to the managed transcode, in addition to the
+  // poster. Free — animated previews add no cost. The produced WebP/MP4 loop
+  // surface as Video.hover_preview_url / hover_preview_mp4_url once ready.
+  bool hover_previews = 10;
 }
 
 // Response from creating an upload.
@@ -358,6 +390,11 @@ message CreateFromUrlRequest {
     (buf.validate.field).string.min_len = 1,
     (buf.validate.field).string.max_len = 128
   ];
+
+  // When true, attach an animated hover-preview (mode=animated, worker smart
+  // defaults) to the managed transcode, in addition to the poster. Free. The
+  // produced loop surfaces as Video.hover_preview_url / hover_preview_mp4_url.
+  bool hover_previews = 8;
 }
 
 // Response from creating a video from a URL.
@@ -454,6 +491,11 @@ message CreateMultipartUploadRequest {
     (buf.validate.field).string.min_len = 1,
     (buf.validate.field).string.max_len = 128
   ];
+
+  // When true, attach an animated hover-preview (mode=animated, worker smart
+  // defaults) to the managed transcode, in addition to the poster. Free. The
+  // produced loop surfaces as Video.hover_preview_url / hover_preview_mp4_url.
+  bool hover_previews = 15;
 }
 
 // Response from creating a multipart upload.
@@ -630,6 +672,12 @@ message UpdateVideoRequest {
 
   // Set to true to remove all tags. Mutually exclusive with tags.
   optional bool clear_tags = 6;
+
+  // Pin or unpin this video's source file against the app's
+  // delete_source_after_days lifecycle rule. Pinning also immediately clears any
+  // pending deletion schedule. Unpinning does NOT reschedule — the sweeper
+  // re-evaluates later with a fresh warning webhook.
+  optional bool source_pinned = 7;
 }
 
 // Response from updating a video.

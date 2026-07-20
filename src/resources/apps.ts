@@ -7,9 +7,12 @@ import {
   CreateAppRequest,
   EnableHostingRequest,
   GetAppRequest,
+  type GetSpendResponse,
+  GetSpendRequest,
   ListAppsRequest,
   UpdateAppRequest,
   UpdateHostingConfigRequest,
+  UpdateSpendLimitRequest,
 } from "../gen/transcodely/v1/app_pb.js";
 import { PaginationRequest } from "../gen/transcodely/v1/common_pb.js";
 
@@ -92,6 +95,57 @@ export class Apps {
       AppService,
       AppService.methods.updateHostingConfig,
       new UpdateHostingConfigRequest(req),
+      opts,
+    );
+  }
+
+  /**
+   * Set or clear an app's monthly transcoding spend cap. Provide
+   * `monthlySpendLimitEur` (must be > 0) to set the cap; omit it to clear the
+   * cap and return the app to unlimited. {@link setSpendLimit} and
+   * {@link clearSpendLimit} are the ergonomic shorthands.
+   */
+  async updateSpendLimit(
+    req: PartialMessage<UpdateSpendLimitRequest>,
+    opts?: CallOptions,
+  ): Promise<App> {
+    const res = await this.transport.unary(
+      AppService,
+      AppService.methods.updateSpendLimit,
+      new UpdateSpendLimitRequest(req),
+      opts,
+    );
+    return res.app!;
+  }
+
+  /**
+   * Set the app's monthly transcoding spend cap in EUR (must be > 0). Once
+   * recorded spend for the current billing period reaches the cap, new jobs are
+   * rejected with the `limit_exceeded` error code; in-flight jobs are never
+   * stopped. Use {@link clearSpendLimit} to return the app to unlimited.
+   */
+  setSpendLimit(id: string, monthlySpendLimitEur: number, opts?: CallOptions): Promise<App> {
+    return this.updateSpendLimit({ appId: id, monthlySpendLimitEur }, opts);
+  }
+
+  /**
+   * Clear the app's monthly spend cap, returning it to unlimited (the default).
+   * Omitting the optional limit field tells the server to clear any existing cap.
+   */
+  clearSpendLimit(id: string, opts?: CallOptions): Promise<App> {
+    return this.updateSpendLimit({ appId: id }, opts);
+  }
+
+  /**
+   * Get the app's current-period transcoding spend against its limit: the
+   * billing-period bounds, EUR spent so far, the cap (if set), and whether the
+   * 80% warning and 100% breach events have fired this period.
+   */
+  getSpend(id: string, opts?: CallOptions): Promise<GetSpendResponse> {
+    return this.transport.unary(
+      AppService,
+      AppService.methods.getSpend,
+      new GetSpendRequest({ appId: id }),
       opts,
     );
   }

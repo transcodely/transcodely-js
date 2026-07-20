@@ -77,9 +77,11 @@ export {
   type HLSConfig,
   type DASHConfig,
   type SegmentConfig,
+  type ClipConfig,
   type ExecutionTiming,
   type PricingSnapshot,
   type VariantPricingSnapshot,
+  type JobFee,
   type CreateJobRequest,
   type CreateJobResponse,
   type GetJobRequest,
@@ -209,6 +211,10 @@ export {
   type EnableHostingResponse,
   type UpdateHostingConfigRequest,
   type UpdateHostingConfigResponse,
+  type UpdateSpendLimitRequest,
+  type UpdateSpendLimitResponse,
+  type GetSpendRequest,
+  type GetSpendResponse,
   AppStatus,
 } from "./gen/transcodely/v1/app_pb.js";
 
@@ -256,6 +262,7 @@ export {
   SIGNATURE_HEADER,
   WEBHOOK_EVENT_TYPES,
   type EventBase,
+  type SpendLimitNotification,
   type WebhookEvent,
   type WebhookEventType,
   type VerifyOptions,
@@ -356,10 +363,27 @@ export {
 
 export {
   type SubtitleTrack,
+  type SubtitleResult,
   type BurnInStyle,
   SubtitleOperation,
   SubtitleFormat,
 } from "./gen/transcodely/v1/subtitles_pb.js";
+
+// ChapterPoint / ChapterResult carry the opt-in auto-chapters pass over
+// generated captions (SubtitleTrack.generateChapters). Not yet populated:
+// auto-chapters is rolling out together with the `generate` subtitle
+// operation. Exported ahead of the rollout so consumers can code against the
+// shape now.
+export {
+  type ChapterPoint,
+  type ChapterResult,
+} from "./gen/transcodely/v1/subtitles_pb.js";
+
+export {
+  type WatermarkConfig,
+  type WatermarkPixelPlacement,
+  WatermarkAnchor,
+} from "./gen/transcodely/v1/watermark_pb.js";
 
 export {
   type ThumbnailSpec,

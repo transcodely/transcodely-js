@@ -52,12 +52,38 @@ export type WebhookEvent =
   | (EventBase & { type: "video.ready";     data: Video })
   | (EventBase & { type: "video.failed";    data: Video })
   | (EventBase & { type: "video.deleted";   data: Video })
+  | (EventBase & { type: "video.source_scheduled_for_deletion"; data: Video })
   | (EventBase & { type: "app.created";     data: App })
   | (EventBase & { type: "app.updated";     data: App })
+  | (EventBase & { type: "app.spend_limit_warning";  data: SpendLimitNotification })
+  | (EventBase & { type: "app.spend_limit_exceeded"; data: SpendLimitNotification })
   | (EventBase & { type: string;            data: unknown });
 
 /**
- * The 15 concrete webhook event types the API can emit. Mirrors the source of
+ * Payload of the `app.spend_limit_warning` and `app.spend_limit_exceeded`
+ * events. Unlike the resource-carrying events, these carry a small notification
+ * object (snake_case, as delivered on the wire) rather than a resource snapshot,
+ * so `data` is the raw parsed JSON — it is not run through the resource codec.
+ */
+export interface SpendLimitNotification {
+  /** The app the spend limit belongs to (`app_*`). */
+  app_id: string;
+  /** Inclusive start of the billing period, an RFC 3339 full-date in UTC (e.g. `"2026-01-01"`). */
+  period_start: string;
+  /** Exclusive end of the billing period, an RFC 3339 full-date in UTC (e.g. `"2026-02-01"`). */
+  period_end: string;
+  /** The app's monthly spend limit in EUR. */
+  limit_eur: number;
+  /** Recorded spend for the period in EUR at the time the event fired. */
+  spent_eur: number;
+  /** Threshold crossed: `80` for the warning event, `100` for the breach event. */
+  threshold_pct: 80 | 100;
+  /** Currency of the amounts in this payload. Always `"EUR"`. */
+  currency: "EUR";
+}
+
+/**
+ * The 18 concrete webhook event types the API can emit. Mirrors the source of
  * truth in `domain.WebhookEventTypes()` (api/internal/domain/webhook.go). The
  * `"*"` wildcard is a subscription-only value and is intentionally absent.
  *
@@ -79,8 +105,11 @@ export const WEBHOOK_EVENT_TYPES = [
   "video.ready",
   "video.failed",
   "video.deleted",
+  "video.source_scheduled_for_deletion",
   "app.created",
   "app.updated",
+  "app.spend_limit_warning",
+  "app.spend_limit_exceeded",
 ] as const;
 
 /** A concrete event type the API can emit (excludes the `"*"` wildcard). */
@@ -115,8 +144,20 @@ export const RESOURCE_DECODERS: readonly DecoderEntry[] = [
   { prefix: "app.",    decode: (json) => fromJson(json as JsonValue, App) },
 ];
 
+/**
+ * Event types that share a resource prefix but carry a notification payload
+ * rather than a resource snapshot. Their `data` is left as the raw parsed JSON.
+ */
+const NOTIFICATION_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "app.spend_limit_warning",
+  "app.spend_limit_exceeded",
+]);
+
 /** Look up a decoder by event type, or `undefined` if the type is unknown. */
 export function decoderForType(type: string): DecoderEntry["decode"] | undefined {
+  // Spend-limit events share the "app." prefix but are notification payloads,
+  // not App snapshots — leave their `data` as the raw JSON object.
+  if (NOTIFICATION_EVENT_TYPES.has(type)) return undefined;
   for (const entry of RESOURCE_DECODERS) {
     if (type.startsWith(entry.prefix)) return entry.decode;
   }

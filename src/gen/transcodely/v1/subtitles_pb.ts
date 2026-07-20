@@ -46,6 +46,14 @@ export enum SubtitleOperation {
    * @generated from enum value: SUBTITLE_OPERATION_EXTRACT = 4;
    */
   EXTRACT = 4,
+
+  /**
+   * Generate captions from the audio track using automatic speech
+   * recognition. Tracks produced this way carry auto_generated: true.
+   *
+   * @generated from enum value: SUBTITLE_OPERATION_GENERATE = 5;
+   */
+  GENERATE = 5,
 }
 // Retrieve enum metadata with: proto3.getEnumType(SubtitleOperation)
 proto3.util.setEnumType(SubtitleOperation, "transcodely.v1.SubtitleOperation", [
@@ -54,6 +62,7 @@ proto3.util.setEnumType(SubtitleOperation, "transcodely.v1.SubtitleOperation", [
   { no: 2, name: "SUBTITLE_OPERATION_CONVERT" },
   { no: 3, name: "SUBTITLE_OPERATION_BURN_IN" },
   { no: 4, name: "SUBTITLE_OPERATION_EXTRACT" },
+  { no: 5, name: "SUBTITLE_OPERATION_GENERATE" },
 ]);
 
 /**
@@ -221,7 +230,11 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
   outputFormat = SubtitleFormat.UNSPECIFIED;
 
   /**
-   * ISO 639-2 language code (e.g., "eng", "spa", "fra").
+   * ISO 639-2 language code (e.g., "eng", "spa", "fra"), or "auto".
+   * "auto" is valid only for the generate operation and selects
+   * automatic language detection; it is the default when empty on a
+   * generate track. The other operations require a real ISO 639-2 code
+   * (or empty) and reject "auto".
    *
    * @generated from field: optional string language = 6;
    */
@@ -262,6 +275,20 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
    */
   burnInStyle?: BurnInStyle;
 
+  /**
+   * Generate an AI chapters track from the transcript this track produces.
+   *
+   * Only meaningful together with the (upcoming) `generate` subtitle operation:
+   * when enabled, an AI pass over the generated transcript produces a chapters
+   * track delivered as WebVTT plus JSON. Free — no pricing impact. The
+   * transcript text is processed via the Anthropic API (an external
+   * subprocessor). Until the `generate` operation ships, setting this is
+   * rejected at job creation.
+   *
+   * @generated from field: optional bool generate_chapters = 12;
+   */
+  generateChapters?: boolean;
+
   constructor(data?: PartialMessage<SubtitleTrack>) {
     super();
     proto3.util.initPartial(data, this);
@@ -281,6 +308,7 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
     { no: 9, name: "hearing_impaired", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 10, name: "forced", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 11, name: "burn_in_style", kind: "message", T: BurnInStyle, opt: true },
+    { no: 12, name: "generate_chapters", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubtitleTrack {
@@ -297,6 +325,267 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
 
   static equals(a: SubtitleTrack | PlainMessage<SubtitleTrack> | undefined, b: SubtitleTrack | PlainMessage<SubtitleTrack> | undefined): boolean {
     return proto3.util.equals(SubtitleTrack, a, b);
+  }
+}
+
+/**
+ * ChapterPoint is one chapter marker. Times are seconds from the start of the
+ * video.
+ *
+ * @generated from message transcodely.v1.ChapterPoint
+ */
+export class ChapterPoint extends Message<ChapterPoint> {
+  /**
+   * Chapter start, in seconds from the start of the video.
+   *
+   * @generated from field: double start_seconds = 1;
+   */
+  startSeconds = 0;
+
+  /**
+   * Chapter end, in seconds from the start of the video.
+   *
+   * @generated from field: double end_seconds = 2;
+   */
+  endSeconds = 0;
+
+  /**
+   * Short, human-readable chapter title, in the caption track's language.
+   *
+   * @generated from field: string title = 3;
+   */
+  title = "";
+
+  constructor(data?: PartialMessage<ChapterPoint>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.ChapterPoint";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "start_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 2, name: "end_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 3, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ChapterPoint {
+    return new ChapterPoint().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ChapterPoint {
+    return new ChapterPoint().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ChapterPoint {
+    return new ChapterPoint().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ChapterPoint | PlainMessage<ChapterPoint> | undefined, b: ChapterPoint | PlainMessage<ChapterPoint> | undefined): boolean {
+    return proto3.util.equals(ChapterPoint, a, b);
+  }
+}
+
+/**
+ * ChapterResult reports an auto-generated chapters track (read-only on Job
+ * responses). It is produced by the opt-in auto-chapters pass over generated
+ * captions (SubtitleTrack.generate_chapters).
+ *
+ * Not yet populated: the auto-chapters feature is rolling out together with
+ * generated captions. Fields are documented here so consumers can code against
+ * the shape ahead of the rollout.
+ *
+ * @generated from message transcodely.v1.ChapterResult
+ */
+export class ChapterResult extends Message<ChapterResult> {
+  /**
+   * The out_… output the generate track was configured on.
+   *
+   * @generated from field: string output_id = 1;
+   */
+  outputId = "";
+
+  /**
+   * ISO 639-2 language code, matching the caption track's language.
+   *
+   * @generated from field: string language = 2;
+   */
+  language = "";
+
+  /**
+   * Storage key of the WebVTT chapters file in the output destination.
+   *
+   * @generated from field: string storage_key = 3;
+   */
+  storageKey = "";
+
+  /**
+   * Resolved URL for the chapters file (same resolution rules as the caption
+   * artifact URL).
+   *
+   * @generated from field: string url = 4;
+   */
+  url = "";
+
+  /**
+   * The chapter markers, ordered by start time.
+   *
+   * @generated from field: repeated transcodely.v1.ChapterPoint chapters = 5;
+   */
+  chapters: ChapterPoint[] = [];
+
+  constructor(data?: PartialMessage<ChapterResult>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.ChapterResult";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "output_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "storage_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "chapters", kind: "message", T: ChapterPoint, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ChapterResult {
+    return new ChapterResult().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ChapterResult {
+    return new ChapterResult().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ChapterResult {
+    return new ChapterResult().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ChapterResult | PlainMessage<ChapterResult> | undefined, b: ChapterResult | PlainMessage<ChapterResult> | undefined): boolean {
+    return proto3.util.equals(ChapterResult, a, b);
+  }
+}
+
+/**
+ * A generated or processed subtitle artifact, reported by the worker on job
+ * completion and surfaced on the Job response. Mirrors the rendition pattern:
+ * the worker computes both the storage key and the storage URL, and the API
+ * persists them verbatim (the same way JobOutput.output_url works). Read-only
+ * on Job responses.
+ *
+ * @generated from message transcodely.v1.SubtitleResult
+ */
+export class SubtitleResult extends Message<SubtitleResult> {
+  /**
+   * Output ID (out_…) the subtitle track was configured on.
+   *
+   * @generated from field: string output_id = 1;
+   */
+  outputId = "";
+
+  /**
+   * Processing operation that produced this artifact
+   * (generate | extract | convert). Lowercase string on the wire.
+   *
+   * @generated from field: transcodely.v1.SubtitleOperation operation = 2;
+   */
+  operation = SubtitleOperation.UNSPECIFIED;
+
+  /**
+   * Subtitle file format: webvtt | srt | ttml | ass.
+   *
+   * @generated from field: transcodely.v1.SubtitleFormat format = 3;
+   */
+  format = SubtitleFormat.UNSPECIFIED;
+
+  /**
+   * Detected language (generate with auto-detect) or the configured
+   * ISO 639-2 language code.
+   *
+   * @generated from field: string language = 4;
+   */
+  language = "";
+
+  /**
+   * Human-readable label (e.g., "English", "Spanish (CC)").
+   *
+   * @generated from field: string label = 5;
+   */
+  label = "";
+
+  /**
+   * True iff this track was produced by the generate operation
+   * (automatic speech recognition).
+   *
+   * @generated from field: bool auto_generated = 6;
+   */
+  autoGenerated = false;
+
+  /**
+   * Caption file storage key in the output destination
+   * (e.g. "job_xxx/subtitles/out_yyy_eng.vtt").
+   *
+   * @generated from field: string storage_key = 7;
+   */
+  storageKey = "";
+
+  /**
+   * Fully-qualified storage URL as built by the worker, stored as-is and
+   * echoed on the Job response, exactly like JobOutput.output_url.
+   *
+   * @generated from field: string url = 8;
+   */
+  url = "";
+
+  /**
+   * Segment-level transcript JSON storage key. Set only for generate
+   * tracks (the machine-readable transcript consumed by auto-chapters).
+   *
+   * @generated from field: string transcript_storage_key = 9;
+   */
+  transcriptStorageKey = "";
+
+  /**
+   * Fully-qualified transcript URL. Set only for generate tracks.
+   *
+   * @generated from field: string transcript_url = 10;
+   */
+  transcriptUrl = "";
+
+  constructor(data?: PartialMessage<SubtitleResult>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.SubtitleResult";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "output_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "operation", kind: "enum", T: proto3.getEnumType(SubtitleOperation) },
+    { no: 3, name: "format", kind: "enum", T: proto3.getEnumType(SubtitleFormat) },
+    { no: 4, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "auto_generated", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 7, name: "storage_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "transcript_storage_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "transcript_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubtitleResult {
+    return new SubtitleResult().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SubtitleResult {
+    return new SubtitleResult().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SubtitleResult {
+    return new SubtitleResult().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SubtitleResult | PlainMessage<SubtitleResult> | undefined, b: SubtitleResult | PlainMessage<SubtitleResult> | undefined): boolean {
+    return proto3.util.equals(SubtitleResult, a, b);
   }
 }
 

@@ -46,6 +46,33 @@ export enum ThumbnailMode {
    * @generated from enum value: THUMBNAIL_MODE_TIMESTAMPS = 4;
    */
   TIMESTAMPS = 4,
+
+  /**
+   * Generate short animated hover-preview loops for card/grid previews.
+   *
+   * Free and bundled — animated previews add NO cost to a job (thumbnails are
+   * priced at 0). By default the worker produces BOTH an animated WebP and a
+   * muted MP4 loop from the same samples, so a consumer can pick whichever its
+   * surface supports. Set `format = webp` to emit only the WebP.
+   *
+   * Sampling is deterministic: unless `start_offsets` is set, clips are taken at
+   * fixed 25% / 50% / 75% marks of the source duration (no scene detection).
+   * Smart defaults (applied worker-side; the API stores exactly what was sent):
+   * ~4 s total duration, 12 fps, 320 px wide.
+   *
+   * The animated WebP is hard-capped at 10 s: when `duration_seconds` exceeds
+   * 10 the WebP is skipped and the output is MP4-only (documented, not an
+   * error) — unless `format = webp` is set explicitly, in which case a
+   * `duration_seconds` above 10 is rejected at job creation.
+   *
+   * Valid config for this mode: `width`, `height`, `quality` (maps to WebP
+   * encode quality), `duration_seconds`, `fps`, `start_offsets`, `path_template`.
+   * The single/interval/sprite/timestamps fields (`timestamp`,
+   * `interval_seconds`, `timestamps`, `sprite_columns`) are not valid here.
+   *
+   * @generated from enum value: THUMBNAIL_MODE_ANIMATED = 5;
+   */
+  ANIMATED = 5,
 }
 // Retrieve enum metadata with: proto3.getEnumType(ThumbnailMode)
 proto3.util.setEnumType(ThumbnailMode, "transcodely.v1.ThumbnailMode", [
@@ -54,6 +81,7 @@ proto3.util.setEnumType(ThumbnailMode, "transcodely.v1.ThumbnailMode", [
   { no: 2, name: "THUMBNAIL_MODE_INTERVAL" },
   { no: 3, name: "THUMBNAIL_MODE_SPRITE" },
   { no: 4, name: "THUMBNAIL_MODE_TIMESTAMPS" },
+  { no: 5, name: "THUMBNAIL_MODE_ANIMATED" },
 ]);
 
 /**
@@ -133,7 +161,10 @@ export class ThumbnailSpec extends Message<ThumbnailSpec> {
   quality?: number;
 
   /**
-   * Timestamp in seconds for single mode.
+   * Timestamp in seconds for single mode. When omitted, the worker
+   * smart-selects a representative non-black frame from the opening of the
+   * video (deterministic per input) instead of extracting the frame at t=0.
+   * An explicit value — including 0 — extracts exactly that frame.
    *
    * @generated from field: optional double timestamp = 6;
    */
@@ -191,6 +222,37 @@ export class ThumbnailSpec extends Message<ThumbnailSpec> {
    */
   pathTemplate?: string;
 
+  /**
+   * Total length of each animated preview clip, in seconds (animated mode only).
+   * Range: 2-30. Default (unset): ~4 s, applied worker-side. The animated WebP
+   * is hard-capped at 10 s: above 10 s the WebP is skipped and only the MP4 loop
+   * is produced (unless format=webp is set explicitly, which then rejects
+   * duration_seconds > 10). Only valid for animated mode.
+   *
+   * @generated from field: optional double duration_seconds = 11;
+   */
+  durationSeconds?: number;
+
+  /**
+   * Frames per second of the animated preview (animated mode only).
+   * Range: 8-15. Default (unset): 12, applied worker-side. Only valid for
+   * animated mode.
+   *
+   * @generated from field: optional int32 fps = 12;
+   */
+  fps?: number;
+
+  /**
+   * Explicit clip start offsets in seconds from the source start (animated mode
+   * only). When set (max 3 entries, each >= 0), these replace the default
+   * 25%/50%/75% sampling marks; the worker clamps each offset to the source
+   * duration. Unset → the deterministic 25%/50%/75% marks. Only valid for
+   * animated mode.
+   *
+   * @generated from field: repeated double start_offsets = 13;
+   */
+  startOffsets: number[] = [];
+
   constructor(data?: PartialMessage<ThumbnailSpec>) {
     super();
     proto3.util.initPartial(data, this);
@@ -209,6 +271,9 @@ export class ThumbnailSpec extends Message<ThumbnailSpec> {
     { no: 8, name: "timestamps", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, repeated: true },
     { no: 9, name: "sprite_columns", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
     { no: 10, name: "path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 11, name: "duration_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 12, name: "fps", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 13, name: "start_offsets", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ThumbnailSpec {
@@ -258,7 +323,7 @@ export class ThumbnailResult extends Message<ThumbnailResult> {
 
   /**
    * Generation mode that produced this file: single | interval | sprite |
-   * timestamps. Lowercase string on the wire.
+   * timestamps | animated. Lowercase string on the wire.
    *
    * @generated from field: string mode = 3;
    */
@@ -266,7 +331,9 @@ export class ThumbnailResult extends Message<ThumbnailResult> {
 
   /**
    * File format: jpeg | png | webp. The sprite mode's WebVTT sidecar uses
-   * "vtt".
+   * "vtt". Animated mode yields "webp" (the animated WebP) and "mp4" (the muted
+   * MP4 loop) — "mp4" rides this free-form string; it is not a ThumbnailFormat
+   * enum value.
    *
    * @generated from field: string format = 4;
    */
