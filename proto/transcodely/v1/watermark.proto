@@ -1,0 +1,105 @@
+// Watermark / logo overlay configuration.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+
+// Anchor position for a relatively-placed watermark. The watermark is aligned
+// to the named region of each rendition's frame, so a single config places the
+// overlay consistently across every ABR rung regardless of output resolution.
+// Wire form is lowercase (e.g. "bottom_right") via the codec.
+enum WatermarkAnchor {
+  // Default value; treated as bottom_right when unset.
+  WATERMARK_ANCHOR_UNSPECIFIED = 0;
+
+  WATERMARK_ANCHOR_TOP_LEFT = 1;
+  WATERMARK_ANCHOR_TOP_CENTER = 2;
+  WATERMARK_ANCHOR_TOP_RIGHT = 3;
+  WATERMARK_ANCHOR_MIDDLE_LEFT = 4;
+  WATERMARK_ANCHOR_MIDDLE_CENTER = 5;
+  WATERMARK_ANCHOR_MIDDLE_RIGHT = 6;
+  WATERMARK_ANCHOR_BOTTOM_LEFT = 7;
+  WATERMARK_ANCHOR_BOTTOM_CENTER = 8;
+  WATERMARK_ANCHOR_BOTTOM_RIGHT = 9;
+}
+
+// Absolute pixel placement for a watermark (advanced / "hacker mode"). The
+// overlay is drawn at an exact pixel offset and scaled to an exact pixel width;
+// unlike the relative anchor/width_pct fields, these coordinates do NOT adapt
+// across ABR rungs — a placement tuned for a 1080p rung will sit at the same
+// pixel offset on a 360p rung, so this is intended for single-rendition outputs
+// or advanced users who accept that trade-off.
+message WatermarkPixelPlacement {
+  // Horizontal offset in pixels from the top-left origin of the frame.
+  int32 x = 1 [
+    (buf.validate.field).int32.gte = 0
+  ];
+
+  // Vertical offset in pixels from the top-left origin of the frame.
+  int32 y = 2 [
+    (buf.validate.field).int32.gte = 0
+  ];
+
+  // Watermark width in pixels. The overlay image is scaled to this width and
+  // its height is derived automatically from the source aspect ratio.
+  int32 width = 3 [
+    (buf.validate.field).int32.gt = 0,
+    (buf.validate.field).int32.lte = 7680
+  ];
+}
+
+// Watermark / logo overlay baked into the encoded video of an output.
+//
+// Two placement modes exist and are mutually exclusive:
+//   * Relative (default): anchor + width_pct + margin_pct scale the overlay
+//     consistently across every ABR rung.
+//   * Pixel (advanced): the `pixel` submessage places the overlay at an exact
+//     pixel offset and width (does not adapt across rungs).
+// `image_url` and `opacity` apply in both modes. The mutual exclusivity of
+// `pixel` with the relative fields is enforced server-side by the feature
+// validator.
+message WatermarkConfig {
+  // Public http(s) URL of the overlay image. Must be a PNG or WebP image
+  // (alpha-capable formats only). Validated server-side at job creation: the
+  // image is fetched through the SSRF-guarded transport, its format is checked
+  // by magic bytes + decode, and size/dimension caps are enforced.
+  string image_url = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.max_len = 2048,
+    (buf.validate.field).string.pattern = "^https?://.*$"
+  ];
+
+  // Anchor region the overlay is aligned to (relative mode). Defaults to
+  // bottom_right when unset. Ignored when `pixel` is set.
+  optional WatermarkAnchor anchor = 2 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Watermark width as a percentage of each rendition's output width (relative
+  // mode). Scales consistently across every ABR rung. Range (0, 100].
+  // Defaults to 15 when unset. Ignored when `pixel` is set.
+  optional double width_pct = 3 [
+    (buf.validate.field).double.gt = 0,
+    (buf.validate.field).double.lte = 100
+  ];
+
+  // Margin from the anchored edges as a percentage of output width (relative
+  // mode). Range [0, 40]. Defaults to 2 when unset. Ignored when `pixel` is set.
+  optional double margin_pct = 4 [
+    (buf.validate.field).double.gte = 0,
+    (buf.validate.field).double.lte = 40
+  ];
+
+  // Overlay opacity. Range (0, 1]. Defaults to 1.0 (fully opaque) when unset.
+  // Applies in both relative and pixel modes.
+  optional double opacity = 5 [
+    (buf.validate.field).double.gt = 0,
+    (buf.validate.field).double.lte = 1
+  ];
+
+  // Absolute pixel placement (advanced mode). Mutually exclusive with anchor,
+  // width_pct, and margin_pct — supplying `pixel` together with any of those is
+  // rejected at job creation.
+  optional WatermarkPixelPlacement pixel = 6;
+}
