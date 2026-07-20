@@ -287,6 +287,16 @@ message HostingConfig {
 
   // Auto-transcoding defaults when no preset is specified.
   optional AutoProfileDefaults auto_profile_defaults = 4;
+
+  // Days after a hosted video becomes ready before its ORIGINAL SOURCE FILE is
+  // deleted from managed storage (0 = disabled/clear). Applies ONLY to the
+  // uploaded source object; renditions and playback are NEVER affected, and BYO
+  // origins are out of scope. A warning webhook (video.source_scheduled_for_deletion)
+  // fires at least the configured warning lead ahead of deletion. Once the source
+  // is deleted, future re-processing (new codecs/renditions, retro-captions) falls
+  // back to the best available rendition. Per-video source_pinned exempts an
+  // individual video from this rule.
+  optional int32 delete_source_after_days = 5;
 }
 
 // Default transcoding settings when no preset is specified on upload.

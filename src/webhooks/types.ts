@@ -52,6 +52,7 @@ export type WebhookEvent =
   | (EventBase & { type: "video.ready";     data: Video })
   | (EventBase & { type: "video.failed";    data: Video })
   | (EventBase & { type: "video.deleted";   data: Video })
+  | (EventBase & { type: "video.source_scheduled_for_deletion"; data: Video })
   | (EventBase & { type: "app.created";     data: App })
   | (EventBase & { type: "app.updated";     data: App })
   | (EventBase & { type: "app.spend_limit_warning";  data: SpendLimitNotification })
@@ -82,7 +83,7 @@ export interface SpendLimitNotification {
 }
 
 /**
- * The 17 concrete webhook event types the API can emit. Mirrors the source of
+ * The 18 concrete webhook event types the API can emit. Mirrors the source of
  * truth in `domain.WebhookEventTypes()` (api/internal/domain/webhook.go). The
  * `"*"` wildcard is a subscription-only value and is intentionally absent.
  *
@@ -104,6 +105,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "video.ready",
   "video.failed",
   "video.deleted",
+  "video.source_scheduled_for_deletion",
   "app.created",
   "app.updated",
   "app.spend_limit_warning",
