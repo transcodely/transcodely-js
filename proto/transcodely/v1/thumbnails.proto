@@ -20,6 +20,29 @@ enum ThumbnailMode {
 
   // Extract frames at explicit timestamps.
   THUMBNAIL_MODE_TIMESTAMPS = 4;
+
+  // Generate short animated hover-preview loops for card/grid previews.
+  //
+  // Free and bundled — animated previews add NO cost to a job (thumbnails are
+  // priced at 0). By default the worker produces BOTH an animated WebP and a
+  // muted MP4 loop from the same samples, so a consumer can pick whichever its
+  // surface supports. Set `format = webp` to emit only the WebP.
+  //
+  // Sampling is deterministic: unless `start_offsets` is set, clips are taken at
+  // fixed 25% / 50% / 75% marks of the source duration (no scene detection).
+  // Smart defaults (applied worker-side; the API stores exactly what was sent):
+  // ~4 s total duration, 12 fps, 320 px wide.
+  //
+  // The animated WebP is hard-capped at 10 s: when `duration_seconds` exceeds
+  // 10 the WebP is skipped and the output is MP4-only (documented, not an
+  // error) — unless `format = webp` is set explicitly, in which case a
+  // `duration_seconds` above 10 is rejected at job creation.
+  //
+  // Valid config for this mode: `width`, `height`, `quality` (maps to WebP
+  // encode quality), `duration_seconds`, `fps`, `start_offsets`, `path_template`.
+  // The single/interval/sprite/timestamps fields (`timestamp`,
+  // `interval_seconds`, `timestamps`, `sprite_columns`) are not valid here.
+  THUMBNAIL_MODE_ANIMATED = 5;
 }
 
 // Thumbnail output format.
@@ -115,6 +138,38 @@ message ThumbnailSpec {
       expression: "this == '' || (!this.startsWith('/') && !this.contains('..'))"
     }
   ];
+
+  // Total length of each animated preview clip, in seconds (animated mode only).
+  // Range: 2-30. Default (unset): ~4 s, applied worker-side. The animated WebP
+  // is hard-capped at 10 s: above 10 s the WebP is skipped and only the MP4 loop
+  // is produced (unless format=webp is set explicitly, which then rejects
+  // duration_seconds > 10). Only valid for animated mode.
+  optional double duration_seconds = 11 [
+    (buf.validate.field).double.gte = 2,
+    (buf.validate.field).double.lte = 30
+  ];
+
+  // Frames per second of the animated preview (animated mode only).
+  // Range: 8-15. Default (unset): 12, applied worker-side. Only valid for
+  // animated mode.
+  optional int32 fps = 12 [
+    (buf.validate.field).int32.gte = 8,
+    (buf.validate.field).int32.lte = 15
+  ];
+
+  // Explicit clip start offsets in seconds from the source start (animated mode
+  // only). When set (max 3 entries, each >= 0), these replace the default
+  // 25%/50%/75% sampling marks; the worker clamps each offset to the source
+  // duration. Unset → the deterministic 25%/50%/75% marks. Only valid for
+  // animated mode.
+  repeated double start_offsets = 13 [
+    (buf.validate.field).repeated = {
+      max_items: 3
+      items: {
+        double: {gte: 0}
+      }
+    }
+  ];
 }
 
 // A single generated thumbnail artifact, reported by the worker on job
@@ -136,11 +191,13 @@ message ThumbnailResult {
   string url = 2;
 
   // Generation mode that produced this file: single | interval | sprite |
-  // timestamps. Lowercase string on the wire.
+  // timestamps | animated. Lowercase string on the wire.
   string mode = 3;
 
   // File format: jpeg | png | webp. The sprite mode's WebVTT sidecar uses
-  // "vtt".
+  // "vtt". Animated mode yields "webp" (the animated WebP) and "mp4" (the muted
+  // MP4 loop) — "mp4" rides this free-form string; it is not a ThumbnailFormat
+  // enum value.
   string format = 4;
 
   // Pixel dimensions. 0 when not applicable (e.g. the .vtt sidecar).

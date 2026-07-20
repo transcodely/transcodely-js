@@ -179,6 +179,16 @@ message Video {
   optional string poster_url = 23;
   optional double duration_seconds = 24;
 
+  // Animated hover-preview URLs, populated when the video was created with
+  // hover_previews enabled and its transcode produced the animated artifacts.
+  // Same resolution and per-request re-issuance rules as poster_url: signed and
+  // expiring on token-auth apps, unsigned otherwise, absent for private videos
+  // without a signable key. hover_preview_url is the animated WebP; the muted
+  // MP4 loop rides hover_preview_mp4_url. Either may be absent (e.g. the WebP is
+  // skipped for previews longer than 10 s). Field numbers 44/45.
+  optional string hover_preview_url = 44;
+  optional string hover_preview_mp4_url = 45;
+
   // Renditions available for playback.
   repeated VideoRendition renditions = 25;
 
@@ -283,6 +293,12 @@ message CreateUploadRequest {
     (buf.validate.field).string.min_len = 1,
     (buf.validate.field).string.max_len = 128
   ];
+
+  // When true, attach an animated hover-preview (mode=animated, worker smart
+  // defaults: ~4 s, 12 fps, 320 px) to the managed transcode, in addition to the
+  // poster. Free — animated previews add no cost. The produced WebP/MP4 loop
+  // surface as Video.hover_preview_url / hover_preview_mp4_url once ready.
+  bool hover_previews = 10;
 }
 
 // Response from creating an upload.
@@ -358,6 +374,11 @@ message CreateFromUrlRequest {
     (buf.validate.field).string.min_len = 1,
     (buf.validate.field).string.max_len = 128
   ];
+
+  // When true, attach an animated hover-preview (mode=animated, worker smart
+  // defaults) to the managed transcode, in addition to the poster. Free. The
+  // produced loop surfaces as Video.hover_preview_url / hover_preview_mp4_url.
+  bool hover_previews = 8;
 }
 
 // Response from creating a video from a URL.
@@ -454,6 +475,11 @@ message CreateMultipartUploadRequest {
     (buf.validate.field).string.min_len = 1,
     (buf.validate.field).string.max_len = 128
   ];
+
+  // When true, attach an animated hover-preview (mode=animated, worker smart
+  // defaults) to the managed transcode, in addition to the poster. Free. The
+  // produced loop surfaces as Video.hover_preview_url / hover_preview_mp4_url.
+  bool hover_previews = 15;
 }
 
 // Response from creating a multipart upload.
