@@ -85,7 +85,10 @@ message ThumbnailSpec {
     (buf.validate.field).int32.lte = 100
   ];
 
-  // Timestamp in seconds for single mode.
+  // Timestamp in seconds for single mode. When omitted, the worker
+  // smart-selects a representative non-black frame from the opening of the
+  // video (deterministic per input) instead of extracting the frame at t=0.
+  // An explicit value — including 0 — extracts exactly that frame.
   optional double timestamp = 6 [
     (buf.validate.field).double.gte = 0
   ];

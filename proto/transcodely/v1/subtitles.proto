@@ -127,6 +127,54 @@ message SubtitleTrack {
 
   // Styling options for burn-in operation.
   optional BurnInStyle burn_in_style = 11;
+
+  // Generate an AI chapters track from the transcript this track produces.
+  //
+  // Only meaningful together with the (upcoming) `generate` subtitle operation:
+  // when enabled, an AI pass over the generated transcript produces a chapters
+  // track delivered as WebVTT plus JSON. Free — no pricing impact. The
+  // transcript text is processed via the Anthropic API (an external
+  // subprocessor). Until the `generate` operation ships, setting this is
+  // rejected at job creation.
+  optional bool generate_chapters = 12;
+}
+
+// ChapterPoint is one chapter marker. Times are seconds from the start of the
+// video.
+message ChapterPoint {
+  // Chapter start, in seconds from the start of the video.
+  double start_seconds = 1;
+
+  // Chapter end, in seconds from the start of the video.
+  double end_seconds = 2;
+
+  // Short, human-readable chapter title, in the caption track's language.
+  string title = 3;
+}
+
+// ChapterResult reports an auto-generated chapters track (read-only on Job
+// responses). It is produced by the opt-in auto-chapters pass over generated
+// captions (SubtitleTrack.generate_chapters).
+//
+// Not yet populated: the auto-chapters feature is rolling out together with
+// generated captions. Fields are documented here so consumers can code against
+// the shape ahead of the rollout.
+message ChapterResult {
+  // The out_… output the generate track was configured on.
+  string output_id = 1;
+
+  // ISO 639-2 language code, matching the caption track's language.
+  string language = 2;
+
+  // Storage key of the WebVTT chapters file in the output destination.
+  string storage_key = 3;
+
+  // Resolved URL for the chapters file (same resolution rules as the caption
+  // artifact URL).
+  string url = 4;
+
+  // The chapter markers, ordered by start time.
+  repeated ChapterPoint chapters = 5;
 }
 
 // A generated or processed subtitle artifact, reported by the worker on job

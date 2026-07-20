@@ -15,6 +15,7 @@ import "transcodely/v1/origin.proto";
 import "transcodely/v1/streaming.proto";
 import "transcodely/v1/thumbnails.proto";
 import "transcodely/v1/subtitles.proto";
+import "transcodely/v1/watermark.proto";
 import "transcodely/v1/drm.proto";
 import "transcodely/v1/hdr.proto";
 import "transcodely/v1/content_aware.proto";
@@ -461,6 +462,13 @@ message OutputSpec {
   // handled gracefully (video-only) regardless of this flag.
   // Must not be combined with explicit audio[] tracks.
   optional bool disable_audio = 16;
+
+  // Watermark / logo overlay for this output. When set, the overlay is baked
+  // into the encoded video of this output (like subtitle burn-in). Billed under
+  // the unified overlay multiplier class: 1.1x once per output regardless of how
+  // many pixel-burning overlays are enabled (a watermark and burned-in subtitles
+  // together are still a single 1.1x, never 1.21x).
+  optional WatermarkConfig watermark = 17;
 }
 
 // Locked pricing snapshot for an output (captured at job creation).
@@ -854,6 +862,15 @@ message Job {
   // request. Empty when the job was created with input_url or
   // input_origin_id. Server-set; read-only.
   string input_video_id = 34;
+
+  // Auto-generated chapter tracks, one per output whose generated caption track
+  // had chapters enabled (SubtitleTrack.generate_chapters). Not yet populated:
+  // the auto-chapters feature is rolling out together with generated captions.
+  repeated ChapterResult chapter_results = 35;
+
+  // Clip range this job encodes (echoed from request). Absent when the job
+  // encodes the full input.
+  optional ClipConfig clip = 36;
 }
 
 // A single additive fee line item on a job (see Job.fees). Fees are metered
@@ -889,6 +906,56 @@ message JobFee {
   // Currency for rate/amount (ISO 4217 code, e.g., "EUR"). Matches the
   // job-level currency field.
   string currency = 7;
+}
+
+// ClipConfig selects a sub-range of the input to encode instead of the full
+// duration. Applies to the whole job: every output is encoded from the
+// clipped range, and thumbnails/sprites are computed within it. Cuts are
+// frame-accurate (outputs are always re-encoded). Billing keys off the
+// produced output duration, so clipping reduces cost accordingly (the
+// per-job minimum charge, when in effect, still applies).
+//
+// Bounds are stored with 0.1ms (4-decimal) precision; finer-grained values
+// are rounded. The minimum clip length is 1ms. A clip of {0, 0} is treated
+// as no clip (encode the full input).
+message ClipConfig {
+  option (buf.validate.message).cel = {
+    id: "clip.end_after_start"
+    message: "end_seconds must be at least 0.001s greater than start_seconds (or 0 for end of input)"
+    expression: "this.end_seconds == 0.0 || this.end_seconds - this.start_seconds >= 0.001"
+  };
+
+  // Where the clip starts, in seconds from the beginning of the input.
+  // Default 0 (start of input). Must be within the input's duration:
+  // validated against the probed duration, failing the job with error code
+  // `input_clip_out_of_range` when out of range.
+  // The upper bound is a CEL expression rather than double.lte: combining
+  // gte+lte trips a broken double.gte_lte composite rule in the pinned
+  // protovalidate-go ("no such attribute(s): rules").
+  double start_seconds = 1 [
+    (buf.validate.field).double.gte = 0,
+    (buf.validate.field).double.finite = true,
+    (buf.validate.field).cel = {
+      id: "clip.start_storable"
+      message: "start_seconds must be at most 10000000"
+      expression: "this <= 10000000.0"
+    }
+  ];
+
+  // Where the clip ends, in seconds from the beginning of the input.
+  // 0 (or unset) means end of input. When set, must be at least 0.001s
+  // greater than start_seconds and no greater than the probed input
+  // duration; otherwise the job fails at probe time with error code
+  // `input_clip_out_of_range`.
+  double end_seconds = 2 [
+    (buf.validate.field).double.gte = 0,
+    (buf.validate.field).double.finite = true,
+    (buf.validate.field).cel = {
+      id: "clip.end_storable"
+      message: "end_seconds must be at most 10000000"
+      expression: "this <= 10000000.0"
+    }
+  ];
 }
 
 // Request to create a new job.
@@ -1030,6 +1097,11 @@ message CreateJobRequest {
   optional string app_id = 21 [
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
   ];
+
+  // Encode only a sub-range of the input (job-level; applies to all outputs).
+  // Omit to encode the full input. See ClipConfig for range semantics and
+  // probe-time validation.
+  optional ClipConfig clip = 22;
 }
 
 // Response from creating a job.

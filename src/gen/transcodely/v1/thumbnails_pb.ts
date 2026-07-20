@@ -161,7 +161,10 @@ export class ThumbnailSpec extends Message<ThumbnailSpec> {
   quality?: number;
 
   /**
-   * Timestamp in seconds for single mode.
+   * Timestamp in seconds for single mode. When omitted, the worker
+   * smart-selects a representative non-black frame from the opening of the
+   * video (deterministic per input) instead of extracting the frame at t=0.
+   * An explicit value — including 0 — extracts exactly that frame.
    *
    * @generated from field: optional double timestamp = 6;
    */

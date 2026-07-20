@@ -275,6 +275,20 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
    */
   burnInStyle?: BurnInStyle;
 
+  /**
+   * Generate an AI chapters track from the transcript this track produces.
+   *
+   * Only meaningful together with the (upcoming) `generate` subtitle operation:
+   * when enabled, an AI pass over the generated transcript produces a chapters
+   * track delivered as WebVTT plus JSON. Free — no pricing impact. The
+   * transcript text is processed via the Anthropic API (an external
+   * subprocessor). Until the `generate` operation ships, setting this is
+   * rejected at job creation.
+   *
+   * @generated from field: optional bool generate_chapters = 12;
+   */
+  generateChapters?: boolean;
+
   constructor(data?: PartialMessage<SubtitleTrack>) {
     super();
     proto3.util.initPartial(data, this);
@@ -294,6 +308,7 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
     { no: 9, name: "hearing_impaired", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 10, name: "forced", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 11, name: "burn_in_style", kind: "message", T: BurnInStyle, opt: true },
+    { no: 12, name: "generate_chapters", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubtitleTrack {
@@ -310,6 +325,144 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
 
   static equals(a: SubtitleTrack | PlainMessage<SubtitleTrack> | undefined, b: SubtitleTrack | PlainMessage<SubtitleTrack> | undefined): boolean {
     return proto3.util.equals(SubtitleTrack, a, b);
+  }
+}
+
+/**
+ * ChapterPoint is one chapter marker. Times are seconds from the start of the
+ * video.
+ *
+ * @generated from message transcodely.v1.ChapterPoint
+ */
+export class ChapterPoint extends Message<ChapterPoint> {
+  /**
+   * Chapter start, in seconds from the start of the video.
+   *
+   * @generated from field: double start_seconds = 1;
+   */
+  startSeconds = 0;
+
+  /**
+   * Chapter end, in seconds from the start of the video.
+   *
+   * @generated from field: double end_seconds = 2;
+   */
+  endSeconds = 0;
+
+  /**
+   * Short, human-readable chapter title, in the caption track's language.
+   *
+   * @generated from field: string title = 3;
+   */
+  title = "";
+
+  constructor(data?: PartialMessage<ChapterPoint>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.ChapterPoint";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "start_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 2, name: "end_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 3, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ChapterPoint {
+    return new ChapterPoint().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ChapterPoint {
+    return new ChapterPoint().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ChapterPoint {
+    return new ChapterPoint().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ChapterPoint | PlainMessage<ChapterPoint> | undefined, b: ChapterPoint | PlainMessage<ChapterPoint> | undefined): boolean {
+    return proto3.util.equals(ChapterPoint, a, b);
+  }
+}
+
+/**
+ * ChapterResult reports an auto-generated chapters track (read-only on Job
+ * responses). It is produced by the opt-in auto-chapters pass over generated
+ * captions (SubtitleTrack.generate_chapters).
+ *
+ * Not yet populated: the auto-chapters feature is rolling out together with
+ * generated captions. Fields are documented here so consumers can code against
+ * the shape ahead of the rollout.
+ *
+ * @generated from message transcodely.v1.ChapterResult
+ */
+export class ChapterResult extends Message<ChapterResult> {
+  /**
+   * The out_… output the generate track was configured on.
+   *
+   * @generated from field: string output_id = 1;
+   */
+  outputId = "";
+
+  /**
+   * ISO 639-2 language code, matching the caption track's language.
+   *
+   * @generated from field: string language = 2;
+   */
+  language = "";
+
+  /**
+   * Storage key of the WebVTT chapters file in the output destination.
+   *
+   * @generated from field: string storage_key = 3;
+   */
+  storageKey = "";
+
+  /**
+   * Resolved URL for the chapters file (same resolution rules as the caption
+   * artifact URL).
+   *
+   * @generated from field: string url = 4;
+   */
+  url = "";
+
+  /**
+   * The chapter markers, ordered by start time.
+   *
+   * @generated from field: repeated transcodely.v1.ChapterPoint chapters = 5;
+   */
+  chapters: ChapterPoint[] = [];
+
+  constructor(data?: PartialMessage<ChapterResult>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.ChapterResult";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "output_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "storage_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "chapters", kind: "message", T: ChapterPoint, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ChapterResult {
+    return new ChapterResult().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ChapterResult {
+    return new ChapterResult().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ChapterResult {
+    return new ChapterResult().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ChapterResult | PlainMessage<ChapterResult> | undefined, b: ChapterResult | PlainMessage<ChapterResult> | undefined): boolean {
+    return proto3.util.equals(ChapterResult, a, b);
   }
 }
 

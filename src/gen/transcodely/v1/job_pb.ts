@@ -14,9 +14,10 @@ import { VP9Options } from "./codec_vp9_pb.js";
 import { AV1Options } from "./codec_av1_pb.js";
 import { HDRConfig } from "./hdr_pb.js";
 import { GOPAlignmentMode, HLSPlaylistType, HLSSegmentFormat } from "./streaming_pb.js";
-import { SubtitleResult, SubtitleTrack } from "./subtitles_pb.js";
+import { ChapterResult, SubtitleResult, SubtitleTrack } from "./subtitles_pb.js";
 import { DRMConfig } from "./drm_pb.js";
 import { ContentAwareConfig } from "./content_aware_pb.js";
+import { WatermarkConfig } from "./watermark_pb.js";
 import { OriginRef } from "./origin_pb.js";
 import { InputMetadata } from "./media_pb.js";
 import { ThumbnailResult, ThumbnailSpec } from "./thumbnails_pb.js";
@@ -772,6 +773,17 @@ export class OutputSpec extends Message<OutputSpec> {
    */
   disableAudio?: boolean;
 
+  /**
+   * Watermark / logo overlay for this output. When set, the overlay is baked
+   * into the encoded video of this output (like subtitle burn-in). Billed under
+   * the unified overlay multiplier class: 1.1x once per output regardless of how
+   * many pixel-burning overlays are enabled (a watermark and burned-in subtitles
+   * together are still a single 1.1x, never 1.21x).
+   *
+   * @generated from field: optional transcodely.v1.WatermarkConfig watermark = 17;
+   */
+  watermark?: WatermarkConfig;
+
   constructor(data?: PartialMessage<OutputSpec>) {
     super();
     proto3.util.initPartial(data, this);
@@ -794,6 +806,7 @@ export class OutputSpec extends Message<OutputSpec> {
     { no: 14, name: "encoding_mode", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 15, name: "effective_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 16, name: "disable_audio", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 17, name: "watermark", kind: "message", T: WatermarkConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputSpec {
@@ -1949,6 +1962,23 @@ export class Job extends Message<Job> {
    */
   inputVideoId = "";
 
+  /**
+   * Auto-generated chapter tracks, one per output whose generated caption track
+   * had chapters enabled (SubtitleTrack.generate_chapters). Not yet populated:
+   * the auto-chapters feature is rolling out together with generated captions.
+   *
+   * @generated from field: repeated transcodely.v1.ChapterResult chapter_results = 35;
+   */
+  chapterResults: ChapterResult[] = [];
+
+  /**
+   * Clip range this job encodes (echoed from request). Absent when the job
+   * encodes the full input.
+   *
+   * @generated from field: optional transcodely.v1.ClipConfig clip = 36;
+   */
+  clip?: ClipConfig;
+
   constructor(data?: PartialMessage<Job>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1991,6 +2021,8 @@ export class Job extends Message<Job> {
     { no: 31, name: "minimum_charge_applied", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 33, name: "fees", kind: "message", T: JobFee, repeated: true },
     { no: 34, name: "input_video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 35, name: "chapter_results", kind: "message", T: ChapterResult, repeated: true },
+    { no: 36, name: "clip", kind: "message", T: ClipConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Job {
@@ -2107,6 +2139,74 @@ export class JobFee extends Message<JobFee> {
 
   static equals(a: JobFee | PlainMessage<JobFee> | undefined, b: JobFee | PlainMessage<JobFee> | undefined): boolean {
     return proto3.util.equals(JobFee, a, b);
+  }
+}
+
+/**
+ * ClipConfig selects a sub-range of the input to encode instead of the full
+ * duration. Applies to the whole job: every output is encoded from the
+ * clipped range, and thumbnails/sprites are computed within it. Cuts are
+ * frame-accurate (outputs are always re-encoded). Billing keys off the
+ * produced output duration, so clipping reduces cost accordingly (the
+ * per-job minimum charge, when in effect, still applies).
+ *
+ * Bounds are stored with 0.1ms (4-decimal) precision; finer-grained values
+ * are rounded. The minimum clip length is 1ms. A clip of {0, 0} is treated
+ * as no clip (encode the full input).
+ *
+ * @generated from message transcodely.v1.ClipConfig
+ */
+export class ClipConfig extends Message<ClipConfig> {
+  /**
+   * Where the clip starts, in seconds from the beginning of the input.
+   * Default 0 (start of input). Must be within the input's duration:
+   * validated against the probed duration, failing the job with error code
+   * `input_clip_out_of_range` when out of range.
+   * The upper bound is a CEL expression rather than double.lte: combining
+   * gte+lte trips a broken double.gte_lte composite rule in the pinned
+   * protovalidate-go ("no such attribute(s): rules").
+   *
+   * @generated from field: double start_seconds = 1;
+   */
+  startSeconds = 0;
+
+  /**
+   * Where the clip ends, in seconds from the beginning of the input.
+   * 0 (or unset) means end of input. When set, must be at least 0.001s
+   * greater than start_seconds and no greater than the probed input
+   * duration; otherwise the job fails at probe time with error code
+   * `input_clip_out_of_range`.
+   *
+   * @generated from field: double end_seconds = 2;
+   */
+  endSeconds = 0;
+
+  constructor(data?: PartialMessage<ClipConfig>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.ClipConfig";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "start_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 2, name: "end_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ClipConfig {
+    return new ClipConfig().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ClipConfig {
+    return new ClipConfig().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ClipConfig {
+    return new ClipConfig().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ClipConfig | PlainMessage<ClipConfig> | undefined, b: ClipConfig | PlainMessage<ClipConfig> | undefined): boolean {
+    return proto3.util.equals(ClipConfig, a, b);
   }
 }
 
@@ -2260,6 +2360,15 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
    */
   appId?: string;
 
+  /**
+   * Encode only a sub-range of the input (job-level; applies to all outputs).
+   * Omit to encode the full input. See ClipConfig for range semantics and
+   * probe-time validation.
+   *
+   * @generated from field: optional transcodely.v1.ClipConfig clip = 22;
+   */
+  clip?: ClipConfig;
+
   constructor(data?: PartialMessage<CreateJobRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2283,6 +2392,7 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
     { no: 12, name: "output_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 20, name: "managed", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 21, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 22, name: "clip", kind: "message", T: ClipConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateJobRequest {
