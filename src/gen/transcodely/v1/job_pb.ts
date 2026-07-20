@@ -14,7 +14,7 @@ import { VP9Options } from "./codec_vp9_pb.js";
 import { AV1Options } from "./codec_av1_pb.js";
 import { HDRConfig } from "./hdr_pb.js";
 import { GOPAlignmentMode, HLSPlaylistType, HLSSegmentFormat } from "./streaming_pb.js";
-import { SubtitleTrack } from "./subtitles_pb.js";
+import { SubtitleResult, SubtitleTrack } from "./subtitles_pb.js";
 import { DRMConfig } from "./drm_pb.js";
 import { ContentAwareConfig } from "./content_aware_pb.js";
 import { OriginRef } from "./origin_pb.js";
@@ -1872,6 +1872,17 @@ export class Job extends Message<Job> {
   thumbnailResults: ThumbnailResult[] = [];
 
   /**
+   * Generated/processed subtitle artifacts (populated after the job
+   * completes). Each entry carries the worker-built storage `url` plus the
+   * `output_id` it was configured on. Auto-generated captions (operation
+   * generate) additionally expose a segment-level transcript. Mirrors how
+   * JobOutput.output_url surfaces rendition results.
+   *
+   * @generated from field: repeated transcodely.v1.SubtitleResult subtitle_results = 32;
+   */
+  subtitleResults: SubtitleResult[] = [];
+
+  /**
    * Job-level output path template (echoed from request).
    * Variables: {job_id}, {output_id}, {date}, {timestamp}, {codec}, {resolution}, {format}, {quality}, {output_index}, {uuid}
    * Empty when the request did not specify one; outputs then fall back to
@@ -1890,6 +1901,53 @@ export class Job extends Message<Job> {
    * @generated from field: string object = 27;
    */
   object = "";
+
+  /**
+   * Minimum charge for this job in EUR, locked at creation from the compute
+   * capacity the job is sized to. When the minimum charge is in effect, the
+   * billed total for a successfully completed job is
+   * max(sum of output costs, minimum_charge_eur) — see minimum_charge_applied
+   * for whether it determined this job's total. The minimum never applies to
+   * failed jobs (billed zero) or canceled jobs (billed for partial usage
+   * only). Absent when no minimum was computed for this job.
+   *
+   * @generated from field: optional double minimum_charge_eur = 30;
+   */
+  minimumChargeEur?: number;
+
+  /**
+   * Whether minimum_charge_eur determined the job's most recently computed
+   * total — true when the sum of output costs came in below the minimum and
+   * the total was raised to it (estimated total after probe; actual total
+   * after successful completion). When true, total_estimated_cost or
+   * total_actual_cost exceeds the sum of the per-output cost fields, which
+   * are never raised themselves.
+   *
+   * @generated from field: bool minimum_charge_applied = 31;
+   */
+  minimumChargeApplied = false;
+
+  /**
+   * Additive fee line items (v1: AI caption generation). Fees are charged ON
+   * TOP of the encode bill and sit OUTSIDE the minimum-charge floor:
+   * billed total = max(sum of output costs, minimum_charge_eur) + sum of fees.
+   * total_estimated_cost / total_actual_cost INCLUDE fees; this list exposes
+   * the decomposition. Only live fees are listed — a fee that was voided
+   * (job failed/canceled, or the artifact was never produced) is dropped
+   * from the list and never charged. Server-set; read-only.
+   *
+   * @generated from field: repeated transcodely.v1.JobFee fees = 33;
+   */
+  fees: JobFee[] = [];
+
+  /**
+   * Hosted video ID used as the input source (video mode), echoed from the
+   * request. Empty when the job was created with input_url or
+   * input_origin_id. Server-set; read-only.
+   *
+   * @generated from field: string input_video_id = 34;
+   */
+  inputVideoId = "";
 
   constructor(data?: PartialMessage<Job>) {
     super();
@@ -1926,8 +1984,13 @@ export class Job extends Message<Job> {
     { no: 24, name: "execution", kind: "message", T: ExecutionTiming },
     { no: 25, name: "thumbnails", kind: "message", T: ThumbnailSpec, repeated: true },
     { no: 28, name: "thumbnail_results", kind: "message", T: ThumbnailResult, repeated: true },
+    { no: 32, name: "subtitle_results", kind: "message", T: SubtitleResult, repeated: true },
     { no: 26, name: "output_path_template", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 27, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 30, name: "minimum_charge_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 31, name: "minimum_charge_applied", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 33, name: "fees", kind: "message", T: JobFee, repeated: true },
+    { no: 34, name: "input_video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Job {
@@ -1944,6 +2007,106 @@ export class Job extends Message<Job> {
 
   static equals(a: Job | PlainMessage<Job> | undefined, b: Job | PlainMessage<Job> | undefined): boolean {
     return proto3.util.equals(Job, a, b);
+  }
+}
+
+/**
+ * A single additive fee line item on a job (see Job.fees). Fees are metered
+ * charges for services performed alongside the encode (v1: AI caption
+ * generation at EUR 0.05 per source minute). A fee is charged once per job,
+ * estimated when the input probe supplies the source duration, and only
+ * billed when the completion report shows the fee's artifact was actually
+ * produced (no artifact, no fee). Fees are never absorbed by the per-job
+ * minimum charge: billed total = max(sum of output costs, minimum_charge_eur)
+ * + sum of fees. Read-only.
+ *
+ * @generated from message transcodely.v1.JobFee
+ */
+export class JobFee extends Message<JobFee> {
+  /**
+   * Fee discriminator — the fee pricing rule's key. v1: "captions".
+   *
+   * @generated from field: string fee_type = 1;
+   */
+  feeType = "";
+
+  /**
+   * Human-readable description of what the fee is for
+   * (e.g., "AI Caption Generation").
+   *
+   * @generated from field: string description = 2;
+   */
+  description = "";
+
+  /**
+   * Metering unit. v1: "source_minute" (input duration in minutes).
+   *
+   * @generated from field: string unit = 3;
+   */
+  unit = "";
+
+  /**
+   * Metered quantity in `unit`s — the exact fraction, e.g. a 90-second
+   * source is 1.5 source minutes. 0 until the input probe completes.
+   *
+   * @generated from field: double quantity = 4;
+   */
+  quantity = 0;
+
+  /**
+   * Price per unit in `currency`, locked at job creation from the
+   * then-effective fee pricing rule (e.g., 0.05).
+   *
+   * @generated from field: double rate = 5;
+   */
+  rate = 0;
+
+  /**
+   * quantity x rate, in `currency`. 0 until the input probe completes.
+   *
+   * @generated from field: double amount = 6;
+   */
+  amount = 0;
+
+  /**
+   * Currency for rate/amount (ISO 4217 code, e.g., "EUR"). Matches the
+   * job-level currency field.
+   *
+   * @generated from field: string currency = 7;
+   */
+  currency = "";
+
+  constructor(data?: PartialMessage<JobFee>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.JobFee";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "fee_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "unit", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "quantity", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 5, name: "rate", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 6, name: "amount", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 7, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JobFee {
+    return new JobFee().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): JobFee {
+    return new JobFee().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): JobFee {
+    return new JobFee().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: JobFee | PlainMessage<JobFee> | undefined, b: JobFee | PlainMessage<JobFee> | undefined): boolean {
+    return proto3.util.equals(JobFee, a, b);
   }
 }
 
@@ -1979,6 +2142,19 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
    * @generated from field: optional string input_path = 10;
    */
   inputPath?: string;
+
+  /**
+   * Hosted video ID to use as the input source (video mode).
+   * The job's input is resolved server-side from the referenced video's
+   * original source (falling back to its highest-bitrate rendition if the
+   * ingest source is gone). Outputs are written to the video's managed
+   * storage and linked to it. Use this OR input_url OR input_origin_id.
+   * Primarily for retro-captioning an existing hosted video with a
+   * captions-only output.
+   *
+   * @generated from field: optional string input_video_id = 13;
+   */
+  inputVideoId?: string;
 
   /**
    * Origin ID for outputs (origin mode).
@@ -2095,6 +2271,7 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
     { no: 1, name: "input_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 9, name: "input_origin_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 10, name: "input_path", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 13, name: "input_video_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 11, name: "output_origin_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 2, name: "outputs", kind: "message", T: OutputSpec, repeated: true },
     { no: 3, name: "priority", kind: "enum", T: proto3.getEnumType(JobPriority) },

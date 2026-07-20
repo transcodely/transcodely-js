@@ -20,6 +20,10 @@ enum SubtitleOperation {
 
   // Extract subtitle stream to a separate file.
   SUBTITLE_OPERATION_EXTRACT = 4;
+
+  // Generate captions from the audio track using automatic speech
+  // recognition. Tracks produced this way carry auto_generated: true.
+  SUBTITLE_OPERATION_GENERATE = 5;
 }
 
 // Subtitle format.
@@ -98,9 +102,13 @@ message SubtitleTrack {
     (buf.validate.field).enum.defined_only = true
   ];
 
-  // ISO 639-2 language code (e.g., "eng", "spa", "fra").
+  // ISO 639-2 language code (e.g., "eng", "spa", "fra"), or "auto".
+  // "auto" is valid only for the generate operation and selects
+  // automatic language detection; it is the default when empty on a
+  // generate track. The other operations require a real ISO 639-2 code
+  // (or empty) and reject "auto".
   optional string language = 6 [
-    (buf.validate.field).string.pattern = "^[a-z]{3}$"
+    (buf.validate.field).string.pattern = "^([a-z]{3}|auto)$"
   ];
 
   // Human-readable label (e.g., "English", "Spanish (CC)").
@@ -119,4 +127,47 @@ message SubtitleTrack {
 
   // Styling options for burn-in operation.
   optional BurnInStyle burn_in_style = 11;
+}
+
+// A generated or processed subtitle artifact, reported by the worker on job
+// completion and surfaced on the Job response. Mirrors the rendition pattern:
+// the worker computes both the storage key and the storage URL, and the API
+// persists them verbatim (the same way JobOutput.output_url works). Read-only
+// on Job responses.
+message SubtitleResult {
+  // Output ID (out_…) the subtitle track was configured on.
+  string output_id = 1;
+
+  // Processing operation that produced this artifact
+  // (generate | extract | convert). Lowercase string on the wire.
+  SubtitleOperation operation = 2;
+
+  // Subtitle file format: webvtt | srt | ttml | ass.
+  SubtitleFormat format = 3;
+
+  // Detected language (generate with auto-detect) or the configured
+  // ISO 639-2 language code.
+  string language = 4;
+
+  // Human-readable label (e.g., "English", "Spanish (CC)").
+  string label = 5;
+
+  // True iff this track was produced by the generate operation
+  // (automatic speech recognition).
+  bool auto_generated = 6;
+
+  // Caption file storage key in the output destination
+  // (e.g. "job_xxx/subtitles/out_yyy_eng.vtt").
+  string storage_key = 7;
+
+  // Fully-qualified storage URL as built by the worker, stored as-is and
+  // echoed on the Job response, exactly like JobOutput.output_url.
+  string url = 8;
+
+  // Segment-level transcript JSON storage key. Set only for generate
+  // tracks (the machine-readable transcript consumed by auto-chapters).
+  string transcript_storage_key = 9;
+
+  // Fully-qualified transcript URL. Set only for generate tracks.
+  string transcript_url = 10;
 }

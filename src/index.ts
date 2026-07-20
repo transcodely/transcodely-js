@@ -80,6 +80,7 @@ export {
   type ExecutionTiming,
   type PricingSnapshot,
   type VariantPricingSnapshot,
+  type JobFee,
   type CreateJobRequest,
   type CreateJobResponse,
   type GetJobRequest,
@@ -356,6 +357,7 @@ export {
 
 export {
   type SubtitleTrack,
+  type SubtitleResult,
   type BurnInStyle,
   SubtitleOperation,
   SubtitleFormat,
