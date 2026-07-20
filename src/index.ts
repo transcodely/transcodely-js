@@ -369,6 +369,16 @@ export {
   SubtitleFormat,
 } from "./gen/transcodely/v1/subtitles_pb.js";
 
+// ChapterPoint / ChapterResult carry the opt-in auto-chapters pass over
+// generated captions (SubtitleTrack.generateChapters). Not yet populated:
+// auto-chapters is rolling out together with the `generate` subtitle
+// operation. Exported ahead of the rollout so consumers can code against the
+// shape now.
+export {
+  type ChapterPoint,
+  type ChapterResult,
+} from "./gen/transcodely/v1/subtitles_pb.js";
+
 export {
   type WatermarkConfig,
   type WatermarkPixelPlacement,
