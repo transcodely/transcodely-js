@@ -4,6 +4,25 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.1](https://github.com/transcodely/transcodely-js/compare/v0.3.0...v0.3.1) (2026-07-20)
+
+
+### Features
+
+* expose daily usage buckets and webhook endpoint health + event object-id filtering ([#26](https://github.com/transcodely/transcodely-js/issues/26)) ([28d3c77](https://github.com/transcodely/transcodely-js/commit/28d3c775c04dea4d3f8ff5c35b232072e40144f2))
+* post-launch feature program integration (transcodely-js) ([#38](https://github.com/transcodely/transcodely-js/issues/38)) ([c8705ca](https://github.com/transcodely/transcodely-js/commit/c8705ca411d6ad0a0a221fb4d61461b9f963f49a))
+
+
+### Bug Fixes
+
+* add working eslint setup, correct create-job example shape ([#24](https://github.com/transcodely/transcodely-js/issues/24)) ([d2e40bd](https://github.com/transcodely/transcodely-js/commit/d2e40bd922cd1b453eba903e63e67cacb512c25b))
+
+
+### Documentation
+
+* note content-aware encoding is rejected at create ([#30](https://github.com/transcodely/transcodely-js/issues/30)) ([a7da4ec](https://github.com/transcodely/transcodely-js/commit/a7da4ec9474e9754aa30269e5cdeb1dd40af8815))
+* set managed on the README quick start create-job ([#32](https://github.com/transcodely/transcodely-js/issues/32)) ([5cef326](https://github.com/transcodely/transcodely-js/commit/5cef326f2788262204fb1d986eb284f38870dffc))
+
 ## [0.3.0](https://github.com/transcodely/transcodely-js/compare/v0.2.0...v0.3.0) (2026-07-15)
 
 
