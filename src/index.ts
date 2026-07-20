@@ -211,6 +211,10 @@ export {
   type EnableHostingResponse,
   type UpdateHostingConfigRequest,
   type UpdateHostingConfigResponse,
+  type UpdateSpendLimitRequest,
+  type UpdateSpendLimitResponse,
+  type GetSpendRequest,
+  type GetSpendResponse,
   AppStatus,
 } from "./gen/transcodely/v1/app_pb.js";
 
@@ -258,6 +262,7 @@ export {
   SIGNATURE_HEADER,
   WEBHOOK_EVENT_TYPES,
   type EventBase,
+  type SpendLimitNotification,
   type WebhookEvent,
   type WebhookEventType,
   type VerifyOptions,

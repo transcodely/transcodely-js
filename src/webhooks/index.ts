@@ -31,4 +31,9 @@ export {
   type VerifyOptions,
 } from "./signature.js";
 export { WEBHOOK_EVENT_TYPES } from "./types.js";
-export type { EventBase, WebhookEvent, WebhookEventType } from "./types.js";
+export type {
+  EventBase,
+  SpendLimitNotification,
+  WebhookEvent,
+  WebhookEventType,
+} from "./types.js";
