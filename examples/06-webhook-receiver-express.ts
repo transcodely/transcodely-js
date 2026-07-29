@@ -40,22 +40,32 @@ app.post(
     try {
       const event = client.webhooks.constructEvent(req.body, sigHeader, secret);
 
-      switch (event.type) {
-        case "job.succeeded":
-          console.log(`[${event.id}] job ${event.data.id} finished`);
-          break;
-        case "job.failed":
-          console.warn(`[${event.id}] job ${event.data.id} failed`);
-          break;
-        case "output.ready":
-          console.log(`[${event.id}] output ${event.data.id} ready: ${event.data.outputUrl}`);
-          break;
-        case "video.uploaded":
-          console.log(`[${event.id}] video ${event.data.id} uploaded`);
-          break;
-        default:
-          // Forward-compat: unknown event types still verify and parse.
-          console.log(`[${event.id}] unhandled type ${event.type}`);
+      // `isKnownEvent` narrows to the closed union this SDK types precisely,
+      // so each `case` below narrows `event.data` to the exact resource —
+      // `event.data.id` / `.outputUrl` typecheck with no casts.
+      if (client.webhooks.isKnownEvent(event)) {
+        switch (event.type) {
+          case "job.succeeded":
+            console.log(`[${event.id}] job ${event.data.id} finished`);
+            break;
+          case "job.failed":
+            console.warn(`[${event.id}] job ${event.data.id} failed`);
+            break;
+          case "output.ready":
+            console.log(`[${event.id}] output ${event.data.id} ready: ${event.data.outputUrl}`);
+            break;
+          case "video.uploaded":
+            console.log(`[${event.id}] video ${event.data.id} uploaded`);
+            break;
+          default:
+            // Every other known event — `event.type` is still a precise
+            // literal here, `event.data` a decoded resource.
+            console.log(`[${event.id}] unhandled known type ${event.type}`);
+        }
+      } else {
+        // Forward-compat: an event type added to the API after this SDK
+        // release still verifies and parses; `event.data` is raw `unknown`.
+        console.log(`[${event.id}] unknown future type ${event.type}`);
       }
 
       res.sendStatus(200);
