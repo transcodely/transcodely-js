@@ -1,0 +1,240 @@
+// Billing service — organization invoices and the running period statement.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+
+// BillingService reads an organization's billing statements.
+//
+// An invoice is the statement for one billing period: every job that reached a
+// billable terminal state in that window, itemized. Invoices are generated
+// automatically at the end of each period — there is no API to create, edit, or
+// delete one, because a statement is a record of what happened rather than a
+// document that is authored.
+//
+// WHAT IS BILLED. A job is billed once, when it reaches a terminal state, for
+// what it actually produced:
+//
+//   - completed  — the whole job, including the per-job minimum charge if the
+//                  computed cost fell below it.
+//   - partial /
+//     canceled   — only the outputs that completed and were delivered. Work
+//                  that never finished is not billed, and the minimum charge
+//                  does NOT apply.
+//   - failed     — nothing. A failed job never appears on an invoice.
+//
+// Cost depends on codec, resolution, framerate and quality tier (plus any
+// metered add-ons). Job priority does NOT affect price.
+//
+// AUTHORIZATION. These RPCs are organization-scoped and available to
+// organization OWNERS through the dashboard only. Calls authenticated with an
+// API key are rejected: an API key is scoped to a single app, while billing is
+// settled for the whole organization. Requests must carry the target
+// organization in the X-Organization-ID header.
+service BillingService {
+  // List the organization's invoices, newest period first.
+  //
+  // Only finalized statements are returned — an invoice still being generated
+  // for a just-ended period is never visible. Use GetUpcomingInvoice for the
+  // period that is currently accruing.
+  rpc ListInvoices(ListInvoicesRequest) returns (ListInvoicesResponse);
+
+  // Retrieve one invoice, including its line items.
+  rpc GetInvoice(GetInvoiceRequest) returns (GetInvoiceResponse);
+
+  // Retrieve the statement for the period currently accruing.
+  //
+  // Computed live from settled jobs rather than stored, so it changes as jobs
+  // finish and it has no id: it is an estimate of the next invoice, not an
+  // invoice. It becomes one — with an id, and unchanged totals — shortly after
+  // the period ends. Jobs still running are not included at any price; a job
+  // is billed only once it settles.
+  rpc GetUpcomingInvoice(GetUpcomingInvoiceRequest) returns (GetUpcomingInvoiceResponse);
+}
+
+// =============================================================================
+// Resource messages
+// =============================================================================
+
+// A billing statement for one period.
+//
+// All monetary amounts are integer minor units (cents) of the invoice's
+// currency — 1250 in EUR is €12.50. Following the protobuf JSON mapping for
+// 64-bit integers, they are rendered as JSON strings ("1250"), not numbers.
+message Invoice {
+  // Unique identifier (e.g., "inv_a1b2c3d4e5f6").
+  // Empty on the upcoming invoice, which is computed and not yet stored.
+  string id = 1;
+
+  // Object type, always "invoice".
+  string object = 2;
+
+  // Organization this statement bills.
+  string org_id = 3;
+
+  // Lifecycle state. The upcoming invoice reports "draft".
+  InvoiceStatus status = 4;
+
+  // Start of the billing period (inclusive).
+  google.protobuf.Timestamp period_start = 5;
+
+  // End of the billing period (exclusive). A job that settles at or after this
+  // instant belongs to the next period, even if it started before it.
+  google.protobuf.Timestamp period_end = 6;
+
+  // ISO 4217 currency code. Always "EUR" today.
+  string currency = 7;
+
+  // Sum of the itemized lines, excluding the rounding adjustment, in cents.
+  int64 subtotal_cents = 8;
+
+  // Amount charged, in cents. Equals the sum of every line item including the
+  // rounding adjustment, and equals the sum of the settled jobs it covers.
+  int64 total_cents = 9;
+
+  // The payment provider's invoice number, once the statement has been matched
+  // to the provider's own record. Absent until then; its absence never means
+  // unpaid.
+  optional string provider_invoice_number = 10;
+
+  // When the statement was finalized and became visible. Absent on the
+  // upcoming invoice.
+  google.protobuf.Timestamp finalized_at = 11;
+
+  // When payment was received. Absent unless status is "paid".
+  google.protobuf.Timestamp paid_at = 12;
+
+  // The itemized breakdown, in display order.
+  repeated InvoiceLineItem line_items = 13;
+
+  // When the statement row was created.
+  google.protobuf.Timestamp created_at = 14;
+}
+
+// One line of an invoice's breakdown.
+//
+// Line items explain the total; they do not compute it. They are regenerated
+// wholesale whenever a statement is rebuilt before finalization, so a line item
+// id is not stable until the invoice is finalized.
+message InvoiceLineItem {
+  // Unique identifier (e.g., "li_a1b2c3d4e5f6g7"). Empty on the upcoming
+  // invoice, whose lines are computed rather than stored.
+  string id = 1;
+
+  // What kind of charge this line represents.
+  InvoiceLineType line_type = 2;
+
+  // Human-readable description, e.g. "Encoding — h264 1080p standard".
+  string description = 3;
+
+  // How many units the line covers (e.g. 12 outputs). Absent for lines that
+  // are not metered, such as the rounding adjustment.
+  optional double quantity = 4;
+
+  // Unit that quantity is counted in, e.g. "output" or "minute".
+  string unit = 5;
+
+  // Amount for this line, in cents. Signed: the rounding adjustment is
+  // routinely negative.
+  int64 amount_cents = 6;
+
+  // The grouping key that produced this line, e.g.
+  // {"app_id": "app_k1l2m3n4o5", "codec": "h264", "resolution": "1080p"}.
+  // Keys vary by line_type and new ones may be added.
+  map<string, string> dimensions = 7;
+}
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+// Invoice lifecycle.
+//
+// draft -> open -> paid | void | uncollectible. Only "open" and later states
+// are ever returned by ListInvoices; "draft" appears only on the upcoming
+// invoice.
+enum InvoiceStatus {
+  INVOICE_STATUS_UNSPECIFIED = 0;
+
+  // Being generated, or the live upcoming statement. Not a bill yet.
+  INVOICE_STATUS_DRAFT = 1;
+
+  // Finalized and awaiting payment.
+  INVOICE_STATUS_OPEN = 2;
+
+  // Paid in full.
+  INVOICE_STATUS_PAID = 3;
+
+  // Canceled without payment; nothing is owed.
+  INVOICE_STATUS_VOID = 4;
+
+  // Written off as unpayable after collection attempts failed.
+  INVOICE_STATUS_UNCOLLECTIBLE = 5;
+}
+
+// What an invoice line represents.
+enum InvoiceLineType {
+  INVOICE_LINE_TYPE_UNSPECIFIED = 0;
+
+  // Encoding work, grouped by app, codec, resolution and quality tier.
+  INVOICE_LINE_TYPE_USAGE = 1;
+
+  // A metered add-on, such as AI captions.
+  INVOICE_LINE_TYPE_FEE = 2;
+
+  // The per-job minimum charge, summed over the jobs it applied to.
+  INVOICE_LINE_TYPE_MIN_CHARGE = 3;
+
+  // The residue that reconciles the itemized lines with the amount charged.
+  // Per-line rounding cannot always add up to the sum of per-job rounding; this
+  // line carries the difference so the breakdown always matches the total.
+  INVOICE_LINE_TYPE_ADJUSTMENT = 4;
+}
+
+// =============================================================================
+// Requests / responses
+// =============================================================================
+
+// Request to list the organization's invoices.
+message ListInvoicesRequest {
+  // Pagination parameters.
+  PaginationRequest pagination = 1;
+}
+
+// Response from listing invoices.
+message ListInvoicesResponse {
+  // Invoices, newest period first. Line items are omitted here; fetch a single
+  // invoice to get them.
+  repeated Invoice invoices = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to retrieve one invoice.
+message GetInvoiceRequest {
+  // Invoice ID (e.g., "inv_a1b2c3d4e5f6").
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^inv_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from retrieving an invoice.
+message GetInvoiceResponse {
+  // The requested invoice, with its line items.
+  Invoice invoice = 1;
+}
+
+// Request to retrieve the statement for the period currently accruing.
+message GetUpcomingInvoiceRequest {}
+
+// Response carrying the upcoming statement.
+message GetUpcomingInvoiceResponse {
+  // The computed statement. Its id is empty and its status is "draft". Totals
+  // are zero when nothing has been billed in the period yet.
+  Invoice invoice = 1;
+}

@@ -104,6 +104,7 @@ export {
 export {
   type Video,
   type VideoRendition,
+  type VideoTextTrack,
   type CreateUploadRequest,
   type CreateUploadResponse,
   type CompleteUploadRequest,
@@ -217,6 +218,26 @@ export {
   type GetSpendResponse,
   AppStatus,
 } from "./gen/transcodely/v1/app_pb.js";
+
+// Billing. Read through `client.billing`, which needs a dashboard session token
+// for an organization owner plus `organizationId` — an API key is scoped to one
+// app, while an invoice settles a whole organization, so API keys are rejected.
+//
+// Monetary amounts are integer minor units (cents) of the invoice currency, and
+// following the protobuf JSON mapping for 64-bit integers they arrive as
+// strings ("1250" is EUR 12.50).
+export {
+  type Invoice,
+  type InvoiceLineItem,
+  type ListInvoicesRequest,
+  type ListInvoicesResponse,
+  type GetInvoiceRequest,
+  type GetInvoiceResponse,
+  type GetUpcomingInvoiceRequest,
+  type GetUpcomingInvoiceResponse,
+  InvoiceStatus,
+  InvoiceLineType,
+} from "./gen/transcodely/v1/billing_pb.js";
 
 // Webhooks. The proto-level `Event` is re-exported as `APIEvent` to keep
 // the customer-facing discriminated union `WebhookEvent` (in ./webhooks)

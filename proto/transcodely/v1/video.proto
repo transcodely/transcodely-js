@@ -192,6 +192,11 @@ message Video {
   // Renditions available for playback.
   repeated VideoRendition renditions = 25;
 
+  // Caption/subtitle tracks attached to this video, in the order they were
+  // attached. Populated for videos whose transcode produced caption files —
+  // either in the same job or by a later captions-only job. Empty otherwise.
+  repeated VideoTextTrack text_tracks = 49;
+
   // Storage and cost transparency.
   int64 output_size_bytes = 30;
   optional double encoding_cost = 31;
@@ -250,6 +255,51 @@ message VideoRendition {
 
   // Encoded file size in bytes.
   int64 size_bytes = 7;
+}
+
+// A caption/subtitle track attached to a video for playback.
+message VideoTextTrack {
+  // Unique text track identifier (e.g., "trk_a1b2c3d4e5f6g7").
+  string id = 1;
+
+  // Track role, as understood by players: "subtitles", "captions", "chapters",
+  // or "descriptions".
+  string kind = 2;
+
+  // Language of the track: the ISO 639-2 code that was requested, or the code
+  // detected by speech recognition when the track was generated with "auto".
+  // Empty when the producing job recorded no language.
+  string language = 3;
+
+  // Human-readable track label shown in the player's caption menu (e.g.
+  // "English"). Empty when none was supplied.
+  string label = 4;
+
+  // Subtitle file format: "webvtt", "srt", "ttml", or "ass".
+  string format = 5;
+
+  // Whether the track was produced by speech recognition (a subtitle track with
+  // the "generate" operation) rather than supplied or extracted from the source.
+  bool auto_generated = 6;
+
+  // Whether the track is already listed inside the video's HLS/DASH manifest.
+  // When true, players discover it from the manifest during normal playback and
+  // must NOT also attach it as a separate track — doing so lists the language
+  // twice. False for tracks produced by a captions-only job that ran after the
+  // transcode, which are attached as sidecar files instead.
+  bool in_manifest = 7;
+
+  // URL of the caption file. Computed per-request and never stored: on apps with
+  // CDN token auth enabled it is signed and expiring, and it is re-issued on
+  // every read, so clients should use the value from the latest response rather
+  // than caching it. On apps not yet migrated to token auth it is unsigned and
+  // access control comes from the managed-storage bucket policy; unsigned URLs
+  // are never issued for private videos. Absent when no URL may be issued —
+  // same rules as poster_url.
+  optional string url = 8;
+
+  // When the track was attached to the video.
+  google.protobuf.Timestamp created_at = 9;
 }
 
 // =============================================================================

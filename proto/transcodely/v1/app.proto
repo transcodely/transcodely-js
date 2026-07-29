@@ -54,6 +54,11 @@ enum AppStatus {
 
   // Soft-deleted. No new resources allowed.
   APP_STATUS_ARCHIVED = 2;
+
+  // Cut off by platform admin action. API keys scoped to the app are rejected
+  // with 403 until it is set back to active. Unlike archived, this is
+  // reversible and preserves all of the app's resources.
+  APP_STATUS_SUSPENDED = 3;
 }
 
 // An app is a project within an organization.

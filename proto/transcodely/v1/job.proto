@@ -604,8 +604,9 @@ message JobOutput {
   optional double estimated_cost = 10;
 
   // Actual cost (calculated after encoding using locked pricing and actual duration).
-  // For canceled outputs, this reflects cost of encoded portion.
-  // For failed outputs, this is zero.
+  // Only a completed output is billable, so this is zero for both canceled and
+  // failed outputs — a canceled output produced nothing usable, no matter how
+  // far its encode got.
   optional double actual_cost = 11;
 
   // Error code if failed.
@@ -759,8 +760,21 @@ message Job {
   // Total estimated cost (sum of all outputs, calculated after probe).
   optional double total_estimated_cost = 8;
 
-  // Total actual cost (sum of completed/canceled outputs).
-  // Failed outputs contribute zero to this total.
+  // Total actual cost — what the job is billed, in the job's currency.
+  //
+  // Only completed outputs are billable, and what happened to the job as a
+  // whole decides whether they are billed at all:
+  //   - completed: the sum of its outputs' actual costs, raised to
+  //     minimum_charge_eur if that minimum is in effect.
+  //   - canceled: the sum of the outputs that had already completed and been
+  //     delivered when the cancel landed. Identical whether the job was
+  //     canceled through CancelJob or observed as canceled by the worker. The
+  //     minimum charge never applies.
+  //   - failed: zero. A job that ends failed is not billed, even if some of
+  //     its outputs completed before the failure.
+  //   - partial: the sum of the outputs that completed, un-floored.
+  // Additive fees (see fees) are included on top, and are charged only on jobs
+  // that ended completed or partial.
   optional double total_actual_cost = 9;
 
   // Error code if status is FAILED.
@@ -832,13 +846,18 @@ message Job {
   // out-of-band knowledge of the field name. Server-set; ignored on requests.
   string object = 27;
 
-  // Minimum charge for this job in EUR, locked at creation from the compute
-  // capacity the job is sized to. When the minimum charge is in effect, the
-  // billed total for a successfully completed job is
+  // Minimum charge for this job in EUR, locked at creation and never changed
+  // retroactively. It is derived from the job's assigned billing class — a size
+  // band (small/medium/large/extra-large) reflecting the compute the job is
+  // guaranteed to cover — or, in legacy configurations, from the recommended
+  // machine size; either way it is a stable quote, not re-derived from the
+  // machine the job ultimately runs on. When the minimum charge is in effect,
+  // the billed total for a successfully completed job is
   // max(sum of output costs, minimum_charge_eur) — see minimum_charge_applied
-  // for whether it determined this job's total. The minimum never applies to
-  // failed jobs (billed zero) or canceled jobs (billed for partial usage
-  // only). Absent when no minimum was computed for this job.
+  // for whether it determined this job's total. The minimum applies only to
+  // jobs that reach completed: a failed job is billed zero, and a canceled or
+  // partial job is billed the un-floored sum of the outputs it did complete.
+  // Absent when no minimum was computed for this job.
   optional double minimum_charge_eur = 30;
 
   // Whether minimum_charge_eur determined the job's most recently computed
@@ -846,7 +865,10 @@ message Job {
   // the total was raised to it (estimated total after probe; actual total
   // after successful completion). When true, total_estimated_cost or
   // total_actual_cost exceeds the sum of the per-output cost fields, which
-  // are never raised themselves.
+  // are never raised themselves. The minimum is a stable quote locked at
+  // creation (from the job's billing class, or the recommended machine size in
+  // legacy configurations); it is never re-derived from the machine the job
+  // ultimately runs on.
   bool minimum_charge_applied = 31;
 
   // Additive fee line items (v1: AI caption generation). Fees are charged ON
@@ -1129,8 +1151,11 @@ message GetJobResponse {
 }
 
 // Request to list jobs.
+//
+// Filters combine with AND: a job is returned only if it satisfies every filter
+// supplied on the request. Omitted filters are not applied.
 message ListJobsRequest {
-  // Optional status filter.
+  // Optional status filter. Superseded by `statuses` — see that field.
   optional JobStatus status = 1;
 
   // Pagination parameters.
@@ -1142,6 +1167,47 @@ message ListJobsRequest {
   // returns jobs across all apps in the org.
   optional string app_id = 3 [
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Only include jobs created at or after this timestamp (RFC 3339). Inclusive.
+  optional google.protobuf.Timestamp created_after = 4;
+
+  // Only include jobs created at or before this timestamp (RFC 3339). Inclusive.
+  optional google.protobuf.Timestamp created_before = 5;
+
+  // Filter by several statuses at once: a job matches if its status is any one
+  // of the listed values (OR within the field), e.g. [failed, canceled] to list
+  // everything that did not finish.
+  //
+  // Precedence: when this field is non-empty it replaces `status` entirely and
+  // `status` is ignored — the two are never intersected. Send one or the other.
+  // `status` remains supported for existing clients.
+  repeated JobStatus statuses = 6 [
+    (buf.validate.field).repeated = {
+      max_items: 8,
+      unique: true,
+      items: {
+        enum: {defined_only: true, not_in: [0]}
+      }
+    }
+  ];
+
+  // Filter on the job's user-provided metadata (the `metadata` map supplied at
+  // create time). Every pair must be present on the job with exactly that value
+  // (AND across pairs); a job carrying additional metadata keys still matches.
+  // Values are compared as exact strings — no prefix, range, or wildcard match.
+  // Jobs created without metadata never match a non-empty filter.
+  //
+  // Example: {"batch": "2026-07", "tenant": "acme"} returns only jobs tagged
+  // with both.
+  map<string, string> metadata = 7 [
+    (buf.validate.field).map.max_pairs = 10,
+    (buf.validate.field).map.keys = {
+      string: {min_len: 1, max_len: 64}
+    },
+    (buf.validate.field).map.values = {
+      string: {max_len: 1024}
+    }
   ];
 }
 
