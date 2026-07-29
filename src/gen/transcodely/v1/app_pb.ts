@@ -35,12 +35,22 @@ export enum AppStatus {
    * @generated from enum value: APP_STATUS_ARCHIVED = 2;
    */
   ARCHIVED = 2,
+
+  /**
+   * Cut off by platform admin action. API keys scoped to the app are rejected
+   * with 403 until it is set back to active. Unlike archived, this is
+   * reversible and preserves all of the app's resources.
+   *
+   * @generated from enum value: APP_STATUS_SUSPENDED = 3;
+   */
+  SUSPENDED = 3,
 }
 // Retrieve enum metadata with: proto3.getEnumType(AppStatus)
 proto3.util.setEnumType(AppStatus, "transcodely.v1.AppStatus", [
   { no: 0, name: "APP_STATUS_UNSPECIFIED" },
   { no: 1, name: "APP_STATUS_ACTIVE" },
   { no: 2, name: "APP_STATUS_ARCHIVED" },
+  { no: 3, name: "APP_STATUS_SUSPENDED" },
 ]);
 
 /**

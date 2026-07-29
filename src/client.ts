@@ -6,6 +6,7 @@
 
 import { ApiKeys } from "./resources/api-keys.js";
 import { Apps } from "./resources/apps.js";
+import { Billing } from "./resources/billing.js";
 import { Events } from "./resources/events.js";
 import { Health } from "./resources/health.js";
 import { Jobs } from "./resources/jobs.js";
@@ -38,6 +39,7 @@ export class Transcodely {
   private _health: Health | undefined;
   private _webhookEndpoints: WebhookEndpoints | undefined;
   private _events: Events | undefined;
+  private _billing: Billing | undefined;
 
   constructor(config: TranscodelyConfig) {
     this.transport = new Transport(config);
@@ -83,6 +85,13 @@ export class Transcodely {
   }
   get events(): Events {
     return (this._events ??= new Events(this.transport));
+  }
+  /**
+   * The organization's invoices. Needs a dashboard session token for an org
+   * owner plus `organizationId` in the client config; API keys are rejected.
+   */
+  get billing(): Billing {
+    return (this._billing ??= new Billing(this.transport));
   }
   /**
    * Stateless verify-and-decode helper. `client.webhooks.constructEvent(...)`

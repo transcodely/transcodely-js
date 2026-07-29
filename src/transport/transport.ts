@@ -47,6 +47,15 @@ export interface Service {
 
 export interface TransportConfig {
   apiKey: string;
+  /**
+   * Organization every request is made against, sent as `X-Organization-ID`.
+   *
+   * API-key callers never need this — a key is already scoped to one app, and
+   * therefore to one organization. It is required for the org-scoped surfaces a
+   * dashboard session token reaches, `client.billing` among them, which answer
+   * 400 invalid_argument without it.
+   */
+  organizationId?: string;
   baseUrl?: string;
   timeoutMs?: number;
   maxRetries?: number;
@@ -85,6 +94,7 @@ export interface CallOptions {
 export class Transport {
   readonly baseUrl: string;
   readonly apiKey: string;
+  readonly organizationId: string | undefined;
   readonly timeoutMs: number;
   readonly maxRetries: number;
   readonly apiVersion: string;
@@ -98,6 +108,7 @@ export class Transport {
   constructor(cfg: TransportConfig) {
     if (!cfg.apiKey) throw new Error("Transcodely: apiKey is required");
     this.apiKey = cfg.apiKey;
+    this.organizationId = cfg.organizationId;
     this.baseUrl = (cfg.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.timeoutMs = cfg.timeoutMs ?? 30_000;
     this.maxRetries = cfg.maxRetries ?? 3;
@@ -251,6 +262,7 @@ export class Transport {
     h.set("x-transcodely-client-user-agent", clientUserAgentJson());
     h.set("transcodely-version", opts.apiVersion ?? this.apiVersion);
     h.set("accept", contentType);
+    if (this.organizationId) h.set("x-organization-id", this.organizationId);
     if (idempotencyKey) h.set("idempotency-key", idempotencyKey);
     for (const [k, v] of Object.entries(this.defaultHeaders)) h.set(k, v);
     for (const [k, v] of Object.entries(opts.headers ?? {})) h.set(k, v);

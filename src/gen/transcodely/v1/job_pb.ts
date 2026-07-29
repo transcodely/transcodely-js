@@ -1210,8 +1210,9 @@ export class JobOutput extends Message<JobOutput> {
 
   /**
    * Actual cost (calculated after encoding using locked pricing and actual duration).
-   * For canceled outputs, this reflects cost of encoded portion.
-   * For failed outputs, this is zero.
+   * Only a completed output is billable, so this is zero for both canceled and
+   * failed outputs — a canceled output produced nothing usable, no matter how
+   * far its encode got.
    *
    * @generated from field: optional double actual_cost = 11;
    */
@@ -1767,8 +1768,21 @@ export class Job extends Message<Job> {
   totalEstimatedCost?: number;
 
   /**
-   * Total actual cost (sum of completed/canceled outputs).
-   * Failed outputs contribute zero to this total.
+   * Total actual cost — what the job is billed, in the job's currency.
+   *
+   * Only completed outputs are billable, and what happened to the job as a
+   * whole decides whether they are billed at all:
+   *   - completed: the sum of its outputs' actual costs, raised to
+   *     minimum_charge_eur if that minimum is in effect.
+   *   - canceled: the sum of the outputs that had already completed and been
+   *     delivered when the cancel landed. Identical whether the job was
+   *     canceled through CancelJob or observed as canceled by the worker. The
+   *     minimum charge never applies.
+   *   - failed: zero. A job that ends failed is not billed, even if some of
+   *     its outputs completed before the failure.
+   *   - partial: the sum of the outputs that completed, un-floored.
+   * Additive fees (see fees) are included on top, and are charged only on jobs
+   * that ended completed or partial.
    *
    * @generated from field: optional double total_actual_cost = 9;
    */
@@ -1916,13 +1930,18 @@ export class Job extends Message<Job> {
   object = "";
 
   /**
-   * Minimum charge for this job in EUR, locked at creation from the compute
-   * capacity the job is sized to. When the minimum charge is in effect, the
-   * billed total for a successfully completed job is
+   * Minimum charge for this job in EUR, locked at creation and never changed
+   * retroactively. It is derived from the job's assigned billing class — a size
+   * band (small/medium/large/extra-large) reflecting the compute the job is
+   * guaranteed to cover — or, in legacy configurations, from the recommended
+   * machine size; either way it is a stable quote, not re-derived from the
+   * machine the job ultimately runs on. When the minimum charge is in effect,
+   * the billed total for a successfully completed job is
    * max(sum of output costs, minimum_charge_eur) — see minimum_charge_applied
-   * for whether it determined this job's total. The minimum never applies to
-   * failed jobs (billed zero) or canceled jobs (billed for partial usage
-   * only). Absent when no minimum was computed for this job.
+   * for whether it determined this job's total. The minimum applies only to
+   * jobs that reach completed: a failed job is billed zero, and a canceled or
+   * partial job is billed the un-floored sum of the outputs it did complete.
+   * Absent when no minimum was computed for this job.
    *
    * @generated from field: optional double minimum_charge_eur = 30;
    */
@@ -1934,7 +1953,10 @@ export class Job extends Message<Job> {
    * the total was raised to it (estimated total after probe; actual total
    * after successful completion). When true, total_estimated_cost or
    * total_actual_cost exceeds the sum of the per-output cost fields, which
-   * are never raised themselves.
+   * are never raised themselves. The minimum is a stable quote locked at
+   * creation (from the job's billing class, or the recommended machine size in
+   * legacy configurations); it is never re-derived from the machine the job
+   * ultimately runs on.
    *
    * @generated from field: bool minimum_charge_applied = 31;
    */
@@ -2546,11 +2568,14 @@ export class GetJobResponse extends Message<GetJobResponse> {
 /**
  * Request to list jobs.
  *
+ * Filters combine with AND: a job is returned only if it satisfies every filter
+ * supplied on the request. Omitted filters are not applied.
+ *
  * @generated from message transcodely.v1.ListJobsRequest
  */
 export class ListJobsRequest extends Message<ListJobsRequest> {
   /**
-   * Optional status filter.
+   * Optional status filter. Superseded by `statuses` — see that field.
    *
    * @generated from field: optional transcodely.v1.JobStatus status = 1;
    */
@@ -2573,6 +2598,47 @@ export class ListJobsRequest extends Message<ListJobsRequest> {
    */
   appId?: string;
 
+  /**
+   * Only include jobs created at or after this timestamp (RFC 3339). Inclusive.
+   *
+   * @generated from field: optional google.protobuf.Timestamp created_after = 4;
+   */
+  createdAfter?: Timestamp;
+
+  /**
+   * Only include jobs created at or before this timestamp (RFC 3339). Inclusive.
+   *
+   * @generated from field: optional google.protobuf.Timestamp created_before = 5;
+   */
+  createdBefore?: Timestamp;
+
+  /**
+   * Filter by several statuses at once: a job matches if its status is any one
+   * of the listed values (OR within the field), e.g. [failed, canceled] to list
+   * everything that did not finish.
+   *
+   * Precedence: when this field is non-empty it replaces `status` entirely and
+   * `status` is ignored — the two are never intersected. Send one or the other.
+   * `status` remains supported for existing clients.
+   *
+   * @generated from field: repeated transcodely.v1.JobStatus statuses = 6;
+   */
+  statuses: JobStatus[] = [];
+
+  /**
+   * Filter on the job's user-provided metadata (the `metadata` map supplied at
+   * create time). Every pair must be present on the job with exactly that value
+   * (AND across pairs); a job carrying additional metadata keys still matches.
+   * Values are compared as exact strings — no prefix, range, or wildcard match.
+   * Jobs created without metadata never match a non-empty filter.
+   *
+   * Example: {"batch": "2026-07", "tenant": "acme"} returns only jobs tagged
+   * with both.
+   *
+   * @generated from field: map<string, string> metadata = 7;
+   */
+  metadata: { [key: string]: string } = {};
+
   constructor(data?: PartialMessage<ListJobsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2584,6 +2650,10 @@ export class ListJobsRequest extends Message<ListJobsRequest> {
     { no: 1, name: "status", kind: "enum", T: proto3.getEnumType(JobStatus), opt: true },
     { no: 2, name: "pagination", kind: "message", T: PaginationRequest },
     { no: 3, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "created_after", kind: "message", T: Timestamp, opt: true },
+    { no: 5, name: "created_before", kind: "message", T: Timestamp, opt: true },
+    { no: 6, name: "statuses", kind: "enum", T: proto3.getEnumType(JobStatus), repeated: true },
+    { no: 7, name: "metadata", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListJobsRequest {
