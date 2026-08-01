@@ -1754,7 +1754,9 @@ export class Job extends Message<Job> {
   inputMetadata?: InputMetadata;
 
   /**
-   * Output renditions.
+   * Output renditions, in the same order as the create request's `outputs`.
+   * The order is stable across every read of the job, so indexing into this
+   * array to find the rendition you asked for is safe.
    *
    * @generated from field: repeated transcodely.v1.JobOutput outputs = 7;
    */
@@ -1986,8 +1988,8 @@ export class Job extends Message<Job> {
 
   /**
    * Auto-generated chapter tracks, one per output whose generated caption track
-   * had chapters enabled (SubtitleTrack.generate_chapters). Not yet populated:
-   * the auto-chapters feature is rolling out together with generated captions.
+   * had chapters enabled (SubtitleTrack.generate_chapters). Populated once the
+   * auto-chapters pass ships; empty until then.
    *
    * @generated from field: repeated transcodely.v1.ChapterResult chapter_results = 35;
    */

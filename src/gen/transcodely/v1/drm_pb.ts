@@ -84,11 +84,27 @@ proto3.util.setEnumType(EncryptionScheme, "transcodely.v1.EncryptionScheme", [
  * Bring Your Own Key configuration.
  * Client provides their own encryption keys.
  *
+ * Write-only apart from key_id. Every read — CreateJob, GetJob, ListJobs, the
+ * Watch snapshots and the webhook payloads — returns key_id and nothing else;
+ * the content key, the PSSH boxes and the FairPlay IV/URI are never echoed
+ * back. Because key is a non-optional scalar it still appears on the wire as
+ * the empty string; that means "never returned", not "empty key". A job read
+ * back from the API therefore cannot be resubmitted verbatim — repopulate key
+ * from your own records first.
+ *
+ * Outputs created before the key id got its own storage column (2026-07-30)
+ * carry no key id and return no byok block at all. There is no backfill:
+ * recovering their id would mean opening the encrypted config envelope.
+ *
  * @generated from message transcodely.v1.BYOKConfig
  */
 export class BYOKConfig extends Message<BYOKConfig> {
   /**
    * Key identifier (32 hex characters).
+   *
+   * The one BYOK field returned on reads. It names which key encrypted an
+   * output — the way an API key's prefix and last-4 name the key — so the
+   * key in use can be confirmed without keeping separate records.
    *
    * @generated from field: string key_id = 1;
    */
@@ -97,33 +113,35 @@ export class BYOKConfig extends Message<BYOKConfig> {
   /**
    * Content encryption key (32 hex characters).
    *
+   * Write-only: encrypted at rest and never returned on any read.
+   *
    * @generated from field: string key = 2;
    */
   key = "";
 
   /**
-   * Widevine PSSH box (base64-encoded, optional).
+   * Widevine PSSH box (base64-encoded, optional). Write-only.
    *
    * @generated from field: optional string pssh_widevine = 3;
    */
   psshWidevine?: string;
 
   /**
-   * PlayReady PSSH XML (optional).
+   * PlayReady PSSH XML (optional). Write-only.
    *
    * @generated from field: optional string pssh_playready = 4;
    */
   psshPlayready?: string;
 
   /**
-   * FairPlay initialization vector (32 hex characters).
+   * FairPlay initialization vector (32 hex characters). Write-only.
    *
    * @generated from field: optional string fairplay_iv = 5;
    */
   fairplayIv?: string;
 
   /**
-   * FairPlay key server URI (skd:// scheme).
+   * FairPlay key server URI (skd:// scheme). Write-only.
    *
    * @generated from field: optional string fairplay_uri = 6;
    */
@@ -178,6 +196,9 @@ export class KeyServerConfig extends Message<KeyServerConfig> {
 
   /**
    * Authentication token for the key server.
+   *
+   * Write-only: encrypted at rest and never returned on any read. The other
+   * two fields of this message are echoed back normally.
    *
    * @generated from field: optional string auth_token = 2;
    */
@@ -243,6 +264,9 @@ export class DRMConfig extends Message<DRMConfig> {
 
   /**
    * BYOK configuration (mutually exclusive with key_server).
+   *
+   * On reads this is a partial reveal: present with only key_id populated,
+   * or absent entirely for outputs predating the key id column.
    *
    * @generated from field: optional transcodely.v1.BYOKConfig byok = 3;
    */
