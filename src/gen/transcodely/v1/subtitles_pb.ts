@@ -278,12 +278,12 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
   /**
    * Generate an AI chapters track from the transcript this track produces.
    *
-   * Only meaningful together with the (upcoming) `generate` subtitle operation:
-   * when enabled, an AI pass over the generated transcript produces a chapters
+   * Only meaningful together with the `generate` subtitle operation: when
+   * enabled, an AI pass over the generated transcript produces a chapters
    * track delivered as WebVTT plus JSON. Free — no pricing impact. The
    * transcript text is processed via the Anthropic API (an external
-   * subprocessor). Until the `generate` operation ships, setting this is
-   * rejected at job creation.
+   * subprocessor). Caption generation is available; the auto-chapters pass is
+   * not yet, so setting this is still rejected at job creation.
    *
    * @generated from field: optional bool generate_chapters = 12;
    */
@@ -391,9 +391,9 @@ export class ChapterPoint extends Message<ChapterPoint> {
  * responses). It is produced by the opt-in auto-chapters pass over generated
  * captions (SubtitleTrack.generate_chapters).
  *
- * Not yet populated: the auto-chapters feature is rolling out together with
- * generated captions. Fields are documented here so consumers can code against
- * the shape ahead of the rollout.
+ * Not yet populated: the auto-chapters pass has not shipped yet. Fields are
+ * documented here so consumers can code against the shape ahead of the
+ * rollout.
  *
  * @generated from message transcodely.v1.ChapterResult
  */

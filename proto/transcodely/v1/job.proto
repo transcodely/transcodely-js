@@ -754,7 +754,9 @@ message Job {
   // See media.proto for field details.
   optional InputMetadata input_metadata = 6;
 
-  // Output renditions.
+  // Output renditions, in the same order as the create request's `outputs`.
+  // The order is stable across every read of the job, so indexing into this
+  // array to find the rendition you asked for is safe.
   repeated JobOutput outputs = 7;
 
   // Total estimated cost (sum of all outputs, calculated after probe).
@@ -886,8 +888,8 @@ message Job {
   string input_video_id = 34;
 
   // Auto-generated chapter tracks, one per output whose generated caption track
-  // had chapters enabled (SubtitleTrack.generate_chapters). Not yet populated:
-  // the auto-chapters feature is rolling out together with generated captions.
+  // had chapters enabled (SubtitleTrack.generate_chapters). Populated once the
+  // auto-chapters pass ships; empty until then.
   repeated ChapterResult chapter_results = 35;
 
   // Clip range this job encodes (echoed from request). Absent when the job

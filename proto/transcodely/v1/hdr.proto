@@ -32,7 +32,11 @@ enum HDRMode {
   // Preserve input HDR metadata.
   HDR_MODE_PASSTHROUGH = 1;
 
-  // Convert HDR to SDR via tone mapping.
+  // Convert HDR to SDR via tone mapping. Requires an HDR input: whether the
+  // input carries HDR color signaling is only knowable once it has been
+  // probed, so a tone-map job on an SDR source is accepted at create and then
+  // fails at probe time with error code `input_not_hdr`, before any encode
+  // starts.
   HDR_MODE_TONEMAP = 2;
 
   // Force a specific HDR format on output.

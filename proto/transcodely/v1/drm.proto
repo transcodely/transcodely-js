@@ -32,31 +32,49 @@ enum EncryptionScheme {
 
 // Bring Your Own Key configuration.
 // Client provides their own encryption keys.
+//
+// Write-only apart from key_id. Every read — CreateJob, GetJob, ListJobs, the
+// Watch snapshots and the webhook payloads — returns key_id and nothing else;
+// the content key, the PSSH boxes and the FairPlay IV/URI are never echoed
+// back. Because key is a non-optional scalar it still appears on the wire as
+// the empty string; that means "never returned", not "empty key". A job read
+// back from the API therefore cannot be resubmitted verbatim — repopulate key
+// from your own records first.
+//
+// Outputs created before the key id got its own storage column (2026-07-30)
+// carry no key id and return no byok block at all. There is no backfill:
+// recovering their id would mean opening the encrypted config envelope.
 message BYOKConfig {
   // Key identifier (32 hex characters).
+  //
+  // The one BYOK field returned on reads. It names which key encrypted an
+  // output — the way an API key's prefix and last-4 name the key — so the
+  // key in use can be confirmed without keeping separate records.
   string key_id = 1 [
     (buf.validate.field).required = true,
     (buf.validate.field).string.pattern = "^[0-9a-fA-F]{32}$"
   ];
 
   // Content encryption key (32 hex characters).
+  //
+  // Write-only: encrypted at rest and never returned on any read.
   string key = 2 [
     (buf.validate.field).required = true,
     (buf.validate.field).string.pattern = "^[0-9a-fA-F]{32}$"
   ];
 
-  // Widevine PSSH box (base64-encoded, optional).
+  // Widevine PSSH box (base64-encoded, optional). Write-only.
   optional string pssh_widevine = 3;
 
-  // PlayReady PSSH XML (optional).
+  // PlayReady PSSH XML (optional). Write-only.
   optional string pssh_playready = 4;
 
-  // FairPlay initialization vector (32 hex characters).
+  // FairPlay initialization vector (32 hex characters). Write-only.
   optional string fairplay_iv = 5 [
     (buf.validate.field).string.pattern = "^[0-9a-fA-F]{32}$"
   ];
 
-  // FairPlay key server URI (skd:// scheme).
+  // FairPlay key server URI (skd:// scheme). Write-only.
   optional string fairplay_uri = 6 [
     (buf.validate.field).string.max_len = 2048
   ];
@@ -73,6 +91,9 @@ message KeyServerConfig {
   ];
 
   // Authentication token for the key server.
+  //
+  // Write-only: encrypted at rest and never returned on any read. The other
+  // two fields of this message are echoed back normally.
   optional string auth_token = 2 [
     (buf.validate.field).string.max_len = 2048
   ];
@@ -99,6 +120,9 @@ message DRMConfig {
   ];
 
   // BYOK configuration (mutually exclusive with key_server).
+  //
+  // On reads this is a partial reveal: present with only key_id populated,
+  // or absent entirely for outputs predating the key id column.
   optional BYOKConfig byok = 3;
 
   // Key server configuration (mutually exclusive with byok).
