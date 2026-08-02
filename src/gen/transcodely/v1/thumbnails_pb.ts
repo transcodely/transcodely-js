@@ -53,7 +53,8 @@ export enum ThumbnailMode {
    * Free and bundled — animated previews add NO cost to a job (thumbnails are
    * priced at 0). By default the worker produces BOTH an animated WebP and a
    * muted MP4 loop from the same samples, so a consumer can pick whichever its
-   * surface supports. Set `format = webp` to emit only the WebP.
+   * surface supports. Set `format = webp` to emit only the WebP, or
+   * `format = mp4` to emit only the MP4 loop.
    *
    * Sampling is deterministic: unless `start_offsets` is set, clips are taken at
    * fixed 25% / 50% / 75% marks of the source duration (no scene detection).
@@ -109,6 +110,15 @@ export enum ThumbnailFormat {
    * @generated from enum value: THUMBNAIL_FORMAT_WEBP = 3;
    */
   WEBP = 3,
+
+  /**
+   * Animated mode only: produce just the muted MP4 loop (no animated WebP).
+   * Rejected on single/interval/sprite/timestamps specs. Unset format on an
+   * animated spec still produces both artifacts.
+   *
+   * @generated from enum value: THUMBNAIL_FORMAT_MP4 = 4;
+   */
+  MP4 = 4,
 }
 // Retrieve enum metadata with: proto3.getEnumType(ThumbnailFormat)
 proto3.util.setEnumType(ThumbnailFormat, "transcodely.v1.ThumbnailFormat", [
@@ -116,6 +126,7 @@ proto3.util.setEnumType(ThumbnailFormat, "transcodely.v1.ThumbnailFormat", [
   { no: 1, name: "THUMBNAIL_FORMAT_JPEG" },
   { no: 2, name: "THUMBNAIL_FORMAT_PNG" },
   { no: 3, name: "THUMBNAIL_FORMAT_WEBP" },
+  { no: 4, name: "THUMBNAIL_FORMAT_MP4" },
 ]);
 
 /**
@@ -235,7 +246,7 @@ export class ThumbnailSpec extends Message<ThumbnailSpec> {
 
   /**
    * Frames per second of the animated preview (animated mode only).
-   * Range: 8-15. Default (unset): 12, applied worker-side. Only valid for
+   * Range: 8-30. Default (unset): 12, applied worker-side. Only valid for
    * animated mode.
    *
    * @generated from field: optional int32 fps = 12;

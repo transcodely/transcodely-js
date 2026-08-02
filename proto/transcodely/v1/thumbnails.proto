@@ -26,7 +26,8 @@ enum ThumbnailMode {
   // Free and bundled — animated previews add NO cost to a job (thumbnails are
   // priced at 0). By default the worker produces BOTH an animated WebP and a
   // muted MP4 loop from the same samples, so a consumer can pick whichever its
-  // surface supports. Set `format = webp` to emit only the WebP.
+  // surface supports. Set `format = webp` to emit only the WebP, or
+  // `format = mp4` to emit only the MP4 loop.
   //
   // Sampling is deterministic: unless `start_offsets` is set, clips are taken at
   // fixed 25% / 50% / 75% marks of the source duration (no scene detection).
@@ -51,6 +52,10 @@ enum ThumbnailFormat {
   THUMBNAIL_FORMAT_JPEG = 1;
   THUMBNAIL_FORMAT_PNG = 2;
   THUMBNAIL_FORMAT_WEBP = 3;
+  // Animated mode only: produce just the muted MP4 loop (no animated WebP).
+  // Rejected on single/interval/sprite/timestamps specs. Unset format on an
+  // animated spec still produces both artifacts.
+  THUMBNAIL_FORMAT_MP4 = 4;
 }
 
 // Thumbnail generation specification.
@@ -153,11 +158,11 @@ message ThumbnailSpec {
   ];
 
   // Frames per second of the animated preview (animated mode only).
-  // Range: 8-15. Default (unset): 12, applied worker-side. Only valid for
+  // Range: 8-30. Default (unset): 12, applied worker-side. Only valid for
   // animated mode.
   optional int32 fps = 12 [
     (buf.validate.field).int32.gte = 8,
-    (buf.validate.field).int32.lte = 15
+    (buf.validate.field).int32.lte = 30
   ];
 
   // Explicit clip start offsets in seconds from the source start (animated mode
