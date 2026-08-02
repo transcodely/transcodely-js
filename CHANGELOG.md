@@ -4,6 +4,13 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.4](https://github.com/transcodely/transcodely-js/compare/v0.3.3...v0.3.4) (2026-08-02)
+
+
+### Features
+
+* **client:** auto_captions on video uploads + captions_cost on Video ([dfaa6c8](https://github.com/transcodely/transcodely-js/commit/dfaa6c876fc236c7c3565ebe1f5140d865e8b00d))
+
 ## [0.3.3](https://github.com/transcodely/transcodely-js/compare/v0.3.2...v0.3.3) (2026-08-02)
 
 
