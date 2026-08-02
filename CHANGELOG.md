@@ -4,6 +4,13 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.3](https://github.com/transcodely/transcodely-js/compare/v0.3.2...v0.3.3) (2026-08-02)
+
+
+### Features
+
+* **client:** animated preview fps up to 30 + mp4-only format ([13afa4a](https://github.com/transcodely/transcodely-js/commit/13afa4a1626dc12a742ac820a77510457aa38695))
+
 ## [0.3.2](https://github.com/transcodely/transcodely-js/compare/v0.3.1...v0.3.2) (2026-08-02)
 
 
