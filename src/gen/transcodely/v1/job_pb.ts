@@ -1226,7 +1226,14 @@ export class JobOutput extends Message<JobOutput> {
   errorCode?: string;
 
   /**
-   * Error message if failed.
+   * Human-readable summary of why this output failed, in one or two sentences.
+   *
+   * Derived from error_code, not from the transcoder: this field never carries
+   * raw tool output, command lines, stack traces, or file paths. Where a short
+   * safe detail is available it is appended in parentheses, e.g. "(HTTP 404)".
+   *
+   * Match on error_code, not on this text. The wording is documentation, not
+   * API surface, and may be reworded in any release.
    *
    * @generated from field: optional string error_message = 13;
    */
@@ -1316,6 +1323,29 @@ export class JobOutput extends Message<JobOutput> {
    */
   variantResults: OutputVariantResult[] = [];
 
+  /**
+   * Ready-to-fetch HTTPS URL for this output, signed and time-limited.
+   *
+   * Points at the same object as output_url — the media file for a progressive
+   * output, the master playlist or MPD for HLS/DASH — but as a CDN URL a
+   * browser or player can load, where output_url is a raw storage URI
+   * ("s3://…") that no client can fetch.
+   *
+   * Present only when the job writes to Transcodely-managed storage (an
+   * output_origin with provider "transcodely") and the output has completed.
+   * Jobs writing to your own bucket get nothing here: we hold no delivery
+   * domain for it, so read output_url and sign it with your own credentials.
+   *
+   * Emitted on single-job reads (Get, Watch) and never on List. The URL expires
+   * — 6 hours by default — so treat it as a fetch handle, not a durable link:
+   * re-read the job for a fresh one rather than storing it. For HLS and DASH it
+   * is signed so that variant playlists and segments referenced by the manifest
+   * inherit the same authorization.
+   *
+   * @generated from field: optional string signed_url = 26;
+   */
+  signedUrl?: string;
+
   constructor(data?: PartialMessage<JobOutput>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1347,6 +1377,7 @@ export class JobOutput extends Message<JobOutput> {
     { no: 23, name: "height", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
     { no: 24, name: "average_bitrate_kbps", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
     { no: 25, name: "variant_results", kind: "message", T: OutputVariantResult, repeated: true },
+    { no: 26, name: "signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JobOutput {
@@ -1798,7 +1829,15 @@ export class Job extends Message<Job> {
   errorCode?: string;
 
   /**
-   * Error message if status is FAILED.
+   * Human-readable summary of why the job failed, in one or two sentences.
+   *
+   * Derived from error_code, not from the transcoder: this field never carries
+   * raw tool output, command lines, stack traces, or file paths. Where a short
+   * safe detail is available it is appended in parentheses, e.g. "(HTTP 404)".
+   * The same text reaches you on the job.failed webhook payload.
+   *
+   * Match on error_code, not on this text. The wording is documentation, not
+   * API surface, and may be reworded in any release.
    *
    * @generated from field: optional string error_message = 11;
    */
