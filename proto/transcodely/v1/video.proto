@@ -200,6 +200,15 @@ message Video {
   // Storage and cost transparency.
   int64 output_size_bytes = 30;
   optional double encoding_cost = 31;
+  // Sum of confirmed AI-caption fees, in EUR, across all of this video's jobs
+  // — captions generated inline with the transcode (the auto_captions upload
+  // flag) and retro captions-only jobs that used this video as their input
+  // (input_video_id). Absent until a captions fee is confirmed; fees are
+  // confirmed only when a caption artifact is actually delivered, so voided
+  // and still-estimated fees are never counted. This is a per-feature
+  // breakdown of already-billed job totals, not an extra charge on top of
+  // them.
+  optional double captions_cost = 50;
   // Fields 32 (storage_cost_monthly) and 33 (egress_total) were removed: no
   // per-video storage/egress cost is tracked, so they were never populated.
   // Aggregate storage/egress cost is exposed via VideoService.GetUsage
@@ -365,6 +374,16 @@ message CreateUploadRequest {
   // poster. Free — animated previews add no cost. The produced WebP/MP4 loop
   // surface as Video.hover_preview_url / hover_preview_mp4_url once ready.
   bool hover_previews = 10;
+
+  // When true, generate AI captions inline with the transcode: the managed
+  // job's output carries a "generate" subtitle track (language auto-detected,
+  // WebVTT), produced by the same job — and on the same worker — as the
+  // encode, and listed in the video's streaming manifest so players discover
+  // it natively. Billed as the per-source-minute captions fee on that job;
+  // the fee is only charged when a caption track is actually delivered. The
+  // track surfaces as Video.text_tracks once ready. Unset or false = no
+  // captions.
+  optional bool auto_captions = 11;
 }
 
 // Response from creating an upload.
@@ -445,6 +464,16 @@ message CreateFromUrlRequest {
   // defaults) to the managed transcode, in addition to the poster. Free. The
   // produced loop surfaces as Video.hover_preview_url / hover_preview_mp4_url.
   bool hover_previews = 8;
+
+  // When true, generate AI captions inline with the transcode: the managed
+  // job's output carries a "generate" subtitle track (language auto-detected,
+  // WebVTT), produced by the same job — and on the same worker — as the
+  // encode, and listed in the video's streaming manifest so players discover
+  // it natively. Billed as the per-source-minute captions fee on that job;
+  // the fee is only charged when a caption track is actually delivered. The
+  // track surfaces as Video.text_tracks once ready. Unset or false = no
+  // captions.
+  optional bool auto_captions = 9;
 }
 
 // Response from creating a video from a URL.
@@ -546,6 +575,16 @@ message CreateMultipartUploadRequest {
   // defaults) to the managed transcode, in addition to the poster. Free. The
   // produced loop surfaces as Video.hover_preview_url / hover_preview_mp4_url.
   bool hover_previews = 15;
+
+  // When true, generate AI captions inline with the transcode: the managed
+  // job's output carries a "generate" subtitle track (language auto-detected,
+  // WebVTT), produced by the same job — and on the same worker — as the
+  // encode, and listed in the video's streaming manifest so players discover
+  // it natively. Billed as the per-source-minute captions fee on that job;
+  // the fee is only charged when a caption track is actually delivered. The
+  // track surfaces as Video.text_tracks once ready. Unset or false = no
+  // captions.
+  optional bool auto_captions = 16;
 }
 
 // Response from creating a multipart upload.

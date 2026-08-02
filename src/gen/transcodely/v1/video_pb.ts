@@ -300,6 +300,20 @@ export class Video extends Message<Video> {
   encodingCost?: number;
 
   /**
+   * Sum of confirmed AI-caption fees, in EUR, across all of this video's jobs
+   * — captions generated inline with the transcode (the auto_captions upload
+   * flag) and retro captions-only jobs that used this video as their input
+   * (input_video_id). Absent until a captions fee is confirmed; fees are
+   * confirmed only when a caption artifact is actually delivered, so voided
+   * and still-estimated fees are never counted. This is a per-feature
+   * breakdown of already-billed job totals, not an extra charge on top of
+   * them.
+   *
+   * @generated from field: optional double captions_cost = 50;
+   */
+  captionsCost?: number;
+
+  /**
    * Timestamps.
    *
    * @generated from field: google.protobuf.Timestamp created_at = 40;
@@ -384,6 +398,7 @@ export class Video extends Message<Video> {
     { no: 49, name: "text_tracks", kind: "message", T: VideoTextTrack, repeated: true },
     { no: 30, name: "output_size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 31, name: "encoding_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 50, name: "captions_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 40, name: "created_at", kind: "message", T: Timestamp },
     { no: 41, name: "updated_at", kind: "message", T: Timestamp },
     { no: 42, name: "ready_at", kind: "message", T: Timestamp, opt: true },
@@ -703,6 +718,20 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
    */
   hoverPreviews = false;
 
+  /**
+   * When true, generate AI captions inline with the transcode: the managed
+   * job's output carries a "generate" subtitle track (language auto-detected,
+   * WebVTT), produced by the same job — and on the same worker — as the
+   * encode, and listed in the video's streaming manifest so players discover
+   * it natively. Billed as the per-source-minute captions fee on that job;
+   * the fee is only charged when a caption track is actually delivered. The
+   * track surfaces as Video.text_tracks once ready. Unset or false = no
+   * captions.
+   *
+   * @generated from field: optional bool auto_captions = 11;
+   */
+  autoCaptions?: boolean;
+
   constructor(data?: PartialMessage<CreateUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -721,6 +750,7 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
     { no: 7, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 9, name: "preset", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 10, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 11, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateUploadRequest {
@@ -951,6 +981,20 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
    */
   hoverPreviews = false;
 
+  /**
+   * When true, generate AI captions inline with the transcode: the managed
+   * job's output carries a "generate" subtitle track (language auto-detected,
+   * WebVTT), produced by the same job — and on the same worker — as the
+   * encode, and listed in the video's streaming manifest so players discover
+   * it natively. Billed as the per-source-minute captions fee on that job;
+   * the fee is only charged when a caption track is actually delivered. The
+   * track surfaces as Video.text_tracks once ready. Unset or false = no
+   * captions.
+   *
+   * @generated from field: optional bool auto_captions = 9;
+   */
+  autoCaptions?: boolean;
+
   constructor(data?: PartialMessage<CreateFromUrlRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -967,6 +1011,7 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
     { no: 6, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 7, name: "preset", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 8, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 9, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateFromUrlRequest {
@@ -1222,6 +1267,20 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
    */
   hoverPreviews = false;
 
+  /**
+   * When true, generate AI captions inline with the transcode: the managed
+   * job's output carries a "generate" subtitle track (language auto-detected,
+   * WebVTT), produced by the same job — and on the same worker — as the
+   * encode, and listed in the video's streaming manifest so players discover
+   * it natively. Billed as the per-source-minute captions fee on that job;
+   * the fee is only charged when a caption track is actually delivered. The
+   * track surfaces as Video.text_tracks once ready. Unset or false = no
+   * captions.
+   *
+   * @generated from field: optional bool auto_captions = 16;
+   */
+  autoCaptions?: boolean;
+
   constructor(data?: PartialMessage<CreateMultipartUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1242,6 +1301,7 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
     { no: 13, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 14, name: "preset", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 15, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 16, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateMultipartUploadRequest {
