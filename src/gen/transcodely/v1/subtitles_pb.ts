@@ -552,6 +552,32 @@ export class SubtitleResult extends Message<SubtitleResult> {
    */
   transcriptUrl = "";
 
+  /**
+   * Ready-to-fetch HTTPS URL for the caption file, signed and time-limited.
+   *
+   * Points at the same object as url, but as a CDN URL a browser or player can
+   * load — url is a raw storage URI ("s3://…") that no client can fetch.
+   * Present only for jobs writing to Transcodely-managed storage (an
+   * output_origin with provider "transcodely"); jobs writing to your own bucket
+   * get nothing here and should sign url with their own credentials.
+   *
+   * Emitted on single-job reads (Get, Watch) and never on List, and expires —
+   * 6 hours by default — so re-read the job for a fresh one rather than
+   * storing it.
+   *
+   * @generated from field: optional string signed_url = 11;
+   */
+  signedUrl?: string;
+
+  /**
+   * Ready-to-fetch HTTPS URL for the segment transcript, signed and
+   * time-limited. Same rules and lifetime as signed_url; set only for generate
+   * tracks, which are the only ones carrying a transcript.
+   *
+   * @generated from field: optional string transcript_signed_url = 12;
+   */
+  transcriptSignedUrl?: string;
+
   constructor(data?: PartialMessage<SubtitleResult>) {
     super();
     proto3.util.initPartial(data, this);
@@ -570,6 +596,8 @@ export class SubtitleResult extends Message<SubtitleResult> {
     { no: 8, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 9, name: "transcript_storage_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 10, name: "transcript_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 12, name: "transcript_signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubtitleResult {

@@ -358,6 +358,25 @@ export class ThumbnailResult extends Message<ThumbnailResult> {
    */
   index = 0;
 
+  /**
+   * Ready-to-fetch HTTPS URL for this thumbnail file, signed and time-limited.
+   *
+   * Points at the same object as url, but as a CDN URL a browser can load —
+   * url is a raw storage URI ("s3://…") that no client can fetch. Present only
+   * for jobs writing to Transcodely-managed storage (an output_origin with
+   * provider "transcodely"); jobs writing to your own bucket get nothing here
+   * and should sign url with their own credentials.
+   *
+   * Emitted on single-job reads (Get, Watch) and never on List, and expires —
+   * 6 hours by default — so re-read the job for a fresh one rather than storing
+   * it. The sprite mode's WebVTT sidecar (format "vtt") is signed so that the
+   * sprite image its cues reference relatively inherits the same
+   * authorization.
+   *
+   * @generated from field: optional string signed_url = 8;
+   */
+  signedUrl?: string;
+
   constructor(data?: PartialMessage<ThumbnailResult>) {
     super();
     proto3.util.initPartial(data, this);
@@ -373,6 +392,7 @@ export class ThumbnailResult extends Message<ThumbnailResult> {
     { no: 5, name: "width", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 6, name: "height", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 7, name: "index", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 8, name: "signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ThumbnailResult {
