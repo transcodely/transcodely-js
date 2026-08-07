@@ -929,6 +929,20 @@ message Job {
   // Clip range this job encodes (echoed from request). Absent when the job
   // encodes the full input.
   optional ClipConfig clip = 36;
+
+  // Hosted video this job's managed output belongs to ("vid_..."). Set when
+  // the job writes to Transcodely-managed hosting storage (created with
+  // managed=true, or with input_video_id targeting an existing video); absent
+  // for jobs delivering to your own origin. Server-set; read-only.
+  optional string video_id = 37;
+
+  // Itemized decomposition of total_estimated_cost and total_actual_cost:
+  // one line per output, one per fee, and the minimum-charge top-up when the
+  // per-job minimum raised a total. The lines always sum to the totals, so
+  // this is the field to render a cost from — the per-output cost fields
+  // alone do not add up to the bill whenever the minimum charge is in effect.
+  // Always present. Server-set; read-only.
+  JobCostBreakdown cost_breakdown = 38;
 }
 
 // A single additive fee line item on a job (see Job.fees). Fees are metered
@@ -964,6 +978,111 @@ message JobFee {
   // Currency for rate/amount (ISO 4217 code, e.g., "EUR"). Matches the
   // job-level currency field.
   string currency = 7;
+
+  // Fee id ("fee_..."). This is what a cost-breakdown fee line's
+  // `reference_id` points at (see JobCostBreakdown).
+  string id = 8;
+}
+
+// JobCostLineType discriminates a line of a job's cost breakdown.
+enum JobCostLineType {
+  JOB_COST_LINE_TYPE_UNSPECIFIED = 0;
+  // One output rendition's share of the total.
+  JOB_COST_LINE_TYPE_OUTPUT = 1;
+  // The per-job minimum charge top-up — what the floor added on top of the
+  // renditions. Derived from Job.minimum_charge_eur, never larger than it.
+  JOB_COST_LINE_TYPE_MINIMUM_CHARGE = 2;
+  // One additive fee (see JobFee).
+  JOB_COST_LINE_TYPE_FEE = 3;
+  // A signed reconciliation adjustment carrying any difference between the
+  // itemized lines above and the stored total — metering refined between the
+  // estimate and settlement, or a historical partial write. Rare by design,
+  // and may be negative. Its existence is what makes the sum-to-totals
+  // guarantee unconditional instead of aspirational.
+  JOB_COST_LINE_TYPE_ADJUSTMENT = 4;
+}
+
+// One line of a job's cost breakdown (see JobCostBreakdown).
+message JobCostLine {
+  // What kind of charge this line is: output, minimum_charge, fee or
+  // adjustment.
+  JobCostLineType type = 1;
+
+  // The thing the line is for: an output id ("out_...") on output lines, a
+  // fee id ("fee_...") on fee lines. Empty on the minimum-charge and
+  // adjustment lines, which belong to the job as a whole rather than to any
+  // one part of it.
+  string reference_id = 2;
+
+  // Human-readable label: "1080p h264 hls", "Minimum job charge",
+  // "AI Caption Generation". Wording is documentation, not API surface, and
+  // may be reworded in any release — key off `type` and `reference_id`.
+  string description = 3;
+
+  // What this line contributed to total_estimated_cost. Absent until the
+  // input probe supplies a duration.
+  optional double estimated_amount_eur = 4;
+
+  // What this line contributed to total_actual_cost. Absent until the job
+  // settles; 0 for a line that settled at no charge (a failed job's outputs,
+  // a fee whose artifact was never produced). Absent and zero are different
+  // answers: one is "not known yet", the other is "free".
+  //
+  // Negative only on an adjustment line.
+  optional double actual_amount_eur = 5;
+}
+
+// JobCostBreakdown decomposes a job's totals into the charges that make them
+// up, so a bill can be read rather than trusted.
+//
+// The money model it explains:
+//
+//   billed total = max(sum of output costs, minimum_charge_eur) + sum of fees
+//
+// The minimum charge is a job-level floor, so when it binds there is money in
+// the total that no single output accounts for. That difference appears here as
+// its own `minimum_charge` line — the number that explains why a job with
+// EUR 0.0125 of renditions bills EUR 0.20125. The line is present when the
+// floor raised either total; a side it did not raise reads 0. On a job whose
+// usage cleared the floor on both sides there is nothing to explain and no
+// line.
+//
+// Guarantees, unconditionally:
+//   - the lines' estimated_amount_eur sum to total_estimated_cost
+//   - the lines' actual_amount_eur sum to total_actual_cost
+//
+// Nothing is clamped to make that hold. Anything the itemized lines do not
+// account for is carried by a signed `adjustment` line, which is why the
+// guarantee is absolute rather than usually-true.
+//
+// Outcome decides what the actual side contains, matching what is billed: a
+// completed job's totals are floored, a canceled or partial job's are the
+// un-floored sum of the outputs it delivered, and a failed job bills nothing at
+// all — every line settles at 0, and so does total_actual_cost, from the moment
+// it fails.
+//
+// Fee lines cover every fee quoted on the job, INCLUDING fees that were later
+// voided (those settle at 0). Job.fees deliberately omits voided fees, because
+// that list answers "what am I charged for"; this one answers "how is this
+// number composed", and a voided fee is part of how the estimate was composed.
+//
+// Server-set; read-only.
+message JobCostBreakdown {
+  // Lines in reading order: outputs, then fees, then the minimum charge, then
+  // the adjustment.
+  repeated JobCostLine lines = 1;
+
+  // The totals the lines explain. Same values as Job.total_estimated_cost /
+  // Job.total_actual_cost, repeated here so a breakdown can be verified
+  // without carrying the job around.
+  //
+  // One deliberate difference: a failed job reports total_actual_cost as 0
+  // here even in the rare case where no total was ever written for it (a job
+  // the control plane failed after its worker vanished). A failed job bills
+  // nothing, and "unknown" would be a worse answer than the one the policy
+  // already guarantees.
+  optional double total_estimated_cost = 2;
+  optional double total_actual_cost = 3;
 }
 
 // ClipConfig selects a sub-range of the input to encode instead of the full

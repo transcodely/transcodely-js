@@ -82,6 +82,8 @@ export {
   type PricingSnapshot,
   type VariantPricingSnapshot,
   type JobFee,
+  type JobCostBreakdown,
+  type JobCostLine,
   type CreateJobRequest,
   type CreateJobResponse,
   type GetJobRequest,
@@ -96,6 +98,7 @@ export {
   type WatchJobResponse,
   JobStatus,
   JobPriority,
+  JobCostLineType,
   OutputStatus,
   WatchEventType,
 } from "./gen/transcodely/v1/job_pb.js";
