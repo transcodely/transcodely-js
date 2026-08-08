@@ -251,6 +251,59 @@ proto3.util.setEnumType(WatchEventType, "transcodely.v1.WatchEventType", [
 ]);
 
 /**
+ * JobCostLineType discriminates a line of a job's cost breakdown.
+ *
+ * @generated from enum transcodely.v1.JobCostLineType
+ */
+export enum JobCostLineType {
+  /**
+   * @generated from enum value: JOB_COST_LINE_TYPE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * One output rendition's share of the total.
+   *
+   * @generated from enum value: JOB_COST_LINE_TYPE_OUTPUT = 1;
+   */
+  OUTPUT = 1,
+
+  /**
+   * The per-job minimum charge top-up — what the floor added on top of the
+   * renditions. Derived from Job.minimum_charge_eur, never larger than it.
+   *
+   * @generated from enum value: JOB_COST_LINE_TYPE_MINIMUM_CHARGE = 2;
+   */
+  MINIMUM_CHARGE = 2,
+
+  /**
+   * One additive fee (see JobFee).
+   *
+   * @generated from enum value: JOB_COST_LINE_TYPE_FEE = 3;
+   */
+  FEE = 3,
+
+  /**
+   * A signed reconciliation adjustment carrying any difference between the
+   * itemized lines above and the stored total — metering refined between the
+   * estimate and settlement, or a historical partial write. Rare by design,
+   * and may be negative. Its existence is what makes the sum-to-totals
+   * guarantee unconditional instead of aspirational.
+   *
+   * @generated from enum value: JOB_COST_LINE_TYPE_ADJUSTMENT = 4;
+   */
+  ADJUSTMENT = 4,
+}
+// Retrieve enum metadata with: proto3.getEnumType(JobCostLineType)
+proto3.util.setEnumType(JobCostLineType, "transcodely.v1.JobCostLineType", [
+  { no: 0, name: "JOB_COST_LINE_TYPE_UNSPECIFIED" },
+  { no: 1, name: "JOB_COST_LINE_TYPE_OUTPUT" },
+  { no: 2, name: "JOB_COST_LINE_TYPE_MINIMUM_CHARGE" },
+  { no: 3, name: "JOB_COST_LINE_TYPE_FEE" },
+  { no: 4, name: "JOB_COST_LINE_TYPE_ADJUSTMENT" },
+]);
+
+/**
  * Audio track configuration for multi-audio outputs.
  * Used to specify multiple audio language tracks in HLS/DASH outputs.
  *
@@ -2042,6 +2095,28 @@ export class Job extends Message<Job> {
    */
   clip?: ClipConfig;
 
+  /**
+   * Hosted video this job's managed output belongs to ("vid_..."). Set when
+   * the job writes to Transcodely-managed hosting storage (created with
+   * managed=true, or with input_video_id targeting an existing video); absent
+   * for jobs delivering to your own origin. Server-set; read-only.
+   *
+   * @generated from field: optional string video_id = 37;
+   */
+  videoId?: string;
+
+  /**
+   * Itemized decomposition of total_estimated_cost and total_actual_cost:
+   * one line per output, one per fee, and the minimum-charge top-up when the
+   * per-job minimum raised a total. The lines always sum to the totals, so
+   * this is the field to render a cost from — the per-output cost fields
+   * alone do not add up to the bill whenever the minimum charge is in effect.
+   * Always present. Server-set; read-only.
+   *
+   * @generated from field: transcodely.v1.JobCostBreakdown cost_breakdown = 38;
+   */
+  costBreakdown?: JobCostBreakdown;
+
   constructor(data?: PartialMessage<Job>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2086,6 +2161,8 @@ export class Job extends Message<Job> {
     { no: 34, name: "input_video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 35, name: "chapter_results", kind: "message", T: ChapterResult, repeated: true },
     { no: 36, name: "clip", kind: "message", T: ClipConfig, opt: true },
+    { no: 37, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 38, name: "cost_breakdown", kind: "message", T: JobCostBreakdown },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Job {
@@ -2171,6 +2248,14 @@ export class JobFee extends Message<JobFee> {
    */
   currency = "";
 
+  /**
+   * Fee id ("fee_..."). This is what a cost-breakdown fee line's
+   * `reference_id` points at (see JobCostBreakdown).
+   *
+   * @generated from field: string id = 8;
+   */
+  id = "";
+
   constructor(data?: PartialMessage<JobFee>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2186,6 +2271,7 @@ export class JobFee extends Message<JobFee> {
     { no: 5, name: "rate", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 6, name: "amount", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 7, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JobFee {
@@ -2202,6 +2288,189 @@ export class JobFee extends Message<JobFee> {
 
   static equals(a: JobFee | PlainMessage<JobFee> | undefined, b: JobFee | PlainMessage<JobFee> | undefined): boolean {
     return proto3.util.equals(JobFee, a, b);
+  }
+}
+
+/**
+ * One line of a job's cost breakdown (see JobCostBreakdown).
+ *
+ * @generated from message transcodely.v1.JobCostLine
+ */
+export class JobCostLine extends Message<JobCostLine> {
+  /**
+   * What kind of charge this line is: output, minimum_charge, fee or
+   * adjustment.
+   *
+   * @generated from field: transcodely.v1.JobCostLineType type = 1;
+   */
+  type = JobCostLineType.UNSPECIFIED;
+
+  /**
+   * The thing the line is for: an output id ("out_...") on output lines, a
+   * fee id ("fee_...") on fee lines. Empty on the minimum-charge and
+   * adjustment lines, which belong to the job as a whole rather than to any
+   * one part of it.
+   *
+   * @generated from field: string reference_id = 2;
+   */
+  referenceId = "";
+
+  /**
+   * Human-readable label: "1080p h264 hls", "Minimum job charge",
+   * "AI Caption Generation". Wording is documentation, not API surface, and
+   * may be reworded in any release — key off `type` and `reference_id`.
+   *
+   * @generated from field: string description = 3;
+   */
+  description = "";
+
+  /**
+   * What this line contributed to total_estimated_cost. Absent until the
+   * input probe supplies a duration.
+   *
+   * @generated from field: optional double estimated_amount_eur = 4;
+   */
+  estimatedAmountEur?: number;
+
+  /**
+   * What this line contributed to total_actual_cost. Absent until the job
+   * settles; 0 for a line that settled at no charge (a failed job's outputs,
+   * a fee whose artifact was never produced). Absent and zero are different
+   * answers: one is "not known yet", the other is "free".
+   *
+   * Negative only on an adjustment line.
+   *
+   * @generated from field: optional double actual_amount_eur = 5;
+   */
+  actualAmountEur?: number;
+
+  constructor(data?: PartialMessage<JobCostLine>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.JobCostLine";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "type", kind: "enum", T: proto3.getEnumType(JobCostLineType) },
+    { no: 2, name: "reference_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "estimated_amount_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 5, name: "actual_amount_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JobCostLine {
+    return new JobCostLine().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): JobCostLine {
+    return new JobCostLine().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): JobCostLine {
+    return new JobCostLine().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: JobCostLine | PlainMessage<JobCostLine> | undefined, b: JobCostLine | PlainMessage<JobCostLine> | undefined): boolean {
+    return proto3.util.equals(JobCostLine, a, b);
+  }
+}
+
+/**
+ * JobCostBreakdown decomposes a job's totals into the charges that make them
+ * up, so a bill can be read rather than trusted.
+ *
+ * The money model it explains:
+ *
+ *   billed total = max(sum of output costs, minimum_charge_eur) + sum of fees
+ *
+ * The minimum charge is a job-level floor, so when it binds there is money in
+ * the total that no single output accounts for. That difference appears here as
+ * its own `minimum_charge` line — the number that explains why a job with
+ * EUR 0.0125 of renditions bills EUR 0.20125. The line is present when the
+ * floor raised either total; a side it did not raise reads 0. On a job whose
+ * usage cleared the floor on both sides there is nothing to explain and no
+ * line.
+ *
+ * Guarantees, unconditionally:
+ *   - the lines' estimated_amount_eur sum to total_estimated_cost
+ *   - the lines' actual_amount_eur sum to total_actual_cost
+ *
+ * Nothing is clamped to make that hold. Anything the itemized lines do not
+ * account for is carried by a signed `adjustment` line, which is why the
+ * guarantee is absolute rather than usually-true.
+ *
+ * Outcome decides what the actual side contains, matching what is billed: a
+ * completed job's totals are floored, a canceled or partial job's are the
+ * un-floored sum of the outputs it delivered, and a failed job bills nothing at
+ * all — every line settles at 0, and so does total_actual_cost, from the moment
+ * it fails.
+ *
+ * Fee lines cover every fee quoted on the job, INCLUDING fees that were later
+ * voided (those settle at 0). Job.fees deliberately omits voided fees, because
+ * that list answers "what am I charged for"; this one answers "how is this
+ * number composed", and a voided fee is part of how the estimate was composed.
+ *
+ * Server-set; read-only.
+ *
+ * @generated from message transcodely.v1.JobCostBreakdown
+ */
+export class JobCostBreakdown extends Message<JobCostBreakdown> {
+  /**
+   * Lines in reading order: outputs, then fees, then the minimum charge, then
+   * the adjustment.
+   *
+   * @generated from field: repeated transcodely.v1.JobCostLine lines = 1;
+   */
+  lines: JobCostLine[] = [];
+
+  /**
+   * The totals the lines explain. Same values as Job.total_estimated_cost /
+   * Job.total_actual_cost, repeated here so a breakdown can be verified
+   * without carrying the job around.
+   *
+   * One deliberate difference: a failed job reports total_actual_cost as 0
+   * here even in the rare case where no total was ever written for it (a job
+   * the control plane failed after its worker vanished). A failed job bills
+   * nothing, and "unknown" would be a worse answer than the one the policy
+   * already guarantees.
+   *
+   * @generated from field: optional double total_estimated_cost = 2;
+   */
+  totalEstimatedCost?: number;
+
+  /**
+   * @generated from field: optional double total_actual_cost = 3;
+   */
+  totalActualCost?: number;
+
+  constructor(data?: PartialMessage<JobCostBreakdown>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.JobCostBreakdown";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "lines", kind: "message", T: JobCostLine, repeated: true },
+    { no: 2, name: "total_estimated_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 3, name: "total_actual_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JobCostBreakdown {
+    return new JobCostBreakdown().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): JobCostBreakdown {
+    return new JobCostBreakdown().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): JobCostBreakdown {
+    return new JobCostBreakdown().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: JobCostBreakdown | PlainMessage<JobCostBreakdown> | undefined, b: JobCostBreakdown | PlainMessage<JobCostBreakdown> | undefined): boolean {
+    return proto3.util.equals(JobCostBreakdown, a, b);
   }
 }
 
