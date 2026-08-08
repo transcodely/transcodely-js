@@ -792,17 +792,26 @@ message Job {
   //
   // Only completed outputs are billable, and what happened to the job as a
   // whole decides whether they are billed at all:
-  //   - completed: the sum of its outputs' actual costs, raised to
-  //     minimum_charge_eur if that minimum is in effect.
-  //   - canceled: the sum of the outputs that had already completed and been
-  //     delivered when the cancel landed. Identical whether the job was
-  //     canceled through CancelJob or observed as canceled by the worker. The
-  //     minimum charge never applies.
-  //   - failed: zero. A job that ends failed is not billed, even if some of
-  //     its outputs completed before the failure.
-  //   - partial: the sum of the outputs that completed, un-floored.
-  // Additive fees (see fees) are included on top, and are charged only on jobs
-  // that ended completed or partial.
+  //   - completed: the sum of its outputs' actual costs, plus the fees below.
+  //   - partial: the sum of the outputs that completed, plus the fees below.
+  //   - canceled: the processing fee, if an encoder had already begun work,
+  //     plus the outputs that had already completed and been delivered when
+  //     the cancel landed. Canceling a job that was still queued bills
+  //     nothing. Identical whether the job was canceled through CancelJob or
+  //     observed as canceled by the worker.
+  //   - failed: zero. A job that ends failed is not billed at all — not for
+  //     outputs that completed before the failure, and not for the machine it
+  //     ran on.
+  //
+  // Fees (see fees) are included on top of the output costs. Which ones are
+  // charged depends on the fee: the flat processing fee is charged on every
+  // job an encoder began, including a canceled one, while a metered add-on
+  // such as AI captions is charged only when a completed or partial job
+  // actually delivered its artifact.
+  //
+  // Jobs created before the processing-fee model (August 2026) are billed
+  // max(sum of output costs, minimum_charge_eur) + fees when completed, and
+  // their canceled/partial totals are un-floored.
   optional double total_actual_cost = 9;
 
   // Error code if status is FAILED.
@@ -882,38 +891,54 @@ message Job {
   // out-of-band knowledge of the field name. Server-set; ignored on requests.
   string object = 27;
 
-  // Minimum charge for this job in EUR, locked at creation and never changed
-  // retroactively. It is derived from the job's assigned billing class — a size
-  // band (small/medium/large/extra-large) reflecting the compute the job is
-  // guaranteed to cover — or, in legacy configurations, from the recommended
-  // machine size; either way it is a stable quote, not re-derived from the
-  // machine the job ultimately runs on. When the minimum charge is in effect,
-  // the billed total for a successfully completed job is
-  // max(sum of output costs, minimum_charge_eur) — see minimum_charge_applied
-  // for whether it determined this job's total. The minimum applies only to
-  // jobs that reach completed: a failed job is billed zero, and a canceled or
-  // partial job is billed the un-floored sum of the outputs it did complete.
-  // Absent when no minimum was computed for this job.
-  optional double minimum_charge_eur = 30;
+  // HISTORICAL — jobs created before the processing-fee model (August 2026)
+  // only. Always absent on jobs created since; use fees (fee_type
+  // "processing") instead.
+  //
+  // The per-job minimum charge, locked at creation and never changed
+  // retroactively. It was derived from the job's assigned billing class — a
+  // size band (small/medium/large/extra-large) reflecting the compute the job
+  // is guaranteed to cover — or, in earlier configurations, from the
+  // recommended machine size; either way a stable quote, not re-derived from
+  // the machine the job ultimately ran on. When in effect, the billed total for
+  // a successfully completed job was max(sum of output costs,
+  // minimum_charge_eur) — see minimum_charge_applied for whether it determined
+  // this job's total. It applied only to jobs that reached completed: a failed
+  // job was billed zero, and a canceled or partial job the un-floored sum of
+  // the outputs it did complete.
+  //
+  // Jobs quoted under this model keep settling under it, so the field is
+  // populated forever on those jobs and is never removed from the API.
+  optional double minimum_charge_eur = 30 [deprecated = true];
 
+  // HISTORICAL — jobs created before the processing-fee model (August 2026)
+  // only. Always false on jobs created since.
+  //
   // Whether minimum_charge_eur determined the job's most recently computed
   // total — true when the sum of output costs came in below the minimum and
   // the total was raised to it (estimated total after probe; actual total
   // after successful completion). When true, total_estimated_cost or
   // total_actual_cost exceeds the sum of the per-output cost fields, which
-  // are never raised themselves. The minimum is a stable quote locked at
-  // creation (from the job's billing class, or the recommended machine size in
-  // legacy configurations); it is never re-derived from the machine the job
-  // ultimately runs on.
-  bool minimum_charge_applied = 31;
+  // were never raised themselves.
+  bool minimum_charge_applied = 31 [deprecated = true];
 
-  // Additive fee line items (v1: AI caption generation). Fees are charged ON
-  // TOP of the encode bill and sit OUTSIDE the minimum-charge floor:
-  // billed total = max(sum of output costs, minimum_charge_eur) + sum of fees.
+  // Fee line items on the job. Two kinds appear here:
+  //
+  //   "processing" — the flat per-job processing fee, charged once for the
+  //   encoder the job ran on, scaled by the job's size class. Present on every
+  //   job an encoder began processing. Quantity is always 1.
+  //   "captions"   — AI caption generation, metered per source minute.
+  //
+  // Fees are charged ON TOP of the encode bill:
+  // billed total = sum of output costs + sum of fees. (On historical jobs that
+  // carry a minimum_charge_eur, the output sum is raised to that floor first;
+  // fees have always sat outside the clamp.)
+  //
   // total_estimated_cost / total_actual_cost INCLUDE fees; this list exposes
-  // the decomposition. Only live fees are listed — a fee that was voided
-  // (job failed/canceled, or the artifact was never produced) is dropped
-  // from the list and never charged. Server-set; read-only.
+  // the decomposition. Only live fees are listed — a fee that was voided is
+  // dropped from the list and never charged. A job that failed, or that was
+  // canceled while still queued, therefore reports no fees at all.
+  // Server-set; read-only.
   repeated JobFee fees = 33;
 
   // Hosted video ID used as the input source (video mode), echoed from the
@@ -937,42 +962,64 @@ message Job {
   optional string video_id = 37;
 
   // Itemized decomposition of total_estimated_cost and total_actual_cost:
-  // one line per output, one per fee, and the minimum-charge top-up when the
-  // per-job minimum raised a total. The lines always sum to the totals, so
-  // this is the field to render a cost from — the per-output cost fields
-  // alone do not add up to the bill whenever the minimum charge is in effect.
+  // one line per output, one per fee, and — on jobs old enough to have a
+  // minimum charge — the top-up it added. The lines always sum to the totals,
+  // so this is the field to render a cost from: the per-output cost fields
+  // alone do not add up to the bill, because fees are charged on top of them.
   // Always present. Server-set; read-only.
   JobCostBreakdown cost_breakdown = 38;
 }
 
-// A single additive fee line item on a job (see Job.fees). Fees are metered
-// charges for services performed alongside the encode (v1: AI caption
-// generation at EUR 0.05 per source minute). A fee is charged once per job,
-// estimated when the input probe supplies the source duration, and only
-// billed when the completion report shows the fee's artifact was actually
-// produced (no artifact, no fee). Fees are never absorbed by the per-job
-// minimum charge: billed total = max(sum of output costs, minimum_charge_eur)
-// + sum of fees. Read-only.
+// A single fee line item on a job (see Job.fees), charged once per job per
+// fee type, on top of the encode cost. Two families share this message, and
+// they differ in what decides whether they are billed:
+//
+//   METERED ADD-ONS (v1: "captions", AI caption generation at EUR 0.05 per
+//   source minute) pay for a service performed alongside the encode. They are
+//   metered when the input probe supplies the source duration, and billed only
+//   when the completion report shows the artifact was actually produced — no
+//   artifact, no fee. A failed or canceled job never pays one.
+//
+//   The PROCESSING FEE ("processing") is the flat charge for starting a
+//   dedicated encoder, scaled by the job's size class. It is complete from
+//   creation (quantity 1) and billed on the job's OUTCOME rather than on any
+//   artifact: on completed and partial jobs, and on a job canceled after an
+//   encoder had begun work. A failed job, and a job canceled while still
+//   queued, pay nothing.
+//
+// Either way the totals are the sum of their parts:
+//   billed total = sum of output costs + sum of fees
+//
+// Jobs created before the processing-fee model (August 2026) instead clamp the
+// output half: max(sum of output costs, minimum_charge_eur) + sum of fees.
+// Fees have never been absorbed by that clamp. Read-only.
 message JobFee {
-  // Fee discriminator — the fee pricing rule's key. v1: "captions".
+  // Fee discriminator:
+  //   "processing" — the flat per-job processing fee (see Job.fees).
+  //   "captions"   — AI caption generation.
   string fee_type = 1;
 
   // Human-readable description of what the fee is for
-  // (e.g., "AI Caption Generation").
+  // (e.g., "Processing fee", "AI Caption Generation").
   string description = 2;
 
-  // Metering unit. v1: "source_minute" (input duration in minutes).
+  // Metering unit:
+  //   "job"           — a flat per-job charge; quantity is always 1.
+  //   "source_minute" — input duration in minutes.
   string unit = 3;
 
   // Metered quantity in `unit`s — the exact fraction, e.g. a 90-second
-  // source is 1.5 source minutes. 0 until the input probe completes.
+  // source is 1.5 source minutes. For a "source_minute" fee this is 0 until
+  // the input probe completes; a "job" fee is always 1, from creation.
   double quantity = 4;
 
-  // Price per unit in `currency`, locked at job creation from the
-  // then-effective fee pricing rule (e.g., 0.05).
+  // Price per unit in `currency`, locked at job creation (e.g., 0.05). For the
+  // processing fee this is the job's size class's rate at the moment the job
+  // was created; later rate changes never re-price an existing job.
   double rate = 5;
 
-  // quantity x rate, in `currency`. 0 until the input probe completes.
+  // quantity x rate, in `currency`. For a "source_minute" fee this is 0 until
+  // the input probe completes; for a "job" fee it equals rate from creation.
   double amount = 6;
 
   // Currency for rate/amount (ISO 4217 code, e.g., "EUR"). Matches the
@@ -989,10 +1036,11 @@ enum JobCostLineType {
   JOB_COST_LINE_TYPE_UNSPECIFIED = 0;
   // One output rendition's share of the total.
   JOB_COST_LINE_TYPE_OUTPUT = 1;
-  // The per-job minimum charge top-up — what the floor added on top of the
-  // renditions. Derived from Job.minimum_charge_eur, never larger than it.
+  // HISTORICAL: the per-job minimum-charge top-up — what the floor added on
+  // top of the renditions. Derived from Job.minimum_charge_eur, never larger
+  // than it. Appears only on jobs created before the processing-fee model.
   JOB_COST_LINE_TYPE_MINIMUM_CHARGE = 2;
-  // One additive fee (see JobFee).
+  // One fee (see JobFee) — the processing fee, or an additive metered one.
   JOB_COST_LINE_TYPE_FEE = 3;
   // A signed reconciliation adjustment carrying any difference between the
   // itemized lines above and the stored total — metering refined between the
@@ -1037,15 +1085,24 @@ message JobCostLine {
 //
 // The money model it explains:
 //
+//   billed total = sum of output costs + sum of fees
+//
+// The fees include the flat per-job processing fee, which appears here as an
+// ordinary `fee` line described "Processing fee" — so on a small job, the line
+// that explains most of the bill is the machine rather than the encode.
+//
+// Jobs created before the processing-fee model (August 2026) are explained
+// against the model they were billed under, in which the output half was
+// clamped:
+//
 //   billed total = max(sum of output costs, minimum_charge_eur) + sum of fees
 //
-// The minimum charge is a job-level floor, so when it binds there is money in
-// the total that no single output accounts for. That difference appears here as
+// That minimum charge was a job-level floor, so when it bound there was money
+// in the total that no single output accounted for. The difference appears as
 // its own `minimum_charge` line — the number that explains why a job with
-// EUR 0.0125 of renditions bills EUR 0.20125. The line is present when the
-// floor raised either total; a side it did not raise reads 0. On a job whose
-// usage cleared the floor on both sides there is nothing to explain and no
-// line.
+// EUR 0.0125 of renditions billed EUR 0.20125. It is present when the floor
+// raised either total; a side it did not raise reads 0. A job with no floor —
+// which is every job created since — simply never has the line.
 //
 // Guarantees, unconditionally:
 //   - the lines' estimated_amount_eur sum to total_estimated_cost
@@ -1056,10 +1113,12 @@ message JobCostLine {
 // guarantee is absolute rather than usually-true.
 //
 // Outcome decides what the actual side contains, matching what is billed: a
-// completed job's totals are floored, a canceled or partial job's are the
-// un-floored sum of the outputs it delivered, and a failed job bills nothing at
-// all — every line settles at 0, and so does total_actual_cost, from the moment
-// it fails.
+// completed or partial job is charged for the outputs it delivered plus its
+// fees; a canceled job for the outputs it had already delivered plus the
+// processing fee, if an encoder had begun work (a job canceled while still
+// queued has neither, and settles at 0); and a failed job bills nothing at all
+// — every line settles at 0, and so does total_actual_cost, from the moment it
+// fails.
 //
 // Fee lines cover every fee quoted on the job, INCLUDING fees that were later
 // voided (those settle at 0). Job.fees deliberately omits voided fees, because
@@ -1089,8 +1148,9 @@ message JobCostBreakdown {
 // duration. Applies to the whole job: every output is encoded from the
 // clipped range, and thumbnails/sprites are computed within it. Cuts are
 // frame-accurate (outputs are always re-encoded). Billing keys off the
-// produced output duration, so clipping reduces cost accordingly (the
-// per-job minimum charge, when in effect, still applies).
+// produced output duration, so clipping reduces the encode cost accordingly;
+// the flat per-job processing fee is unaffected, since the encoder still had
+// to be started. On a short clip the fee is therefore most of the bill.
 //
 // Bounds are stored with 0.1ms (4-decimal) precision; finer-grained values
 // are rounded. The minimum clip length is 1ms. A clip of {0, 0} is treated
