@@ -53,6 +53,24 @@ service BillingService {
   // the period ends. Jobs still running are not included at any price; a job
   // is billed only once it settles.
   rpc GetUpcomingInvoice(GetUpcomingInvoiceRequest) returns (GetUpcomingInvoiceResponse);
+
+  // Retrieve the organization's billing profile: whether a payment method is
+  // on file, and the card details the payment provider exposes for display.
+  //
+  // Read-only and side-effect free: it never creates provider resources. An
+  // organization that has never touched billing gets payment_method_state
+  // "none" and an empty payment_methods list.
+  rpc GetBillingProfile(GetBillingProfileRequest) returns (GetBillingProfileResponse);
+
+  // Create a short-lived session for the payment provider's hosted billing
+  // portal and return its URL. The portal is where a payment method is added
+  // or replaced and where receipts live; card details never touch the
+  // Transcodely API.
+  //
+  // First call for an organization also links it to the payment provider
+  // (customer + subscription), so the returned portal is already attached to
+  // this organization's billing account. Safe to call repeatedly.
+  rpc CreateBillingPortalSession(CreateBillingPortalSessionRequest) returns (CreateBillingPortalSessionResponse);
 }
 
 // =============================================================================
@@ -147,6 +165,88 @@ message InvoiceLineItem {
   map<string, string> dimensions = 7;
 }
 
+// An organization's payment standing: whether the payment provider can charge
+// it, and what the customer sees when they look.
+//
+// Derived live from the payment provider on every read rather than stored, so
+// a card added in the hosted portal shows up on the next request with no
+// polling and no waiting for a webhook.
+message BillingProfile {
+  // Object type, always "billing_profile".
+  string object = 1;
+
+  // Organization this profile describes.
+  string org_id = 2;
+
+  // Whether a payment method is on file. Determined by whether the payment
+  // provider holds any payment method for this organization, and by nothing
+  // else — in particular, a method missing its card details is still a
+  // payment method.
+  PaymentMethodState payment_method_state = 3;
+
+  // The methods the provider holds, for display only. Empty when the state is
+  // "none", and never empty when the state is "on_file".
+  repeated BillingPaymentMethod payment_methods = 4;
+
+  // The organization's billing email, which the payment provider requires
+  // before it will accept a payment method. Absent when unset.
+  optional string billing_email = 5;
+}
+
+// One payment method held by the payment provider.
+//
+// Display data only. Card numbers never reach the Transcodely API; a method is
+// added, replaced or removed in the provider's hosted portal.
+//
+// The card detail fields are all optional and are frequently absent even for a
+// working card — the payment provider does not always expose card metadata.
+// Treat their presence as a bonus: a method with no brand or last4 is a valid,
+// chargeable payment method that simply cannot be described more precisely than
+// its type. Render it as "Card on file" rather than waiting for digits that may
+// never arrive.
+message BillingPaymentMethod {
+  // The payment provider's identifier for this method.
+  string id = 1;
+
+  // Method family: "card", or "generic" for everything else the provider
+  // supports (direct debit and similar). Always present.
+  string type = 2;
+
+  // Card network, e.g. "visa" or "mastercard". Cards only, and only when the
+  // provider exposes it.
+  optional string brand = 3;
+
+  // Last four digits of the card number. Cards only, and only when the
+  // provider exposes it.
+  optional string last4 = 4;
+
+  // Expiry month, 1-12. Cards only, and only when the provider exposes it.
+  optional int32 exp_month = 5;
+
+  // Expiry year, four digits. Cards only, and only when the provider exposes
+  // it.
+  optional int32 exp_year = 6;
+
+  // Whether this is the method the provider charges by default. Advisory: the
+  // provider does not always mark a default, so false here does not mean the
+  // method is unused, and it is never a signal about the organization's
+  // payment standing.
+  bool is_default = 7;
+}
+
+// A short-lived session for the payment provider's hosted billing portal.
+message BillingPortalSession {
+  // Object type, always "billing_portal_session".
+  string object = 1;
+
+  // Where to send the browser. Single-use and short-lived; request a new
+  // session rather than storing this.
+  string url = 2;
+
+  // When the session stops working.
+  google.protobuf.Timestamp expires_at = 3;
+}
+
 // =============================================================================
 // Enums
 // =============================================================================
@@ -194,6 +294,18 @@ enum InvoiceLineType {
   INVOICE_LINE_TYPE_ADJUSTMENT = 4;
 }
 
+// Whether an organization has a payment method the provider can charge.
+enum PaymentMethodState {
+  PAYMENT_METHOD_STATE_UNSPECIFIED = 0;
+
+  // No payment method on file. Nothing is blocked by this today.
+  PAYMENT_METHOD_STATE_NONE = 1;
+
+  // At least one payment method is on file. Says only that the provider holds
+  // something it can charge — not that its card details are known.
+  PAYMENT_METHOD_STATE_ON_FILE = 2;
+}
+
 // =============================================================================
 // Requests / responses
 // =============================================================================
@@ -237,4 +349,25 @@ message GetUpcomingInvoiceResponse {
   // The computed statement. Its id is empty and its status is "draft". Totals
   // are zero when nothing has been billed in the period yet.
   Invoice invoice = 1;
+}
+
+// Request to retrieve the organization's billing profile. The organization is
+// taken from the X-Organization-ID header.
+message GetBillingProfileRequest {}
+
+// Response carrying the billing profile.
+message GetBillingProfileResponse {
+  // The organization's payment standing, read live from the payment provider.
+  BillingProfile profile = 1;
+}
+
+// Request to create a billing portal session. The organization is taken from
+// the X-Organization-ID header, and where the portal returns to is fixed by
+// the API rather than supplied by the caller.
+message CreateBillingPortalSessionRequest {}
+
+// Response carrying the portal session to redirect to.
+message CreateBillingPortalSessionResponse {
+  // The session. Redirect the browser to its url.
+  BillingPortalSession session = 1;
 }

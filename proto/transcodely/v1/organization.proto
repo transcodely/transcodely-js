@@ -71,6 +71,32 @@ message Organization {
 
   // When the organization was last updated.
   google.protobuf.Timestamp updated_at = 8;
+
+  // The four fields below are populated on ADMIN reads only
+  // (AdminGetOrganization, AdminUpdateOrganization). The customer-facing
+  // OrganizationService leaves them unset — surfacing an account's plan and
+  // billing standing to the account itself is a later wave, and an absent
+  // field here means "not part of this response", never "no plan".
+
+  // Plan assigned to the organization, applying to every app under it that has
+  // no plan of its own. Absent when the org carries none.
+  optional string plan_id = 9;
+
+  // Display name of the org's plan. Absent exactly when plan_id is.
+  optional string plan_name = 10;
+
+  // Whether this org must have a payment method on file. NOT ENFORCED: no
+  // create, dispatch or delivery path reads this today. It records intent
+  // ahead of the release that starts requiring one, at which point orgs
+  // already carrying false are the grandfathered population.
+  bool payment_method_required = 11;
+
+  // When the org was explicitly exempted from the payment-method requirement —
+  // stamped when payment_method_required is turned off, cleared when it is
+  // turned on. Absent for an org that has never been exempted, which today is
+  // every org. Reflects the CURRENT exemption only; the change history lives in
+  // the admin audit log.
+  optional google.protobuf.Timestamp grandfathered_at = 12;
 }
 
 // Request to check if a slug is available.

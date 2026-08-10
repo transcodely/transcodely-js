@@ -120,6 +120,39 @@ proto3.util.setEnumType(InvoiceLineType, "transcodely.v1.InvoiceLineType", [
 ]);
 
 /**
+ * Whether an organization has a payment method the provider can charge.
+ *
+ * @generated from enum transcodely.v1.PaymentMethodState
+ */
+export enum PaymentMethodState {
+  /**
+   * @generated from enum value: PAYMENT_METHOD_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * No payment method on file. Nothing is blocked by this today.
+   *
+   * @generated from enum value: PAYMENT_METHOD_STATE_NONE = 1;
+   */
+  NONE = 1,
+
+  /**
+   * At least one payment method is on file. Says only that the provider holds
+   * something it can charge — not that its card details are known.
+   *
+   * @generated from enum value: PAYMENT_METHOD_STATE_ON_FILE = 2;
+   */
+  ON_FILE = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(PaymentMethodState)
+proto3.util.setEnumType(PaymentMethodState, "transcodely.v1.PaymentMethodState", [
+  { no: 0, name: "PAYMENT_METHOD_STATE_UNSPECIFIED" },
+  { no: 1, name: "PAYMENT_METHOD_STATE_NONE" },
+  { no: 2, name: "PAYMENT_METHOD_STATE_ON_FILE" },
+]);
+
+/**
  * A billing statement for one period.
  *
  * All monetary amounts are integer minor units (cents) of the invoice's
@@ -373,6 +406,253 @@ export class InvoiceLineItem extends Message<InvoiceLineItem> {
 }
 
 /**
+ * An organization's payment standing: whether the payment provider can charge
+ * it, and what the customer sees when they look.
+ *
+ * Derived live from the payment provider on every read rather than stored, so
+ * a card added in the hosted portal shows up on the next request with no
+ * polling and no waiting for a webhook.
+ *
+ * @generated from message transcodely.v1.BillingProfile
+ */
+export class BillingProfile extends Message<BillingProfile> {
+  /**
+   * Object type, always "billing_profile".
+   *
+   * @generated from field: string object = 1;
+   */
+  object = "";
+
+  /**
+   * Organization this profile describes.
+   *
+   * @generated from field: string org_id = 2;
+   */
+  orgId = "";
+
+  /**
+   * Whether a payment method is on file. Determined by whether the payment
+   * provider holds any payment method for this organization, and by nothing
+   * else — in particular, a method missing its card details is still a
+   * payment method.
+   *
+   * @generated from field: transcodely.v1.PaymentMethodState payment_method_state = 3;
+   */
+  paymentMethodState = PaymentMethodState.UNSPECIFIED;
+
+  /**
+   * The methods the provider holds, for display only. Empty when the state is
+   * "none", and never empty when the state is "on_file".
+   *
+   * @generated from field: repeated transcodely.v1.BillingPaymentMethod payment_methods = 4;
+   */
+  paymentMethods: BillingPaymentMethod[] = [];
+
+  /**
+   * The organization's billing email, which the payment provider requires
+   * before it will accept a payment method. Absent when unset.
+   *
+   * @generated from field: optional string billing_email = 5;
+   */
+  billingEmail?: string;
+
+  constructor(data?: PartialMessage<BillingProfile>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.BillingProfile";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "org_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "payment_method_state", kind: "enum", T: proto3.getEnumType(PaymentMethodState) },
+    { no: 4, name: "payment_methods", kind: "message", T: BillingPaymentMethod, repeated: true },
+    { no: 5, name: "billing_email", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BillingProfile {
+    return new BillingProfile().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BillingProfile {
+    return new BillingProfile().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BillingProfile {
+    return new BillingProfile().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BillingProfile | PlainMessage<BillingProfile> | undefined, b: BillingProfile | PlainMessage<BillingProfile> | undefined): boolean {
+    return proto3.util.equals(BillingProfile, a, b);
+  }
+}
+
+/**
+ * One payment method held by the payment provider.
+ *
+ * Display data only. Card numbers never reach the Transcodely API; a method is
+ * added, replaced or removed in the provider's hosted portal.
+ *
+ * The card detail fields are all optional and are frequently absent even for a
+ * working card — the payment provider does not always expose card metadata.
+ * Treat their presence as a bonus: a method with no brand or last4 is a valid,
+ * chargeable payment method that simply cannot be described more precisely than
+ * its type. Render it as "Card on file" rather than waiting for digits that may
+ * never arrive.
+ *
+ * @generated from message transcodely.v1.BillingPaymentMethod
+ */
+export class BillingPaymentMethod extends Message<BillingPaymentMethod> {
+  /**
+   * The payment provider's identifier for this method.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * Method family: "card", or "generic" for everything else the provider
+   * supports (direct debit and similar). Always present.
+   *
+   * @generated from field: string type = 2;
+   */
+  type = "";
+
+  /**
+   * Card network, e.g. "visa" or "mastercard". Cards only, and only when the
+   * provider exposes it.
+   *
+   * @generated from field: optional string brand = 3;
+   */
+  brand?: string;
+
+  /**
+   * Last four digits of the card number. Cards only, and only when the
+   * provider exposes it.
+   *
+   * @generated from field: optional string last4 = 4;
+   */
+  last4?: string;
+
+  /**
+   * Expiry month, 1-12. Cards only, and only when the provider exposes it.
+   *
+   * @generated from field: optional int32 exp_month = 5;
+   */
+  expMonth?: number;
+
+  /**
+   * Expiry year, four digits. Cards only, and only when the provider exposes
+   * it.
+   *
+   * @generated from field: optional int32 exp_year = 6;
+   */
+  expYear?: number;
+
+  /**
+   * Whether this is the method the provider charges by default. Advisory: the
+   * provider does not always mark a default, so false here does not mean the
+   * method is unused, and it is never a signal about the organization's
+   * payment standing.
+   *
+   * @generated from field: bool is_default = 7;
+   */
+  isDefault = false;
+
+  constructor(data?: PartialMessage<BillingPaymentMethod>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.BillingPaymentMethod";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "brand", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "last4", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 5, name: "exp_month", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 6, name: "exp_year", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 7, name: "is_default", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BillingPaymentMethod {
+    return new BillingPaymentMethod().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BillingPaymentMethod {
+    return new BillingPaymentMethod().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BillingPaymentMethod {
+    return new BillingPaymentMethod().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BillingPaymentMethod | PlainMessage<BillingPaymentMethod> | undefined, b: BillingPaymentMethod | PlainMessage<BillingPaymentMethod> | undefined): boolean {
+    return proto3.util.equals(BillingPaymentMethod, a, b);
+  }
+}
+
+/**
+ * A short-lived session for the payment provider's hosted billing portal.
+ *
+ * @generated from message transcodely.v1.BillingPortalSession
+ */
+export class BillingPortalSession extends Message<BillingPortalSession> {
+  /**
+   * Object type, always "billing_portal_session".
+   *
+   * @generated from field: string object = 1;
+   */
+  object = "";
+
+  /**
+   * Where to send the browser. Single-use and short-lived; request a new
+   * session rather than storing this.
+   *
+   * @generated from field: string url = 2;
+   */
+  url = "";
+
+  /**
+   * When the session stops working.
+   *
+   * @generated from field: google.protobuf.Timestamp expires_at = 3;
+   */
+  expiresAt?: Timestamp;
+
+  constructor(data?: PartialMessage<BillingPortalSession>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.BillingPortalSession";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "expires_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BillingPortalSession {
+    return new BillingPortalSession().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BillingPortalSession {
+    return new BillingPortalSession().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BillingPortalSession {
+    return new BillingPortalSession().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BillingPortalSession | PlainMessage<BillingPortalSession> | undefined, b: BillingPortalSession | PlainMessage<BillingPortalSession> | undefined): boolean {
+    return proto3.util.equals(BillingPortalSession, a, b);
+  }
+}
+
+/**
  * Request to list the organization's invoices.
  *
  * @generated from message transcodely.v1.ListInvoicesRequest
@@ -617,6 +897,157 @@ export class GetUpcomingInvoiceResponse extends Message<GetUpcomingInvoiceRespon
 
   static equals(a: GetUpcomingInvoiceResponse | PlainMessage<GetUpcomingInvoiceResponse> | undefined, b: GetUpcomingInvoiceResponse | PlainMessage<GetUpcomingInvoiceResponse> | undefined): boolean {
     return proto3.util.equals(GetUpcomingInvoiceResponse, a, b);
+  }
+}
+
+/**
+ * Request to retrieve the organization's billing profile. The organization is
+ * taken from the X-Organization-ID header.
+ *
+ * @generated from message transcodely.v1.GetBillingProfileRequest
+ */
+export class GetBillingProfileRequest extends Message<GetBillingProfileRequest> {
+  constructor(data?: PartialMessage<GetBillingProfileRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetBillingProfileRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetBillingProfileRequest {
+    return new GetBillingProfileRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetBillingProfileRequest {
+    return new GetBillingProfileRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetBillingProfileRequest {
+    return new GetBillingProfileRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetBillingProfileRequest | PlainMessage<GetBillingProfileRequest> | undefined, b: GetBillingProfileRequest | PlainMessage<GetBillingProfileRequest> | undefined): boolean {
+    return proto3.util.equals(GetBillingProfileRequest, a, b);
+  }
+}
+
+/**
+ * Response carrying the billing profile.
+ *
+ * @generated from message transcodely.v1.GetBillingProfileResponse
+ */
+export class GetBillingProfileResponse extends Message<GetBillingProfileResponse> {
+  /**
+   * The organization's payment standing, read live from the payment provider.
+   *
+   * @generated from field: transcodely.v1.BillingProfile profile = 1;
+   */
+  profile?: BillingProfile;
+
+  constructor(data?: PartialMessage<GetBillingProfileResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetBillingProfileResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "profile", kind: "message", T: BillingProfile },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetBillingProfileResponse {
+    return new GetBillingProfileResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetBillingProfileResponse {
+    return new GetBillingProfileResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetBillingProfileResponse {
+    return new GetBillingProfileResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetBillingProfileResponse | PlainMessage<GetBillingProfileResponse> | undefined, b: GetBillingProfileResponse | PlainMessage<GetBillingProfileResponse> | undefined): boolean {
+    return proto3.util.equals(GetBillingProfileResponse, a, b);
+  }
+}
+
+/**
+ * Request to create a billing portal session. The organization is taken from
+ * the X-Organization-ID header, and where the portal returns to is fixed by
+ * the API rather than supplied by the caller.
+ *
+ * @generated from message transcodely.v1.CreateBillingPortalSessionRequest
+ */
+export class CreateBillingPortalSessionRequest extends Message<CreateBillingPortalSessionRequest> {
+  constructor(data?: PartialMessage<CreateBillingPortalSessionRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.CreateBillingPortalSessionRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateBillingPortalSessionRequest {
+    return new CreateBillingPortalSessionRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateBillingPortalSessionRequest {
+    return new CreateBillingPortalSessionRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateBillingPortalSessionRequest {
+    return new CreateBillingPortalSessionRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateBillingPortalSessionRequest | PlainMessage<CreateBillingPortalSessionRequest> | undefined, b: CreateBillingPortalSessionRequest | PlainMessage<CreateBillingPortalSessionRequest> | undefined): boolean {
+    return proto3.util.equals(CreateBillingPortalSessionRequest, a, b);
+  }
+}
+
+/**
+ * Response carrying the portal session to redirect to.
+ *
+ * @generated from message transcodely.v1.CreateBillingPortalSessionResponse
+ */
+export class CreateBillingPortalSessionResponse extends Message<CreateBillingPortalSessionResponse> {
+  /**
+   * The session. Redirect the browser to its url.
+   *
+   * @generated from field: transcodely.v1.BillingPortalSession session = 1;
+   */
+  session?: BillingPortalSession;
+
+  constructor(data?: PartialMessage<CreateBillingPortalSessionResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.CreateBillingPortalSessionResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "session", kind: "message", T: BillingPortalSession },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateBillingPortalSessionResponse {
+    return new CreateBillingPortalSessionResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateBillingPortalSessionResponse {
+    return new CreateBillingPortalSessionResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateBillingPortalSessionResponse {
+    return new CreateBillingPortalSessionResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CreateBillingPortalSessionResponse | PlainMessage<CreateBillingPortalSessionResponse> | undefined, b: CreateBillingPortalSessionResponse | PlainMessage<CreateBillingPortalSessionResponse> | undefined): boolean {
+    return proto3.util.equals(CreateBillingPortalSessionResponse, a, b);
   }
 }
 
