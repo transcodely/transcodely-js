@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  BillingPaymentMethod,
+  BillingPortalSession,
+  BillingProfile,
+  CreateBillingPortalSessionResponse,
+  GetBillingProfileResponse,
   GetInvoiceResponse,
   GetUpcomingInvoiceResponse,
   Invoice,
@@ -8,6 +13,7 @@ import {
   InvoiceLineType,
   InvoiceStatus,
   ListInvoicesResponse,
+  PaymentMethodState,
 } from "../../src/gen/transcodely/v1/billing_pb.js";
 import { PaginationResponse } from "../../src/gen/transcodely/v1/common_pb.js";
 import { Billing } from "../../src/resources/billing.js";
@@ -106,6 +112,59 @@ describe("Billing facade", () => {
 
     expect(invoice.id).toBe("");
     expect(invoice.status).toBe(InvoiceStatus.DRAFT);
+  });
+
+  it("retrieveProfile reports on_file for a card the provider will not describe", async () => {
+    const transport = makeTransport();
+    vi.spyOn(transport, "unary").mockResolvedValue(
+      new GetBillingProfileResponse({
+        profile: new BillingProfile({
+          object: "billing_profile",
+          orgId: "org_f6g7h8i9j0",
+          paymentMethodState: PaymentMethodState.ON_FILE,
+          paymentMethods: [new BillingPaymentMethod({ id: "pm_1", type: "card" })],
+        }),
+      }),
+    );
+
+    const profile = await new Billing(transport).retrieveProfile();
+
+    expect(profile.paymentMethodState).toBe(PaymentMethodState.ON_FILE);
+    expect(profile.paymentMethods).toHaveLength(1);
+    // A method with no card metadata is still chargeable — the state is the
+    // signal, not the digits.
+    expect(profile.paymentMethods[0]!.brand).toBeUndefined();
+    expect(profile.paymentMethods[0]!.last4).toBeUndefined();
+  });
+
+  it("retrieveProfile reports none for an org that has never touched billing", async () => {
+    const transport = makeTransport();
+    vi.spyOn(transport, "unary").mockResolvedValue(
+      new GetBillingProfileResponse({
+        profile: new BillingProfile({ paymentMethodState: PaymentMethodState.NONE }),
+      }),
+    );
+
+    const profile = await new Billing(transport).retrieveProfile();
+
+    expect(profile.paymentMethodState).toBe(PaymentMethodState.NONE);
+    expect(profile.paymentMethods).toHaveLength(0);
+  });
+
+  it("createPortalSession unwraps the provider session URL", async () => {
+    const transport = makeTransport();
+    vi.spyOn(transport, "unary").mockResolvedValue(
+      new CreateBillingPortalSessionResponse({
+        session: new BillingPortalSession({
+          object: "billing_portal_session",
+          url: "https://portal.example/session/abc",
+        }),
+      }),
+    );
+
+    const session = await new Billing(transport).createPortalSession();
+
+    expect(session.url).toBe("https://portal.example/session/abc");
   });
 
   it("sends X-Organization-ID only when organizationId is configured", async () => {

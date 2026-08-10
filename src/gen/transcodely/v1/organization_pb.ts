@@ -117,6 +117,42 @@ export class Organization extends Message<Organization> {
    */
   updatedAt?: Timestamp;
 
+  /**
+   * Plan assigned to the organization, applying to every app under it that has
+   * no plan of its own. Absent when the org carries none.
+   *
+   * @generated from field: optional string plan_id = 9;
+   */
+  planId?: string;
+
+  /**
+   * Display name of the org's plan. Absent exactly when plan_id is.
+   *
+   * @generated from field: optional string plan_name = 10;
+   */
+  planName?: string;
+
+  /**
+   * Whether this org must have a payment method on file. NOT ENFORCED: no
+   * create, dispatch or delivery path reads this today. It records intent
+   * ahead of the release that starts requiring one, at which point orgs
+   * already carrying false are the grandfathered population.
+   *
+   * @generated from field: bool payment_method_required = 11;
+   */
+  paymentMethodRequired = false;
+
+  /**
+   * When the org was explicitly exempted from the payment-method requirement —
+   * stamped when payment_method_required is turned off, cleared when it is
+   * turned on. Absent for an org that has never been exempted, which today is
+   * every org. Reflects the CURRENT exemption only; the change history lives in
+   * the admin audit log.
+   *
+   * @generated from field: optional google.protobuf.Timestamp grandfathered_at = 12;
+   */
+  grandfatheredAt?: Timestamp;
+
   constructor(data?: PartialMessage<Organization>) {
     super();
     proto3.util.initPartial(data, this);
@@ -133,6 +169,10 @@ export class Organization extends Message<Organization> {
     { no: 6, name: "status", kind: "enum", T: proto3.getEnumType(OrganizationStatus) },
     { no: 7, name: "created_at", kind: "message", T: Timestamp },
     { no: 8, name: "updated_at", kind: "message", T: Timestamp },
+    { no: 9, name: "plan_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 10, name: "plan_name", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 11, name: "payment_method_required", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 12, name: "grandfathered_at", kind: "message", T: Timestamp, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Organization {

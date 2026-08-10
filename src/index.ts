@@ -242,6 +242,24 @@ export {
   InvoiceLineType,
 } from "./gen/transcodely/v1/billing_pb.js";
 
+// Payment methods. `BillingProfile` reports whether the payment provider holds
+// a chargeable method; a portal session is the only place a card is added or
+// replaced, so card details never reach this SDK.
+//
+// Branch on `PaymentMethodState`, not on the card fields: `brand` and `last4`
+// are frequently absent even for a working card, since the provider does not
+// always expose card metadata.
+export {
+  type BillingProfile,
+  type BillingPaymentMethod,
+  type BillingPortalSession,
+  type GetBillingProfileRequest,
+  type GetBillingProfileResponse,
+  type CreateBillingPortalSessionRequest,
+  type CreateBillingPortalSessionResponse,
+  PaymentMethodState,
+} from "./gen/transcodely/v1/billing_pb.js";
+
 // Webhooks. The proto-level `Event` is re-exported as `APIEvent` to keep
 // the customer-facing discriminated union `WebhookEvent` (in ./webhooks)
 // as the primary `Event` type developers reach for.

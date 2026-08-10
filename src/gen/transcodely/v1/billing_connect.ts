@@ -5,7 +5,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetInvoiceRequest, GetInvoiceResponse, GetUpcomingInvoiceRequest, GetUpcomingInvoiceResponse, ListInvoicesRequest, ListInvoicesResponse } from "./billing_pb.js";
+import { CreateBillingPortalSessionRequest, CreateBillingPortalSessionResponse, GetBillingProfileRequest, GetBillingProfileResponse, GetInvoiceRequest, GetInvoiceResponse, GetUpcomingInvoiceRequest, GetUpcomingInvoiceResponse, ListInvoicesRequest, ListInvoicesResponse } from "./billing_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -83,6 +83,40 @@ export const BillingService = {
       name: "GetUpcomingInvoice",
       I: GetUpcomingInvoiceRequest,
       O: GetUpcomingInvoiceResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Retrieve the organization's billing profile: whether a payment method is
+     * on file, and the card details the payment provider exposes for display.
+     *
+     * Read-only and side-effect free: it never creates provider resources. An
+     * organization that has never touched billing gets payment_method_state
+     * "none" and an empty payment_methods list.
+     *
+     * @generated from rpc transcodely.v1.BillingService.GetBillingProfile
+     */
+    getBillingProfile: {
+      name: "GetBillingProfile",
+      I: GetBillingProfileRequest,
+      O: GetBillingProfileResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Create a short-lived session for the payment provider's hosted billing
+     * portal and return its URL. The portal is where a payment method is added
+     * or replaced and where receipts live; card details never touch the
+     * Transcodely API.
+     *
+     * First call for an organization also links it to the payment provider
+     * (customer + subscription), so the returned portal is already attached to
+     * this organization's billing account. Safe to call repeatedly.
+     *
+     * @generated from rpc transcodely.v1.BillingService.CreateBillingPortalSession
+     */
+    createBillingPortalSession: {
+      name: "CreateBillingPortalSession",
+      I: CreateBillingPortalSessionRequest,
+      O: CreateBillingPortalSessionResponse,
       kind: MethodKind.Unary,
     },
   }
