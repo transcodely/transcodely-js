@@ -158,3 +158,49 @@ enum BitrateMode {
   BITRATE_MODE_CBR = 2;  // Constant Bitrate
   BITRATE_MODE_VBR = 3;  // Variable Bitrate
 }
+
+// An organization's derived payment health, and the input that can replace its
+// assigned usage limits with the free tier's.
+//
+// DERIVED, never assigned. It is a pure function of stored billing facts — is a
+// payment method on file, has it expired, is an invoice past due, how many
+// times consecutively — recomputed whenever one of those facts changes. There
+// is no API to set it, because setting it would be a claim about a customer's
+// payment health that the payment provider had not made.
+//
+// Lives here rather than in billing.proto because three surfaces carry it: the
+// customer's billing profile, the admin app-limits read, and the admin
+// organization record.
+enum BillingStanding {
+  BILLING_STANDING_UNSPECIFIED = 0;
+
+  // No payment method on file, and this organization is required to have one.
+  // Usage limits resolve to the free tier's — short outputs, economy quality,
+  // one job at a time — whatever plan the account is assigned. Free-tier usage
+  // is recorded but never invoiced.
+  //
+  // Not a penalty. An organization exempt from the payment-method requirement
+  // (every organization that predates it) never reports this.
+  BILLING_STANDING_FREE = 1;
+
+  // Nothing is wrong: the account's assigned limits apply exactly as they
+  // would if billing standing did not exist. Also what an exempt organization
+  // always reports.
+  BILLING_STANDING_ACTIVE = 2;
+
+  // Something IS wrong — an unpaid invoice, a removed card, an expired one —
+  // and the account keeps its full limits anyway until grace_until. The window
+  // exists so a card that quietly expired produces a warning rather than a
+  // stopped pipeline. What it decays into depends on the cause: a card problem
+  // becomes FREE, an unpaid invoice becomes DELINQUENT.
+  BILLING_STANDING_GRACE = 3;
+
+  // An invoice is past due and grace is spent or was never granted (a second
+  // consecutive failed invoice gets none). Limits drop to the free tier's, but
+  // usage continues to BILL: arrears are a limit, not a discount, and an
+  // account that settles returns to ACTIVE with its ledger intact.
+  //
+  // Never a suspension. Running jobs finish, delivery keeps serving, and
+  // everything already stored stays readable.
+  BILLING_STANDING_DELINQUENT = 4;
+}

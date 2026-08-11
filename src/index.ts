@@ -260,6 +260,13 @@ export {
   PaymentMethodState,
 } from "./gen/transcodely/v1/billing_pb.js";
 
+// Billing standing — `BillingProfile.standing`, derived from the organization's
+// billing facts rather than assigned, so there is nothing to set. `FREE` and
+// `DELINQUENT` both resolve usage limits to the free tier's, but `DELINQUENT`
+// still bills; neither is a suspension. An organization exempt from the
+// payment-method requirement always reports `ACTIVE`.
+export { BillingStanding } from "./gen/transcodely/v1/common_pb.js";
+
 // Webhooks. The proto-level `Event` is re-exported as `APIEvent` to keep
 // the customer-facing discriminated union `WebhookEvent` (in ./webhooks)
 // as the primary `Event` type developers reach for.

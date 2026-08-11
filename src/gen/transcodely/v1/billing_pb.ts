@@ -7,7 +7,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
-import { PaginationRequest, PaginationResponse } from "./common_pb.js";
+import { BillingStanding, PaginationRequest, PaginationResponse } from "./common_pb.js";
 
 /**
  * Invoice lifecycle.
@@ -409,9 +409,12 @@ export class InvoiceLineItem extends Message<InvoiceLineItem> {
  * An organization's payment standing: whether the payment provider can charge
  * it, and what the customer sees when they look.
  *
- * Derived live from the payment provider on every read rather than stored, so
- * a card added in the hosted portal shows up on the next request with no
- * polling and no waiting for a webhook.
+ * Payment METHODS are read live from the payment provider on every request
+ * rather than mirrored locally, so a card added in the hosted portal shows up
+ * on the next read with no polling and no waiting for a webhook. STANDING is
+ * derived at request time from the organization's stored billing facts
+ * (invoice outcomes, observed payment methods) together with that live read, so
+ * it is never staler than the page showing it.
  *
  * @generated from message transcodely.v1.BillingProfile
  */
@@ -456,6 +459,60 @@ export class BillingProfile extends Message<BillingProfile> {
    */
   billingEmail?: string;
 
+  /**
+   * The organization's derived payment health, and what its usage limits
+   * resolve from. See BillingStanding.
+   *
+   * @generated from field: transcodely.v1.BillingStanding standing = 6;
+   */
+  standing = BillingStanding.UNSPECIFIED;
+
+  /**
+   * When the current grace window closes. Present if and only if standing is
+   * BILLING_STANDING_GRACE. At this instant the account is already past it —
+   * the deadline is inclusive — and what it becomes is determined by
+   * standing_reason: a card problem decays to FREE, an unpaid invoice to
+   * DELINQUENT.
+   *
+   * @generated from field: optional google.protobuf.Timestamp grace_until = 7;
+   */
+  graceUntil?: Timestamp;
+
+  /**
+   * Why standing is what it is, as a stable token to switch on rather than
+   * copy to display:
+   *
+   *   ""                         nothing is wrong
+   *   "exempt"                   the org is not required to hold a payment
+   *                              method, so standing is always active
+   *   "no_payment_method"        none has ever been on file
+   *   "card_expired"             one is on file and its expiry has passed
+   *   "card_removed"             one we had observed is gone
+   *   "invoice_past_due"         an invoice failed to collect
+   *   "repeated_invoice_failure" a second consecutive failure, which earns no
+   *                              grace window at all
+   *
+   * New tokens may be added; treat an unrecognized one as a generic billing
+   * problem rather than failing.
+   *
+   * @generated from field: string standing_reason = 8;
+   */
+  standingReason = "";
+
+  /**
+   * Whether this organization must hold a payment method. FALSE means it is
+   * exempt — organizations predating the requirement are, and an operator may
+   * exempt one deliberately — in which case standing is always
+   * BILLING_STANDING_ACTIVE and no banner or prompt about payment methods
+   * should be shown.
+   *
+   * Exempt is not free service: the organization still accrues usage and is
+   * still invoiced. It simply is not limited for lacking a card on file.
+   *
+   * @generated from field: bool payment_method_required = 9;
+   */
+  paymentMethodRequired = false;
+
   constructor(data?: PartialMessage<BillingProfile>) {
     super();
     proto3.util.initPartial(data, this);
@@ -469,6 +526,10 @@ export class BillingProfile extends Message<BillingProfile> {
     { no: 3, name: "payment_method_state", kind: "enum", T: proto3.getEnumType(PaymentMethodState) },
     { no: 4, name: "payment_methods", kind: "message", T: BillingPaymentMethod, repeated: true },
     { no: 5, name: "billing_email", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 6, name: "standing", kind: "enum", T: proto3.getEnumType(BillingStanding) },
+    { no: 7, name: "grace_until", kind: "message", T: Timestamp, opt: true },
+    { no: 8, name: "standing_reason", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "payment_method_required", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BillingProfile {
