@@ -7,7 +7,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
-import { PaginationRequest, PaginationResponse } from "./common_pb.js";
+import { BillingStanding, PaginationRequest, PaginationResponse } from "./common_pb.js";
 
 /**
  * Organization status.
@@ -153,6 +153,51 @@ export class Organization extends Message<Organization> {
    */
   grandfatheredAt?: Timestamp;
 
+  /**
+   * Derived payment health. Always BILLING_STANDING_ACTIVE when
+   * payment_method_required is false, whatever the facts below say.
+   *
+   * @generated from field: transcodely.v1.BillingStanding billing_standing = 13;
+   */
+  billingStanding = BillingStanding.UNSPECIFIED;
+
+  /**
+   * When the current grace window closes, present only while billing_standing
+   * is BILLING_STANDING_GRACE.
+   *
+   * @generated from field: optional google.protobuf.Timestamp grace_until = 14;
+   */
+  graceUntil?: Timestamp;
+
+  /**
+   * Stable token explaining billing_standing; same vocabulary as
+   * BillingProfile.standing_reason.
+   *
+   * @generated from field: string standing_reason = 15;
+   */
+  standingReason = "";
+
+  /**
+   * Whether a dunning episode is open right now — the payment provider has an
+   * unpaid invoice for this org and is retrying it. TRUE together with
+   * payment_method_required = false is the case that needs a human: the org is
+   * exempt, so nothing will limit it, and the unpaid invoice will otherwise sit
+   * there indefinitely.
+   *
+   * @generated from field: bool in_dunning = 16;
+   */
+  inDunning = false;
+
+  /**
+   * How many dunning episodes have run without a clean cycle in between. At 2 a
+   * new episode gets no grace window at all. Reset only by an invoice that pays
+   * while no episode is open — recovering INSIDE dunning does not earn the
+   * window back.
+   *
+   * @generated from field: int32 consecutive_dunned_cycles = 17;
+   */
+  consecutiveDunnedCycles = 0;
+
   constructor(data?: PartialMessage<Organization>) {
     super();
     proto3.util.initPartial(data, this);
@@ -173,6 +218,11 @@ export class Organization extends Message<Organization> {
     { no: 10, name: "plan_name", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 11, name: "payment_method_required", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 12, name: "grandfathered_at", kind: "message", T: Timestamp, opt: true },
+    { no: 13, name: "billing_standing", kind: "enum", T: proto3.getEnumType(BillingStanding) },
+    { no: 14, name: "grace_until", kind: "message", T: Timestamp, opt: true },
+    { no: 15, name: "standing_reason", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 16, name: "in_dunning", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 17, name: "consecutive_dunned_cycles", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Organization {

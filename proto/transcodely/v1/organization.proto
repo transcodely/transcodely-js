@@ -97,6 +97,36 @@ message Organization {
   // every org. Reflects the CURRENT exemption only; the change history lives in
   // the admin audit log.
   optional google.protobuf.Timestamp grandfathered_at = 12;
+
+  // The five fields below are ADMIN-read only, like the four above, and
+  // describe the org's derived billing standing — see BillingStanding. They
+  // exist on the backoffice surface because a failed invoice on an EXEMPT org
+  // never downgrades anything and therefore has to reach a human instead.
+
+  // Derived payment health. Always BILLING_STANDING_ACTIVE when
+  // payment_method_required is false, whatever the facts below say.
+  BillingStanding billing_standing = 13;
+
+  // When the current grace window closes, present only while billing_standing
+  // is BILLING_STANDING_GRACE.
+  optional google.protobuf.Timestamp grace_until = 14;
+
+  // Stable token explaining billing_standing; same vocabulary as
+  // BillingProfile.standing_reason.
+  string standing_reason = 15;
+
+  // Whether a dunning episode is open right now — the payment provider has an
+  // unpaid invoice for this org and is retrying it. TRUE together with
+  // payment_method_required = false is the case that needs a human: the org is
+  // exempt, so nothing will limit it, and the unpaid invoice will otherwise sit
+  // there indefinitely.
+  bool in_dunning = 16;
+
+  // How many dunning episodes have run without a clean cycle in between. At 2 a
+  // new episode gets no grace window at all. Reset only by an invoice that pays
+  // while no episode is open — recovering INSIDE dunning does not earn the
+  // window back.
+  int32 consecutive_dunned_cycles = 17;
 }
 
 // Request to check if a slug is available.
