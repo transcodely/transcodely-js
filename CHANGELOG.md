@@ -4,6 +4,14 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.6](https://github.com/transcodely/transcodely-js/compare/v0.3.5...v0.3.6) (2026-08-11)
+
+
+### Features
+
+* billing profile + portal sessions from api 4.13.0 ([#49](https://github.com/transcodely/transcodely-js/issues/49)) ([e6d6fbf](https://github.com/transcodely/transcodely-js/commit/e6d6fbf55b5d129a188054739e0f7a937d341b8c))
+* billing standing from api 4.15.0 ([#51](https://github.com/transcodely/transcodely-js/issues/51)) ([f873881](https://github.com/transcodely/transcodely-js/commit/f8738814ea3ed61117177bf6a6ae8d842cda50c5))
+
 ## [0.3.5](https://github.com/transcodely/transcodely-js/compare/v0.3.4...v0.3.5) (2026-08-08)
 
 

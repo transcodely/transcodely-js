@@ -1,5 +1,5 @@
 /** SDK version. Bumped by release-please from package.json on each tag. */
-export const SDK_VERSION = "0.3.5"; // x-release-please-version
+export const SDK_VERSION = "0.3.6"; // x-release-please-version
 
 /**
  * API version this SDK release is pinned to. Sent on every request as
