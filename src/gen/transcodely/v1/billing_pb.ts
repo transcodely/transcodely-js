@@ -109,6 +109,17 @@ export enum InvoiceLineType {
    * @generated from enum value: INVOICE_LINE_TYPE_ADJUSTMENT = 4;
    */
   ADJUSTMENT = 4,
+
+  /**
+   * Metered hosting: managed storage (GB, averaged over the covered days) and
+   * CDN delivery (GB egressed), one line per app and service. dimensions
+   * carries {"app_id", "service": "storage"|"egress", "covered_from",
+   * "covered_through"} — the coverage window rolls with the meter, so the last
+   * day or so of a period appears on the next statement rather than this one.
+   *
+   * @generated from enum value: INVOICE_LINE_TYPE_HOSTING = 5;
+   */
+  HOSTING = 5,
 }
 // Retrieve enum metadata with: proto3.getEnumType(InvoiceLineType)
 proto3.util.setEnumType(InvoiceLineType, "transcodely.v1.InvoiceLineType", [
@@ -117,6 +128,7 @@ proto3.util.setEnumType(InvoiceLineType, "transcodely.v1.InvoiceLineType", [
   { no: 2, name: "INVOICE_LINE_TYPE_FEE" },
   { no: 3, name: "INVOICE_LINE_TYPE_MIN_CHARGE" },
   { no: 4, name: "INVOICE_LINE_TYPE_ADJUSTMENT" },
+  { no: 5, name: "INVOICE_LINE_TYPE_HOSTING" },
 ]);
 
 /**
@@ -672,16 +684,37 @@ export class BillingPortalSession extends Message<BillingPortalSession> {
    * Where to send the browser. Single-use and short-lived; request a new
    * session rather than storing this.
    *
+   * Points at the portal's settings section, where payment methods are managed,
+   * rather than at its landing page.
+   *
    * @generated from field: string url = 2;
    */
   url = "";
 
   /**
-   * When the session stops working.
+   * When the session stops working. Applies to url and session_token alike —
+   * they are two ways into the same session.
    *
    * @generated from field: google.protobuf.Timestamp expires_at = 3;
    */
   expiresAt?: Timestamp;
+
+  /**
+   * Short-lived (~1h), single-customer-scoped token for the provider's embedded
+   * payment-method form, so a card can be added in place instead of by
+   * redirecting to the hosted portal.
+   *
+   * Same trust level as `url`, which reaches the same portal as the same
+   * customer with no further authentication. It is still a bare credential:
+   * hand it to the embed, never log or store it, and request a new session
+   * instead of reusing one.
+   *
+   * Empty when the configured provider exposes no such token; fall back to
+   * opening `url`.
+   *
+   * @generated from field: string session_token = 4;
+   */
+  sessionToken = "";
 
   constructor(data?: PartialMessage<BillingPortalSession>) {
     super();
@@ -694,6 +727,7 @@ export class BillingPortalSession extends Message<BillingPortalSession> {
     { no: 1, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "expires_at", kind: "message", T: Timestamp },
+    { no: 4, name: "session_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BillingPortalSession {

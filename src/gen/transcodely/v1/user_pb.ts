@@ -55,9 +55,10 @@ proto3.util.setEnumType(UserStatus, "transcodely.v1.UserStatus", [
 ]);
 
 /**
- * User approval status. Until we have a payment gate, every new sign-up is
- * held in PENDING and must be approved by a staff member before they can use
- * the platform.
+ * Dashboard access review status. New sign-ups are approved automatically
+ * unless the platform is operating in manual-review mode, in which case they
+ * stay PENDING until a staff member approves them. Staff can reject a user at
+ * any time to revoke dashboard access.
  *
  * @generated from enum transcodely.v1.UserApprovalStatus
  */
@@ -168,8 +169,7 @@ export class User extends Message<User> {
   updatedAt?: Timestamp;
 
   /**
-   * Whether this user has been approved by a staff member.
-   * New sign-ups default to PENDING.
+   * Whether this user may use the dashboard.
    *
    * @generated from field: transcodely.v1.UserApprovalStatus approval_status = 11;
    */
@@ -183,7 +183,8 @@ export class User extends Message<User> {
   approvalDecidedAt?: Timestamp;
 
   /**
-   * The staff member's user_id who decided approval.
+   * The staff member's user_id who decided approval. Absent when the user was
+   * approved automatically rather than by a person.
    *
    * @generated from field: optional string approval_decided_by_user_id = 13;
    */

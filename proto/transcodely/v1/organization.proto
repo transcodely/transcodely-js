@@ -74,9 +74,8 @@ message Organization {
 
   // The four fields below are populated on ADMIN reads only
   // (AdminGetOrganization, AdminUpdateOrganization). The customer-facing
-  // OrganizationService leaves them unset — surfacing an account's plan and
-  // billing standing to the account itself is a later wave, and an absent
-  // field here means "not part of this response", never "no plan".
+  // OrganizationService leaves them unset — an absent field here means "not
+  // part of this response", never "no plan".
 
   // Plan assigned to the organization, applying to every app under it that has
   // no plan of its own. Absent when the org carries none.
@@ -85,10 +84,14 @@ message Organization {
   // Display name of the org's plan. Absent exactly when plan_id is.
   optional string plan_name = 10;
 
-  // Whether this org must have a payment method on file. NOT ENFORCED: no
-  // create, dispatch or delivery path reads this today. It records intent
-  // ahead of the release that starts requiring one, at which point orgs
-  // already carrying false are the grandfathered population.
+  // Whether this org must have a payment method on file. ENFORCED: with no
+  // usable payment method a required org derives a restricting
+  // billing_standing, and its jobs resolve to the free tier's limits rather
+  // than to its plan.
+  //
+  // Organizations created before the enforcement release carry false and are
+  // the grandfathered population — unaffected until an operator turns it on.
+  // A comped org (billing_exempt) is off the hook whatever this says.
   bool payment_method_required = 11;
 
   // When the org was explicitly exempted from the payment-method requirement —
@@ -98,21 +101,33 @@ message Organization {
   // the admin audit log.
   optional google.protobuf.Timestamp grandfathered_at = 12;
 
-  // The five fields below are ADMIN-read only, like the four above, and
-  // describe the org's derived billing standing — see BillingStanding. They
-  // exist on the backoffice surface because a failed invoice on an EXEMPT org
-  // never downgrades anything and therefore has to reach a human instead.
+  // The five fields below describe the org's derived billing standing — see
+  // BillingStanding. Fields 15-17 are ADMIN-read only; they exist on the
+  // backoffice surface because a failed invoice on an EXEMPT org never
+  // downgrades anything and therefore has to reach a human instead.
+  //
+  // The first two, billing_standing and grace_until, are also filled on the
+  // customer OrganizationService.Get for any member of the organization —
+  // owner or not. A member whose job is refused for standing has to be able to
+  // find out why, and that answer is the standing and the deadline, nothing
+  // else: everything about the payment method itself, including the reason
+  // tokens below, stays on the owner-only BillingProfile.
 
   // Derived payment health. Always BILLING_STANDING_ACTIVE when
   // payment_method_required is false, whatever the facts below say.
+  //
+  // Filled on admin reads, and on OrganizationService.Get for a member of the
+  // org (JWT/portal actors). Absent on the API-key read path, which gets a
+  // refusal code on the create instead, and on List.
   BillingStanding billing_standing = 13;
 
   // When the current grace window closes, present only while billing_standing
-  // is BILLING_STANDING_GRACE.
+  // is BILLING_STANDING_GRACE. Filled wherever billing_standing is.
   optional google.protobuf.Timestamp grace_until = 14;
 
   // Stable token explaining billing_standing; same vocabulary as
-  // BillingProfile.standing_reason.
+  // BillingProfile.standing_reason. ADMIN reads only — tokens like
+  // card_expired are payment-method detail, which a plain member never sees.
   string standing_reason = 15;
 
   // Whether a dunning episode is open right now — the payment provider has an

@@ -48,9 +48,10 @@ enum UserStatus {
   USER_STATUS_DELETED = 3;
 }
 
-// User approval status. Until we have a payment gate, every new sign-up is
-// held in PENDING and must be approved by a staff member before they can use
-// the platform.
+// Dashboard access review status. New sign-ups are approved automatically
+// unless the platform is operating in manual-review mode, in which case they
+// stay PENDING until a staff member approves them. Staff can reject a user at
+// any time to revoke dashboard access.
 enum UserApprovalStatus {
   USER_APPROVAL_STATUS_UNSPECIFIED = 0;
   USER_APPROVAL_STATUS_PENDING     = 1;
@@ -91,14 +92,14 @@ message User {
   // When the user was last updated.
   google.protobuf.Timestamp updated_at = 10;
 
-  // Whether this user has been approved by a staff member.
-  // New sign-ups default to PENDING.
+  // Whether this user may use the dashboard.
   UserApprovalStatus approval_status = 11;
 
   // When approval was decided (set when status flipped from PENDING).
   optional google.protobuf.Timestamp approval_decided_at = 12;
 
-  // The staff member's user_id who decided approval.
+  // The staff member's user_id who decided approval. Absent when the user was
+  // approved automatically rather than by a person.
   optional string approval_decided_by_user_id = 13;
 }
 
