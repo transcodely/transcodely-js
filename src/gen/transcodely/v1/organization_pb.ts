@@ -133,10 +133,14 @@ export class Organization extends Message<Organization> {
   planName?: string;
 
   /**
-   * Whether this org must have a payment method on file. NOT ENFORCED: no
-   * create, dispatch or delivery path reads this today. It records intent
-   * ahead of the release that starts requiring one, at which point orgs
-   * already carrying false are the grandfathered population.
+   * Whether this org must have a payment method on file. ENFORCED: with no
+   * usable payment method a required org derives a restricting
+   * billing_standing, and its jobs resolve to the free tier's limits rather
+   * than to its plan.
+   *
+   * Organizations created before the enforcement release carry false and are
+   * the grandfathered population — unaffected until an operator turns it on.
+   * A comped org (billing_exempt) is off the hook whatever this says.
    *
    * @generated from field: bool payment_method_required = 11;
    */
@@ -157,13 +161,17 @@ export class Organization extends Message<Organization> {
    * Derived payment health. Always BILLING_STANDING_ACTIVE when
    * payment_method_required is false, whatever the facts below say.
    *
+   * Filled on admin reads, and on OrganizationService.Get for a member of the
+   * org (JWT/portal actors). Absent on the API-key read path, which gets a
+   * refusal code on the create instead, and on List.
+   *
    * @generated from field: transcodely.v1.BillingStanding billing_standing = 13;
    */
   billingStanding = BillingStanding.UNSPECIFIED;
 
   /**
    * When the current grace window closes, present only while billing_standing
-   * is BILLING_STANDING_GRACE.
+   * is BILLING_STANDING_GRACE. Filled wherever billing_standing is.
    *
    * @generated from field: optional google.protobuf.Timestamp grace_until = 14;
    */
@@ -171,7 +179,8 @@ export class Organization extends Message<Organization> {
 
   /**
    * Stable token explaining billing_standing; same vocabulary as
-   * BillingProfile.standing_reason.
+   * BillingProfile.standing_reason. ADMIN reads only — tokens like
+   * card_expired are payment-method detail, which a plain member never sees.
    *
    * @generated from field: string standing_reason = 15;
    */

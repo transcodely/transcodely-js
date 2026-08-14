@@ -282,10 +282,27 @@ message BillingPortalSession {
 
   // Where to send the browser. Single-use and short-lived; request a new
   // session rather than storing this.
+  //
+  // Points at the portal's settings section, where payment methods are managed,
+  // rather than at its landing page.
   string url = 2;
 
-  // When the session stops working.
+  // When the session stops working. Applies to url and session_token alike —
+  // they are two ways into the same session.
   google.protobuf.Timestamp expires_at = 3;
+
+  // Short-lived (~1h), single-customer-scoped token for the provider's embedded
+  // payment-method form, so a card can be added in place instead of by
+  // redirecting to the hosted portal.
+  //
+  // Same trust level as `url`, which reaches the same portal as the same
+  // customer with no further authentication. It is still a bare credential:
+  // hand it to the embed, never log or store it, and request a new session
+  // instead of reusing one.
+  //
+  // Empty when the configured provider exposes no such token; fall back to
+  // opening `url`.
+  string session_token = 4;
 }
 
 // =============================================================================
@@ -333,6 +350,13 @@ enum InvoiceLineType {
   // Per-line rounding cannot always add up to the sum of per-job rounding; this
   // line carries the difference so the breakdown always matches the total.
   INVOICE_LINE_TYPE_ADJUSTMENT = 4;
+
+  // Metered hosting: managed storage (GB, averaged over the covered days) and
+  // CDN delivery (GB egressed), one line per app and service. dimensions
+  // carries {"app_id", "service": "storage"|"egress", "covered_from",
+  // "covered_through"} — the coverage window rolls with the meter, so the last
+  // day or so of a period appears on the next statement rather than this one.
+  INVOICE_LINE_TYPE_HOSTING = 5;
 }
 
 // Whether an organization has a payment method the provider can charge.

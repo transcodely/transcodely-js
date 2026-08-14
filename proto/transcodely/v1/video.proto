@@ -199,6 +199,17 @@ message Video {
 
   // Storage and cost transparency.
   int64 output_size_bytes = 30;
+  // Total billed by the transcode job that produced this video, in EUR.
+  //
+  // Despite the name this is the job's WHOLE total, not encoding alone: a
+  // job's total already includes every fee billed on it, so for a video
+  // captioned inline (the auto_captions upload flag) the captions fee is part
+  // of this number, as is the flat per-job processing fee. Absent until the
+  // job settles.
+  //
+  // Prefer total_cost. This field covers one job, so it misses the cost of
+  // later jobs run against the video, and adding captions_cost to it
+  // double-counts inline captions.
   optional double encoding_cost = 31;
   // Sum of confirmed AI-caption fees, in EUR, across all of this video's jobs
   // — captions generated inline with the transcode (the auto_captions upload
@@ -207,8 +218,25 @@ message Video {
   // confirmed only when a caption artifact is actually delivered, so voided
   // and still-estimated fees are never counted. This is a per-feature
   // breakdown of already-billed job totals, not an extra charge on top of
-  // them.
+  // them: it is contained in total_cost, never added to it.
   optional double captions_cost = 50;
+  // Everything this video has cost, in EUR: the sum of the settled totals of
+  // every job billed for it — the transcode that produced it plus any later
+  // job that took it as input (retro captions, for example).
+  //
+  // This is the authoritative per-video figure and the one to display. It is
+  // built from the same job totals the billing ledger is written from, so it
+  // reconciles with the invoice; captions_cost is a breakdown inside it.
+  // Absent while no linked job has settled yet.
+  optional double total_cost = 52;
+
+  // Why this video failed, in one sentence a customer can act on. Present only
+  // when status is "error"; absent for every other status.
+  //
+  // This is curated copy, never raw failure text — it will not contain
+  // encoder output, storage-provider responses, or internal identifiers. When
+  // the video has a linked job, that job's error_message says the same thing.
+  optional string error_message = 51;
   // Fields 32 (storage_cost_monthly) and 33 (egress_total) were removed: no
   // per-video storage/egress cost is tracked, so they were never populated.
   // Aggregate storage/egress cost is exposed via VideoService.GetUsage

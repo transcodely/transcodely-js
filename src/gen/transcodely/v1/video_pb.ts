@@ -295,6 +295,18 @@ export class Video extends Message<Video> {
   outputSizeBytes = protoInt64.zero;
 
   /**
+   * Total billed by the transcode job that produced this video, in EUR.
+   *
+   * Despite the name this is the job's WHOLE total, not encoding alone: a
+   * job's total already includes every fee billed on it, so for a video
+   * captioned inline (the auto_captions upload flag) the captions fee is part
+   * of this number, as is the flat per-job processing fee. Absent until the
+   * job settles.
+   *
+   * Prefer total_cost. This field covers one job, so it misses the cost of
+   * later jobs run against the video, and adding captions_cost to it
+   * double-counts inline captions.
+   *
    * @generated from field: optional double encoding_cost = 31;
    */
   encodingCost?: number;
@@ -307,11 +319,37 @@ export class Video extends Message<Video> {
    * confirmed only when a caption artifact is actually delivered, so voided
    * and still-estimated fees are never counted. This is a per-feature
    * breakdown of already-billed job totals, not an extra charge on top of
-   * them.
+   * them: it is contained in total_cost, never added to it.
    *
    * @generated from field: optional double captions_cost = 50;
    */
   captionsCost?: number;
+
+  /**
+   * Everything this video has cost, in EUR: the sum of the settled totals of
+   * every job billed for it — the transcode that produced it plus any later
+   * job that took it as input (retro captions, for example).
+   *
+   * This is the authoritative per-video figure and the one to display. It is
+   * built from the same job totals the billing ledger is written from, so it
+   * reconciles with the invoice; captions_cost is a breakdown inside it.
+   * Absent while no linked job has settled yet.
+   *
+   * @generated from field: optional double total_cost = 52;
+   */
+  totalCost?: number;
+
+  /**
+   * Why this video failed, in one sentence a customer can act on. Present only
+   * when status is "error"; absent for every other status.
+   *
+   * This is curated copy, never raw failure text — it will not contain
+   * encoder output, storage-provider responses, or internal identifiers. When
+   * the video has a linked job, that job's error_message says the same thing.
+   *
+   * @generated from field: optional string error_message = 51;
+   */
+  errorMessage?: string;
 
   /**
    * Timestamps.
@@ -399,6 +437,8 @@ export class Video extends Message<Video> {
     { no: 30, name: "output_size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 31, name: "encoding_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 50, name: "captions_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 52, name: "total_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 51, name: "error_message", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 40, name: "created_at", kind: "message", T: Timestamp },
     { no: 41, name: "updated_at", kind: "message", T: Timestamp },
     { no: 42, name: "ready_at", kind: "message", T: Timestamp, opt: true },
