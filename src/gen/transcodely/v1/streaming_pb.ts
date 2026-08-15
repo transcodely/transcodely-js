@@ -252,6 +252,11 @@ export class StreamingConfig extends Message<StreamingConfig> {
    * Example: "video_{resolution}" produces "video_1080p.m3u8"
    * Default: "{codec}_{resolution}" produces "h264_1080p.m3u8"
    *
+   * The rendered value becomes a filename and is also carried through the
+   * packager's stream descriptors, so the accepted charset is deliberately
+   * narrow: letters, digits, `_`, `-`, `.` and the `{}` that delimit template
+   * variables. No path separators, no `..`, and none of `, : ; ' " \`.
+   *
    * @generated from field: optional string hls_variant_pattern = 12;
    */
   hlsVariantPattern?: string;

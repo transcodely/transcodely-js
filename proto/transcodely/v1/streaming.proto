@@ -115,8 +115,19 @@ message StreamingConfig {
   //
   // Example: "video_{resolution}" produces "video_1080p.m3u8"
   // Default: "{codec}_{resolution}" produces "h264_1080p.m3u8"
+  //
+  // The rendered value becomes a filename and is also carried through the
+  // packager's stream descriptors, so the accepted charset is deliberately
+  // narrow: letters, digits, `_`, `-`, `.` and the `{}` that delimit template
+  // variables. No path separators, no `..`, and none of `, : ; ' " \`.
   optional string hls_variant_pattern = 12 [
-    (buf.validate.field).string.max_len = 128
+    (buf.validate.field).string.max_len = 128,
+    (buf.validate.field).string.pattern = "^[a-zA-Z0-9_.{}-]+$",
+    (buf.validate.field).cel = {
+      id: "streaming_config.hls_variant_pattern_safe"
+      message: "hls_variant_pattern must not contain `..`"
+      expression: "!this.contains('..')"
+    }
   ];
 }
 

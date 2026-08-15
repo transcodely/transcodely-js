@@ -114,6 +114,12 @@ export class BurnInStyle extends Message<BurnInStyle> {
   /**
    * Font family name. Default: "Arial".
    *
+   * Letters, digits, spaces, `_` and `-` only. The value is embedded in the
+   * renderer's style string, where a quote, comma or semicolon would terminate
+   * it and let whatever follows parse as further styling arguments.
+   *
+   * Example: "DejaVu Sans"
+   *
    * @generated from field: optional string font_family = 1;
    */
   fontFamily?: string;

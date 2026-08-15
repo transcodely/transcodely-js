@@ -251,8 +251,19 @@ message HLSConfig {
   // Pattern for variant playlist names.
   // Variables: {codec}, {resolution}, {bitrate}, {index}
   // Default: "{codec}_{resolution}"
+  //
+  // The rendered value becomes a filename and is also carried through the
+  // packager's stream descriptors, so the accepted charset is deliberately
+  // narrow: letters, digits, `_`, `-`, `.` and the `{}` that delimit template
+  // variables. No path separators, no `..`, and none of `, : ; ' " \`.
   optional string variant_pattern = 4 [
-    (buf.validate.field).string.max_len = 128
+    (buf.validate.field).string.max_len = 128,
+    (buf.validate.field).string.pattern = "^[a-zA-Z0-9_.{}-]+$",
+    (buf.validate.field).cel = {
+      id: "hls_config.variant_pattern_safe"
+      message: "variant_pattern must not contain `..`"
+      expression: "!this.contains('..')"
+    }
   ];
 }
 
