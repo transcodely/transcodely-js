@@ -168,6 +168,15 @@ export class App extends Message<App> {
    */
   monthlySpendLimitEur?: number;
 
+  /**
+   * Player configuration for the app's hosted player and embeds. Unset when
+   * never configured (the player uses its built-in defaults). Update via
+   * AppService.UpdatePlayerConfig.
+   *
+   * @generated from field: optional transcodely.v1.PlayerConfig player_config = 16;
+   */
+  playerConfig?: PlayerConfig;
+
   constructor(data?: PartialMessage<App>) {
     super();
     proto3.util.initPartial(data, this);
@@ -190,6 +199,7 @@ export class App extends Message<App> {
     { no: 13, name: "hosting_config", kind: "message", T: HostingConfig, opt: true },
     { no: 14, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 15, name: "monthly_spend_limit_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 16, name: "player_config", kind: "message", T: PlayerConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): App {
@@ -206,6 +216,210 @@ export class App extends Message<App> {
 
   static equals(a: App | PlainMessage<App> | undefined, b: App | PlainMessage<App> | undefined): boolean {
     return proto3.util.equals(App, a, b);
+  }
+}
+
+/**
+ * Player configuration: how the hosted player and embeds present every video
+ * in the app. All fields are optional; an unset field keeps the player's
+ * built-in default.
+ *
+ * @generated from message transcodely.v1.PlayerConfig
+ */
+export class PlayerConfig extends Message<PlayerConfig> {
+  /**
+   * Caption (subtitle) rendering style.
+   *
+   * @generated from field: optional transcodely.v1.CaptionStyle captions = 1;
+   */
+  captions?: CaptionStyle;
+
+  constructor(data?: PartialMessage<PlayerConfig>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.PlayerConfig";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "captions", kind: "message", T: CaptionStyle, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PlayerConfig {
+    return new PlayerConfig().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PlayerConfig {
+    return new PlayerConfig().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PlayerConfig {
+    return new PlayerConfig().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PlayerConfig | PlainMessage<PlayerConfig> | undefined, b: PlayerConfig | PlainMessage<PlayerConfig> | undefined): boolean {
+    return proto3.util.equals(PlayerConfig, a, b);
+  }
+}
+
+/**
+ * Caption rendering style for the hosted player. Colors are 6-digit hex with
+ * a leading '#' (e.g. "#0a0a0a"). On update: an unset field keeps its stored
+ * value, an empty string clears a color back to the player default, and a
+ * numeric field returns to default when set to the documented default value.
+ *
+ * @generated from message transcodely.v1.CaptionStyle
+ */
+export class CaptionStyle extends Message<CaptionStyle> {
+  /**
+   * Cue box background color. Player default: "#0a0a0a". Empty string clears.
+   *
+   * @generated from field: optional string background_color = 1;
+   */
+  backgroundColor?: string;
+
+  /**
+   * Cue box background opacity, 0 (fully transparent) to 1 (solid).
+   * Player default: 0.7.
+   *
+   * @generated from field: optional double background_opacity = 2;
+   */
+  backgroundOpacity?: number;
+
+  /**
+   * Caption text color. Player default: "#ffffff". Empty string clears.
+   *
+   * @generated from field: optional string text_color = 3;
+   */
+  textColor?: string;
+
+  /**
+   * Caption text size multiplier applied to the player's responsive base
+   * size: 0.5 (half) to 2 (double). Player default: 1.
+   *
+   * @generated from field: optional double font_scale = 4;
+   */
+  fontScale?: number;
+
+  constructor(data?: PartialMessage<CaptionStyle>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.CaptionStyle";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "background_color", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 2, name: "background_opacity", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 3, name: "text_color", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "font_scale", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CaptionStyle {
+    return new CaptionStyle().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CaptionStyle {
+    return new CaptionStyle().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CaptionStyle {
+    return new CaptionStyle().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CaptionStyle | PlainMessage<CaptionStyle> | undefined, b: CaptionStyle | PlainMessage<CaptionStyle> | undefined): boolean {
+    return proto3.util.equals(CaptionStyle, a, b);
+  }
+}
+
+/**
+ * Request to update player configuration for an app.
+ *
+ * @generated from message transcodely.v1.UpdatePlayerConfigRequest
+ */
+export class UpdatePlayerConfigRequest extends Message<UpdatePlayerConfigRequest> {
+  /**
+   * App ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * Player configuration to merge. Fields present here overwrite the stored
+   * value; absent fields are left unchanged.
+   *
+   * @generated from field: transcodely.v1.PlayerConfig player_config = 2;
+   */
+  playerConfig?: PlayerConfig;
+
+  constructor(data?: PartialMessage<UpdatePlayerConfigRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.UpdatePlayerConfigRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "player_config", kind: "message", T: PlayerConfig },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdatePlayerConfigRequest {
+    return new UpdatePlayerConfigRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdatePlayerConfigRequest {
+    return new UpdatePlayerConfigRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdatePlayerConfigRequest {
+    return new UpdatePlayerConfigRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdatePlayerConfigRequest | PlainMessage<UpdatePlayerConfigRequest> | undefined, b: UpdatePlayerConfigRequest | PlainMessage<UpdatePlayerConfigRequest> | undefined): boolean {
+    return proto3.util.equals(UpdatePlayerConfigRequest, a, b);
+  }
+}
+
+/**
+ * Response from updating player configuration.
+ *
+ * @generated from message transcodely.v1.UpdatePlayerConfigResponse
+ */
+export class UpdatePlayerConfigResponse extends Message<UpdatePlayerConfigResponse> {
+  /**
+   * The updated app with merged player config.
+   *
+   * @generated from field: transcodely.v1.App app = 1;
+   */
+  app?: App;
+
+  constructor(data?: PartialMessage<UpdatePlayerConfigResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.UpdatePlayerConfigResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "app", kind: "message", T: App },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdatePlayerConfigResponse {
+    return new UpdatePlayerConfigResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdatePlayerConfigResponse {
+    return new UpdatePlayerConfigResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdatePlayerConfigResponse {
+    return new UpdatePlayerConfigResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdatePlayerConfigResponse | PlainMessage<UpdatePlayerConfigResponse> | undefined, b: UpdatePlayerConfigResponse | PlainMessage<UpdatePlayerConfigResponse> | undefined): boolean {
+    return proto3.util.equals(UpdatePlayerConfigResponse, a, b);
   }
 }
 
