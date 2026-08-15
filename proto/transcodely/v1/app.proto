@@ -35,6 +35,12 @@ service AppService {
   // Returns failed_precondition if hosting is not enabled.
   rpc UpdateHostingConfig(UpdateHostingConfigRequest) returns (UpdateHostingConfigResponse);
 
+  // Update player configuration for an app.
+  // Merges provided fields into the existing player config. Applies to the
+  // hosted player and embeds for every video in the app. Unlike hosting
+  // config, this does not require hosting to be enabled first.
+  rpc UpdatePlayerConfig(UpdatePlayerConfigRequest) returns (UpdatePlayerConfigResponse);
+
   // Set or clear an app's monthly spend limit for transcoding charges.
   // Providing monthly_spend_limit_eur sets the cap (must be > 0); omitting it
   // clears the cap and returns the app to unlimited. Returns the updated app.
@@ -125,6 +131,64 @@ message App {
   // follows the app's billing anchor day in UTC. Set or clear via
   // AppService.UpdateSpendLimit; read current spend via AppService.GetSpend.
   optional double monthly_spend_limit_eur = 15;
+
+  // Player configuration for the app's hosted player and embeds. Unset when
+  // never configured (the player uses its built-in defaults). Update via
+  // AppService.UpdatePlayerConfig.
+  optional PlayerConfig player_config = 16;
+}
+
+// Player configuration: how the hosted player and embeds present every video
+// in the app. All fields are optional; an unset field keeps the player's
+// built-in default.
+message PlayerConfig {
+  // Caption (subtitle) rendering style.
+  optional CaptionStyle captions = 1;
+}
+
+// Caption rendering style for the hosted player. Colors are 6-digit hex with
+// a leading '#' (e.g. "#0a0a0a"). On update: an unset field keeps its stored
+// value, an empty string clears a color back to the player default, and a
+// numeric field returns to default when set to the documented default value.
+message CaptionStyle {
+  // Cue box background color. Player default: "#0a0a0a". Empty string clears.
+  optional string background_color = 1 [(buf.validate.field).string.pattern = "^(#[0-9a-fA-F]{6})?$"];
+
+  // Cue box background opacity, 0 (fully transparent) to 1 (solid).
+  // Player default: 0.7.
+  optional double background_opacity = 2 [
+    (buf.validate.field).double.gte = 0,
+    (buf.validate.field).double.lte = 1
+  ];
+
+  // Caption text color. Player default: "#ffffff". Empty string clears.
+  optional string text_color = 3 [(buf.validate.field).string.pattern = "^(#[0-9a-fA-F]{6})?$"];
+
+  // Caption text size multiplier applied to the player's responsive base
+  // size: 0.5 (half) to 2 (double). Player default: 1.
+  optional double font_scale = 4 [
+    (buf.validate.field).double.gte = 0.5,
+    (buf.validate.field).double.lte = 2
+  ];
+}
+
+// Request to update player configuration for an app.
+message UpdatePlayerConfigRequest {
+  // App ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Player configuration to merge. Fields present here overwrite the stored
+  // value; absent fields are left unchanged.
+  PlayerConfig player_config = 2;
+}
+
+// Response from updating player configuration.
+message UpdatePlayerConfigResponse {
+  // The updated app with merged player config.
+  App app = 1;
 }
 
 // Request to create a new app.

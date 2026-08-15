@@ -5,7 +5,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ArchiveAppRequest, ArchiveAppResponse, CreateAppRequest, CreateAppResponse, EnableHostingRequest, EnableHostingResponse, GetAppRequest, GetAppResponse, GetSpendRequest, GetSpendResponse, ListAppsRequest, ListAppsResponse, UpdateAppRequest, UpdateAppResponse, UpdateHostingConfigRequest, UpdateHostingConfigResponse, UpdateSpendLimitRequest, UpdateSpendLimitResponse } from "./app_pb.js";
+import { ArchiveAppRequest, ArchiveAppResponse, CreateAppRequest, CreateAppResponse, EnableHostingRequest, EnableHostingResponse, GetAppRequest, GetAppResponse, GetSpendRequest, GetSpendResponse, ListAppsRequest, ListAppsResponse, UpdateAppRequest, UpdateAppResponse, UpdateHostingConfigRequest, UpdateHostingConfigResponse, UpdatePlayerConfigRequest, UpdatePlayerConfigResponse, UpdateSpendLimitRequest, UpdateSpendLimitResponse } from "./app_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -96,6 +96,20 @@ export const AppService = {
       name: "UpdateHostingConfig",
       I: UpdateHostingConfigRequest,
       O: UpdateHostingConfigResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Update player configuration for an app.
+     * Merges provided fields into the existing player config. Applies to the
+     * hosted player and embeds for every video in the app. Unlike hosting
+     * config, this does not require hosting to be enabled first.
+     *
+     * @generated from rpc transcodely.v1.AppService.UpdatePlayerConfig
+     */
+    updatePlayerConfig: {
+      name: "UpdatePlayerConfig",
+      I: UpdatePlayerConfigRequest,
+      O: UpdatePlayerConfigResponse,
       kind: MethodKind.Unary,
     },
     /**
