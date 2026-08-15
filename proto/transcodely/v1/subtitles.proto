@@ -38,8 +38,15 @@ enum SubtitleFormat {
 // Styling options for burn-in subtitles.
 message BurnInStyle {
   // Font family name. Default: "Arial".
+  //
+  // Letters, digits, spaces, `_` and `-` only. The value is embedded in the
+  // renderer's style string, where a quote, comma or semicolon would terminate
+  // it and let whatever follows parse as further styling arguments.
+  //
+  // Example: "DejaVu Sans"
   optional string font_family = 1 [
-    (buf.validate.field).string.max_len = 64
+    (buf.validate.field).string.max_len = 64,
+    (buf.validate.field).string.pattern = "^[a-zA-Z0-9 _-]+$"
   ];
 
   // Font size in pixels. Default: 24.

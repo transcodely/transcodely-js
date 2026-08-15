@@ -543,6 +543,11 @@ export class HLSConfig extends Message<HLSConfig> {
    * Variables: {codec}, {resolution}, {bitrate}, {index}
    * Default: "{codec}_{resolution}"
    *
+   * The rendered value becomes a filename and is also carried through the
+   * packager's stream descriptors, so the accepted charset is deliberately
+   * narrow: letters, digits, `_`, `-`, `.` and the `{}` that delimit template
+   * variables. No path separators, no `..`, and none of `, : ; ' " \`.
+   *
    * @generated from field: optional string variant_pattern = 4;
    */
   variantPattern?: string;
