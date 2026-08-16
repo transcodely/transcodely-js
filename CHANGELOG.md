@@ -4,6 +4,14 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.7](https://github.com/transcodely/transcodely-js/compare/v0.3.6...v0.3.7) (2026-08-16)
+
+
+### Features
+
+* **billing:** budgets, outstanding balance, and mid-cycle settlement ([#56](https://github.com/transcodely/transcodely-js/issues/56)) ([9bafa6e](https://github.com/transcodely/transcodely-js/commit/9bafa6ea293ae14fd6b802ff3b7cfed2353c8ac9))
+* sync protos from api 5.5.0 — player config + caption styling ([#53](https://github.com/transcodely/transcodely-js/issues/53)) ([7d4e3f2](https://github.com/transcodely/transcodely-js/commit/7d4e3f20cca210a1c4338070a2f27d6ec0674bcb))
+
 ## [0.3.6](https://github.com/transcodely/transcodely-js/compare/v0.3.5...v0.3.6) (2026-08-11)
 
 
