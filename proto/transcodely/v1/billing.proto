@@ -71,6 +71,39 @@ service BillingService {
   // (customer + subscription), so the returned portal is already attached to
   // this organization's billing account. Safe to call repeatedly.
   rpc CreateBillingPortalSession(CreateBillingPortalSessionRequest) returns (CreateBillingPortalSessionResponse);
+
+  // Retrieve the organization's monthly budget together with the spend it is
+  // measured against, in one call: everything a budget card needs.
+  rpc GetBudget(GetBudgetRequest) returns (GetBudgetResponse);
+
+  // Set or clear the organization's monthly budget.
+  //
+  // Omitting amount_eur clears the budget and turns the alert emails off.
+  // Changing the amount never re-sends an alert step already sent this period;
+  // see Budget.notified_steps.
+  rpc UpdateBudget(UpdateBudgetRequest) returns (UpdateBudgetResponse);
+
+  // Retrieve the organization's outstanding balance — usage that has been
+  // accrued but not yet billed — together with the threshold it is measured
+  // against, in one call: everything an outstanding-balance card needs.
+  //
+  // Distinct from GetUpcomingInvoice, which shows what the CURRENT PERIOD has
+  // accrued. This shows what is UNSETTLED, which also includes anything a
+  // previous period left uncaptured, and it is the number that decides whether
+  // new jobs are admitted.
+  rpc GetOutstandingBalance(GetOutstandingBalanceRequest) returns (GetOutstandingBalanceResponse);
+
+  // Pay the outstanding balance now, without waiting for the period to end.
+  //
+  // Closes the current period at this instant and produces a real statement for
+  // everything owed, which the payment provider then charges. On success the
+  // outstanding balance is zero, any admission block is lifted immediately, and
+  // the organization's trust tier re-evaluates once the statement is paid.
+  //
+  // Returns failed_precondition with error code "settlement_unavailable" when
+  // the deployment has mid-cycle settlement switched off, and
+  // "nothing_outstanding" when there is nothing to pay.
+  rpc SettleOutstandingBalance(SettleOutstandingBalanceRequest) returns (SettleOutstandingBalanceResponse);
 }
 
 // =============================================================================
@@ -305,6 +338,173 @@ message BillingPortalSession {
   string session_token = 4;
 }
 
+// An organization's monthly budget and the spend it is measured against.
+//
+// A budget is the customer's OWN telemetry: it exists so an account can be told
+// it is spending more than it meant to. It NEVER enforces anything. Crossing
+// 100% of a budget sends an email and changes nothing else — no job is
+// rejected, no video stops playing, no limit is applied.
+//
+// It is not the per-app spend LIMIT (App.monthly_spend_limit_eur, set via
+// AppService.UpdateSpendLimit), which IS a hard cap: at 100% of a spend limit,
+// new jobs are refused. Limits block; budgets notify. An organization can use
+// either, both, or neither.
+message Budget {
+  // Object type, always "budget".
+  string object = 1;
+
+  // Organization this budget belongs to.
+  string org_id = 2;
+
+  // The monthly budget in EUR. Absent when no budget is set, which is the
+  // default and means no alerts are sent.
+  optional double amount_eur = 3;
+
+  // Spend so far in the current billing period, in EUR.
+  //
+  // This is the same ledger, over the same window, that GetUpcomingInvoice
+  // reports — it covers transcoding AND hosting for every app in the
+  // organization, and it excludes usage that will never be billed. It is
+  // therefore NOT the same number as AppService.GetSpend, which is scoped to
+  // one app, counts estimates for jobs still running, and knows nothing about
+  // hosting.
+  double spent_eur = 4;
+
+  // spent_eur as a percentage of amount_eur. Absent when no budget is set.
+  // Not capped at 100: an organization at 240% of its budget is shown 240.
+  optional double used_percent = 5;
+
+  // Start of the current billing period (inclusive), UTC.
+  google.protobuf.Timestamp period_start = 6;
+
+  // End of the current billing period (exclusive), UTC. Spend resets here.
+  google.protobuf.Timestamp period_end = 7;
+
+  // The percentage steps that send an alert email, ascending. Fixed at
+  // 50, 80 and 100 today; new steps may be added.
+  repeated int32 alert_steps = 8;
+
+  // The steps already emailed this billing period, ascending. Fire-once per
+  // period: a step listed here does not send again, and changing the budget
+  // mid-period does not re-arm it. Empty at the start of every period.
+  repeated int32 notified_steps = 9;
+
+  // ISO 4217 currency code for every amount here. Always "EUR" today.
+  string currency = 10;
+}
+
+// An organization's unsettled balance and the threshold it is measured against.
+//
+// # What the number is
+//
+// Usage that has been accrued and NOT yet captured onto a statement —
+// transcoding and hosting, across every app in the organization. Paying a
+// statement, or settling mid-cycle, resets it to zero.
+//
+// It is a different number from all three of its neighbours, and the
+// differences matter:
+//
+//   - GetUpcomingInvoice shows what THIS PERIOD has accrued. This shows what is
+//     UNSETTLED, which also carries anything an earlier period left uncaptured.
+//   - Budget.spent_eur keeps counting after an invoice is issued, because spend
+//     does not un-happen when it is billed. This drops to zero when it is.
+//   - App.monthly_spend_limit_eur is a cap the customer sets on one app for
+//     themselves. This is the platform's own exposure control over the whole
+//     organization, and no calendar clears it — only payment does.
+//
+// # What happens as it climbs
+//
+// Nothing, for a long time. Reminder emails go out at 80%, 100%, 125%, 150% and
+// 175% of the threshold and NOTHING is restricted at any of them: service
+// continues past the threshold on purpose, so that a busy month never stops a
+// pipeline without warning. Only at `hard_stop_cents` — twice the threshold —
+// are new jobs refused, with error code "outstanding_balance_exceeded".
+//
+// Even then, work already queued or running finishes, outputs are delivered,
+// videos keep playing, uploads keep working and jobs can still be canceled.
+// Paying lifts the block on the very next request.
+message OutstandingBalance {
+  // Object type, always "outstanding_balance".
+  string object = 1;
+
+  // Organization this balance belongs to.
+  string org_id = 2;
+
+  // The unsettled amount, in integer minor units (cents) of `currency`.
+  // Rendered as a JSON string per the protobuf 64-bit integer mapping.
+  int64 outstanding_cents = 3;
+
+  // The trust tier the organization's payment history puts it on, which is what
+  // sets the threshold unless an operator or a plan overrides it.
+  TrustTier tier = 4;
+
+  // How many statements this organization has PAID. The input behind `tier`,
+  // surfaced so the path to a higher threshold is visible rather than implied.
+  // A mid-cycle settlement counts once it is paid, like any other statement.
+  int64 settled_payments = 5;
+
+  // The threshold, in cents. Absent when no threshold applies at all — a
+  // long-standing account with no plan ceiling has none, which is the intended
+  // destination of the whole ladder.
+  optional int64 threshold_cents = 6;
+
+  // Which rung supplied `threshold_cents`.
+  ExposureThresholdSource threshold_source = 7;
+
+  // The amount at which new-job admission stops: twice `threshold_cents`.
+  // Absent exactly when `threshold_cents` is.
+  optional int64 hard_stop_cents = 8;
+
+  // Whether new jobs are being refused right now. Reads the same numbers the
+  // admission gate reads, so a card showing false cannot coexist with a create
+  // being rejected for this reason.
+  bool blocked = 9;
+
+  // `outstanding_cents` as a percentage of `threshold_cents`. Absent when no
+  // threshold applies. Not capped at 100: an organization at 180% is shown 180.
+  optional double used_percent = 10;
+
+  // The percentage steps that send a reminder email, ascending. 80, 100, 125,
+  // 150, 175 and 200 today; the last one is where admission stops.
+  repeated int32 alert_steps = 11;
+
+  // The steps already emailed for the current accrual window, ascending.
+  // Fire-once: a step listed here does not send again until the balance is
+  // settled or the billing period rolls.
+  repeated int32 notified_steps = 12;
+
+  // ISO 4217 currency code for every amount here. Always "EUR" today.
+  string currency = 13;
+
+  // Whether SettleOutstandingBalance is available on this deployment. False
+  // while the settlement rail is disabled — a billing page should not render a
+  // "pay now" action that can only fail.
+  bool settlement_available = 14;
+}
+
+// A statement produced by paying an outstanding balance mid-cycle.
+message Settlement {
+  // Object type, always "settlement".
+  string object = 1;
+
+  // The statement the balance was captured onto. It is an ordinary invoice —
+  // readable through GetInvoice, listed by ListInvoices, and paid through the
+  // same provider flow as any other.
+  string invoice_id = 2;
+
+  // What it came to, in integer minor units (cents).
+  int64 amount_cents = 3;
+
+  // The window the statement covers, UTC. It starts where the previous
+  // statement ended (or at the period start) and ends at the settlement
+  // instant.
+  google.protobuf.Timestamp period_start = 4;
+  google.protobuf.Timestamp period_end = 5;
+
+  // ISO 4217 currency code. Always "EUR" today.
+  string currency = 6;
+}
+
 // =============================================================================
 // Enums
 // =============================================================================
@@ -357,6 +557,58 @@ enum InvoiceLineType {
   // "covered_through"} — the coverage window rolls with the meter, so the last
   // day or so of a period appears on the next statement rather than this one.
   INVOICE_LINE_TYPE_HOSTING = 5;
+}
+
+// How much unbilled usage an organization's payment history earns it.
+//
+// Derived from the number of statements it has paid, never stored, and it only
+// ever moves upward as payments land. It is not a customer segment, a plan, or
+// anything anyone is told about beyond the billing page: its single job is to
+// answer "how much work should we run for this account before asking to be
+// paid".
+enum TrustTier {
+  TRUST_TIER_UNSPECIFIED = 0;
+
+  // No settled payments yet. Every account starts here, including the ones that
+  // go on to spend thousands.
+  TRUST_TIER_NEW = 1;
+
+  // One or two settled payments.
+  TRUST_TIER_ESTABLISHED = 2;
+
+  // Three or more settled payments. The tier imposes NO threshold of its own —
+  // the account falls through to whatever ceiling its plan sets, which for most
+  // accounts is none. This is where the ladder is meant to end up.
+  TRUST_TIER_PROVEN = 3;
+}
+
+// Which rung supplied an organization's outstanding-balance threshold.
+//
+// Same purpose as LimitSource on the usage ladder: "€50" reads very differently
+// depending on whether changing it means an operator editing this organization,
+// editing its plan, or the account simply paying an invoice.
+enum ExposureThresholdSource {
+  EXPOSURE_THRESHOLD_SOURCE_UNSPECIFIED = 0;
+
+  // An operator set this organization's threshold by hand. Audited, and the
+  // only rung that can RAISE a threshold above what the tier would give.
+  EXPOSURE_THRESHOLD_SOURCE_OVERRIDE = 1;
+
+  // The trust tier's own number — the everyday answer.
+  EXPOSURE_THRESHOLD_SOURCE_TRUST_TIER = 2;
+
+  // The monthly spend ceiling on the organization's plan. It joins by MINIMUM,
+  // so a plan can only ever tighten what the tier or an operator allowed:
+  // carrying more unbilled usage than an account is permitted to spend in a
+  // month would be extending credit past the amount it may run up at all.
+  EXPOSURE_THRESHOLD_SOURCE_ORG_PLAN = 3;
+
+  // The platform-wide default ceiling.
+  EXPOSURE_THRESHOLD_SOURCE_PLATFORM_DEFAULT = 4;
+
+  // Every rung declined: no threshold applies, no reminders are sent and
+  // admission is never refused for this reason.
+  EXPOSURE_THRESHOLD_SOURCE_UNBOUNDED = 5;
 }
 
 // Whether an organization has a payment method the provider can charge.
@@ -435,4 +687,69 @@ message CreateBillingPortalSessionRequest {}
 message CreateBillingPortalSessionResponse {
   // The session. Redirect the browser to its url.
   BillingPortalSession session = 1;
+}
+
+// Request to read the organization's monthly budget. The organization is taken
+// from the X-Organization-ID header.
+message GetBudgetRequest {}
+
+// Response carrying the budget and the spend it is measured against.
+message GetBudgetResponse {
+  // The budget. Always present: an organization with no budget set gets one
+  // with amount_eur absent and spent_eur still populated, so the current
+  // period's spend can be shown before a budget exists.
+  Budget budget = 1;
+}
+
+// Request to set or clear the organization's monthly budget. The organization
+// is taken from the X-Organization-ID header.
+message UpdateBudgetRequest {
+  // Monthly budget in EUR. When present, sets the budget (must be > 0). When
+  // ABSENT, the budget is cleared and no further alerts are sent — that is the
+  // only way to turn them off. The upper bound matches the NUMERIC(12,2)
+  // storage column.
+  optional double amount_eur = 1 [
+    (buf.validate.field).double.gt = 0,
+    (buf.validate.field).double.lte = 9999999999.99
+  ];
+}
+
+// Response from setting or clearing a budget.
+message UpdateBudgetResponse {
+  // The budget as it now stands, with current-period spend recomputed, so a
+  // caller that just moved the number can render the new bar without a second
+  // request. amount_eur is absent when the budget was cleared.
+  Budget budget = 1;
+}
+
+// Request to read the organization's outstanding balance. The organization is
+// taken from the X-Organization-ID header.
+message GetOutstandingBalanceRequest {}
+
+// Response carrying the outstanding balance and its threshold.
+message GetOutstandingBalanceResponse {
+  // Always present. An organization that owes nothing gets one with
+  // outstanding_cents 0 and its threshold still populated, so a card can show
+  // the headroom before anything has been spent.
+  OutstandingBalance balance = 1;
+}
+
+// Request to settle the outstanding balance now. The organization is taken from
+// the X-Organization-ID header.
+//
+// It carries no amount ON PURPOSE. The figure is whatever the ledger says at the
+// instant the settlement runs, and letting a caller name its own number would
+// let a stale page pay less than is owed and leave the difference looking
+// settled.
+message SettleOutstandingBalanceRequest {}
+
+// Response from settling an outstanding balance.
+message SettleOutstandingBalanceResponse {
+  // The statement that was produced.
+  Settlement settlement = 1;
+
+  // The balance as it now stands — zero, with the block lifted and the steps
+  // re-armed — so a caller that just paid can render the new state without a
+  // second request.
+  OutstandingBalance balance = 2;
 }

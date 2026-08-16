@@ -142,6 +142,17 @@ message Organization {
   // while no episode is open — recovering INSIDE dunning does not earn the
   // window back.
   int32 consecutive_dunned_cycles = 17;
+
+  // How automation may treat this organization — see BillingTreatment.
+  //
+  // ADMIN reads only, like standing_reason above: it is a statement about a
+  // commercial relationship, and a customer does not learn from an API field
+  // that we have decided never to interrupt them.
+  //
+  // Orthogonal to billing_standing. A trusted org can report
+  // BILLING_STANDING_DELINQUENT and still be untouched by every automated
+  // path — the founder gets an email instead.
+  BillingTreatment billing_treatment = 18;
 }
 
 // Request to check if a slug is available.

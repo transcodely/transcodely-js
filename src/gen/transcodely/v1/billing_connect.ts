@@ -5,7 +5,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateBillingPortalSessionRequest, CreateBillingPortalSessionResponse, GetBillingProfileRequest, GetBillingProfileResponse, GetInvoiceRequest, GetInvoiceResponse, GetUpcomingInvoiceRequest, GetUpcomingInvoiceResponse, ListInvoicesRequest, ListInvoicesResponse } from "./billing_pb.js";
+import { CreateBillingPortalSessionRequest, CreateBillingPortalSessionResponse, GetBillingProfileRequest, GetBillingProfileResponse, GetBudgetRequest, GetBudgetResponse, GetInvoiceRequest, GetInvoiceResponse, GetOutstandingBalanceRequest, GetOutstandingBalanceResponse, GetUpcomingInvoiceRequest, GetUpcomingInvoiceResponse, ListInvoicesRequest, ListInvoicesResponse, SettleOutstandingBalanceRequest, SettleOutstandingBalanceResponse, UpdateBudgetRequest, UpdateBudgetResponse } from "./billing_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -117,6 +117,71 @@ export const BillingService = {
       name: "CreateBillingPortalSession",
       I: CreateBillingPortalSessionRequest,
       O: CreateBillingPortalSessionResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Retrieve the organization's monthly budget together with the spend it is
+     * measured against, in one call: everything a budget card needs.
+     *
+     * @generated from rpc transcodely.v1.BillingService.GetBudget
+     */
+    getBudget: {
+      name: "GetBudget",
+      I: GetBudgetRequest,
+      O: GetBudgetResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Set or clear the organization's monthly budget.
+     *
+     * Omitting amount_eur clears the budget and turns the alert emails off.
+     * Changing the amount never re-sends an alert step already sent this period;
+     * see Budget.notified_steps.
+     *
+     * @generated from rpc transcodely.v1.BillingService.UpdateBudget
+     */
+    updateBudget: {
+      name: "UpdateBudget",
+      I: UpdateBudgetRequest,
+      O: UpdateBudgetResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Retrieve the organization's outstanding balance — usage that has been
+     * accrued but not yet billed — together with the threshold it is measured
+     * against, in one call: everything an outstanding-balance card needs.
+     *
+     * Distinct from GetUpcomingInvoice, which shows what the CURRENT PERIOD has
+     * accrued. This shows what is UNSETTLED, which also includes anything a
+     * previous period left uncaptured, and it is the number that decides whether
+     * new jobs are admitted.
+     *
+     * @generated from rpc transcodely.v1.BillingService.GetOutstandingBalance
+     */
+    getOutstandingBalance: {
+      name: "GetOutstandingBalance",
+      I: GetOutstandingBalanceRequest,
+      O: GetOutstandingBalanceResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Pay the outstanding balance now, without waiting for the period to end.
+     *
+     * Closes the current period at this instant and produces a real statement for
+     * everything owed, which the payment provider then charges. On success the
+     * outstanding balance is zero, any admission block is lifted immediately, and
+     * the organization's trust tier re-evaluates once the statement is paid.
+     *
+     * Returns failed_precondition with error code "settlement_unavailable" when
+     * the deployment has mid-cycle settlement switched off, and
+     * "nothing_outstanding" when there is nothing to pay.
+     *
+     * @generated from rpc transcodely.v1.BillingService.SettleOutstandingBalance
+     */
+    settleOutstandingBalance: {
+      name: "SettleOutstandingBalance",
+      I: SettleOutstandingBalanceRequest,
+      O: SettleOutstandingBalanceResponse,
       kind: MethodKind.Unary,
     },
   }

@@ -4,12 +4,19 @@ import { BillingService } from "../gen/transcodely/v1/billing_connect.js";
 import {
   type BillingPortalSession,
   type BillingProfile,
+  type Budget,
   CreateBillingPortalSessionRequest,
   GetBillingProfileRequest,
+  GetBudgetRequest,
   GetInvoiceRequest,
+  GetOutstandingBalanceRequest,
   GetUpcomingInvoiceRequest,
   type Invoice,
   ListInvoicesRequest,
+  type OutstandingBalance,
+  SettleOutstandingBalanceRequest,
+  type SettleOutstandingBalanceResponse,
+  UpdateBudgetRequest,
 } from "../gen/transcodely/v1/billing_pb.js";
 import { PaginationRequest } from "../gen/transcodely/v1/common_pb.js";
 
@@ -17,7 +24,7 @@ import { Page } from "../pagination.js";
 import type { CallOptions, Transport } from "../transport/transport.js";
 
 /**
- * An organization's billing statements — read-only.
+ * An organization's money: statements, budget, and outstanding balance.
  *
  * Unlike every other namespace, billing settles a whole organization rather
  * than a single app, so it is **not** available to API-key callers: a key is
@@ -36,7 +43,10 @@ import type { CallOptions, Transport } from "../transport/transport.js";
  * ```
  *
  * Invoices are generated automatically when a period closes. There is no API to
- * create, edit, or delete one — a statement records what happened.
+ * create, edit, or delete one — a statement records what happened. The two
+ * writes here do not contradict that: {@link updateBudget} moves the customer's
+ * own alert threshold, and {@link settleOutstandingBalance} closes the period
+ * early rather than editing anything already recorded.
  */
 export class Billing {
   constructor(private readonly transport: Transport) {}
@@ -143,5 +153,121 @@ export class Billing {
       opts,
     );
     return res.session!;
+  }
+
+  /**
+   * Retrieve the organization's monthly budget together with the spend it is
+   * measured against — everything a budget card needs, in one call.
+   *
+   * A budget only ever **notifies**: crossing 100% sends an email and changes
+   * nothing else. The hard cap is the per-app spend limit
+   * (`client.apps.setSpendLimit`), which rejects new jobs at 100%.
+   *
+   * Always returns a budget. An organization with none set gets one with
+   * `amountEur` and `usedPercent` absent and `spentEur` still populated, so the
+   * current period's spend renders before a budget exists.
+   */
+  async retrieveBudget(opts?: CallOptions): Promise<Budget> {
+    const res = await this.transport.unary(
+      BillingService,
+      BillingService.methods.getBudget,
+      new GetBudgetRequest({}),
+      opts,
+    );
+    return res.budget!;
+  }
+
+  /**
+   * Set or clear the organization's monthly budget. Provide `amountEur` (must
+   * be > 0) to set it; omit it to clear the budget and stop the alert emails.
+   * {@link setBudget} and {@link clearBudget} are the ergonomic shorthands.
+   *
+   * The returned budget has current-period spend recomputed, so a caller that
+   * just moved the number can re-render without a second request.
+   */
+  async updateBudget(
+    req: PartialMessage<UpdateBudgetRequest> = {},
+    opts?: CallOptions,
+  ): Promise<Budget> {
+    const res = await this.transport.unary(
+      BillingService,
+      BillingService.methods.updateBudget,
+      new UpdateBudgetRequest(req),
+      opts,
+    );
+    return res.budget!;
+  }
+
+  /**
+   * Set the organization's monthly budget in EUR (must be > 0).
+   *
+   * Alert emails fire once per billing period at each of `budget.alertSteps`
+   * (50%, 80%, 100% today). Raising or lowering the amount mid-period never
+   * re-arms a step already listed in `budget.notifiedSteps`.
+   */
+  setBudget(amountEur: number, opts?: CallOptions): Promise<Budget> {
+    return this.updateBudget({ amountEur }, opts);
+  }
+
+  /**
+   * Clear the organization's monthly budget, turning the alert emails off —
+   * omitting the optional amount is the only way to switch them off.
+   */
+  clearBudget(opts?: CallOptions): Promise<Budget> {
+    return this.updateBudget({}, opts);
+  }
+
+  /**
+   * Retrieve the organization's outstanding balance — usage accrued but not yet
+   * captured onto a statement — together with the threshold it is measured
+   * against.
+   *
+   * Distinct from {@link retrieveUpcoming}, which reports what the **current
+   * period** has accrued: this is what is **unsettled**, so it also carries
+   * anything an earlier period left uncaptured, and it is the number that
+   * decides whether new jobs are admitted.
+   *
+   * Nothing is restricted as it climbs — reminder emails go out at 80%, 100%,
+   * 125%, 150% and 175% and service continues past the threshold on purpose.
+   * Only at `hardStopCents` (twice the threshold) are new jobs refused, with
+   * error code `outstanding_balance_exceeded`; queued and running work still
+   * finishes and playback keeps serving. Branch on `blocked`, which reads the
+   * same numbers the admission gate reads.
+   */
+  async retrieveOutstandingBalance(opts?: CallOptions): Promise<OutstandingBalance> {
+    const res = await this.transport.unary(
+      BillingService,
+      BillingService.methods.getOutstandingBalance,
+      new GetOutstandingBalanceRequest({}),
+      opts,
+    );
+    return res.balance!;
+  }
+
+  /**
+   * Pay the outstanding balance now, without waiting for the period to end.
+   *
+   * Closes the current period at this instant and produces a real statement —
+   * an ordinary invoice, readable through {@link retrieve} — which the payment
+   * provider then charges. On success the balance is zero and any admission
+   * block is lifted immediately; the response carries the refreshed balance too,
+   * so no follow-up read is needed.
+   *
+   * Takes no amount on purpose: the figure is whatever the ledger says at the
+   * instant it runs, so a stale page cannot underpay and leave the difference
+   * looking settled.
+   *
+   * Throws {@link PreconditionError} with code `settlement_unavailable` when the
+   * deployment has mid-cycle settlement switched off — check
+   * `balance.settlementAvailable` before offering a "pay now" action — and with
+   * `nothing_outstanding` when there is nothing to pay.
+   */
+  settleOutstandingBalance(opts?: CallOptions): Promise<SettleOutstandingBalanceResponse> {
+    return this.transport.unary(
+      BillingService,
+      BillingService.methods.settleOutstandingBalance,
+      new SettleOutstandingBalanceRequest({}),
+      opts,
+    );
   }
 }

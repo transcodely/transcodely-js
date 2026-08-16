@@ -530,6 +530,165 @@ proto3.util.setEnumType(BillingStanding, "transcodely.v1.BillingStanding", [
 ]);
 
 /**
+ * How AUTOMATION is allowed to treat an organization.
+ *
+ * Orthogonal to BillingStanding, and the distinction is the whole point.
+ * Standing is a derived FACT about payment health. Treatment is a commercial
+ * DECISION about whether a cron may act on that fact — email the customer,
+ * block their creates, suspend them. An account can be in dunning and
+ * untouchable at the same time.
+ *
+ * ASSIGNED, never derived: an operator says what a relationship is, through the
+ * audited admin RPC. Admin surfaces only; a customer does not learn from an API
+ * field how patiently we treat them.
+ *
+ * @generated from enum transcodely.v1.BillingTreatment
+ */
+export enum BillingTreatment {
+  /**
+   * @generated from enum value: BILLING_TREATMENT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The default and the full lifecycle: the dunning ladder, the soft limit,
+   * suspension, every customer email, and the dispute posture.
+   *
+   * @generated from enum value: BILLING_TREATMENT_NORMAL = 1;
+   */
+  NORMAL = 1,
+
+  /**
+   * Billed COMPLETELY NORMALLY — payment method on file, monthly statements,
+   * real charges — and exempt from every automated interruption. A failed
+   * payment or a dispute on one of these routes to the founder instead of to
+   * the customer, so it becomes a conversation rather than a cutoff.
+   *
+   * Requires a payment method on file: this is a promise not to interrupt
+   * someone who pays, not a way to run an account with no card.
+   *
+   * @generated from enum value: BILLING_TREATMENT_TRUSTED = 2;
+   */
+  TRUSTED = 2,
+
+  /**
+   * Grandfather / comp semantics: not billed, not enforced. Internal, dogfood
+   * and legacy accounts. Selecting it also maintains payment_method_required
+   * and billing_exempt, in the same transaction, so the standing derivation and
+   * this value can never describe different postures.
+   *
+   * @generated from enum value: BILLING_TREATMENT_EXEMPT = 3;
+   */
+  EXEMPT = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(BillingTreatment)
+proto3.util.setEnumType(BillingTreatment, "transcodely.v1.BillingTreatment", [
+  { no: 0, name: "BILLING_TREATMENT_UNSPECIFIED" },
+  { no: 1, name: "BILLING_TREATMENT_NORMAL" },
+  { no: 2, name: "BILLING_TREATMENT_TRUSTED" },
+  { no: 3, name: "BILLING_TREATMENT_EXEMPT" },
+]);
+
+/**
+ * How far the CONSEQUENCES of an unpaid statement have progressed.
+ *
+ * Deliberately NOT a fifth BillingStanding. Standing is payment HEALTH, derived
+ * from facts. This is what we have DONE about it, and it needs states standing
+ * cannot express: "new jobs refused but playback still serving" and "suspended"
+ * are consequences, not healths, and an account can be delinquent for weeks at
+ * any of them.
+ *
+ * Every rung's timing derives from the episode's own start, and the schedule is
+ * a set of Go constants (domain.DunningStage) rather than configuration — the
+ * day counts below are documentation of that policy, not a second copy of it.
+ *
+ * ADMIN SURFACES ONLY in this release. A customer is told what is happening to
+ * their account in the email that accompanies each rung; they do not read the
+ * ladder's internal vocabulary out of an API.
+ *
+ * @generated from enum transcodely.v1.DunningStage
+ */
+export enum DunningStage {
+  /**
+   * @generated from enum value: DUNNING_STAGE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The resting state: no episode, or one that a payment closed.
+   *
+   * @generated from enum value: DUNNING_STAGE_NONE = 1;
+   */
+  NONE = 1,
+
+  /**
+   * Day 0 — the provider's charge failed and it is retrying on its own
+   * schedule. Full service continues; the customer is told, and nothing else
+   * happens.
+   *
+   * @generated from enum value: DUNNING_STAGE_PAST_DUE = 2;
+   */
+  PAST_DUE = 2,
+
+  /**
+   * Day 3 — still unpaid, and the mail now names the date service will be
+   * limited. Full service continues.
+   *
+   * @generated from enum value: DUNNING_STAGE_WARNED = 3;
+   */
+  WARNED = 3,
+
+  /**
+   * Day 7 — NEW jobs are refused. Everything already queued or running
+   * finishes, playback keeps serving, and the dashboard stays fully readable.
+   *
+   * @generated from enum value: DUNNING_STAGE_SOFT_LIMITED = 4;
+   */
+  SOFT_LIMITED = 4,
+
+  /**
+   * Day 14 — the organization is suspended: API keys refused, public playback
+   * stopped. Dashboard reads stay open and Cancel stays allowed, so a suspended
+   * customer can still see what they owe, pay it, and stop their own meter.
+   *
+   * @generated from enum value: DUNNING_STAGE_SUSPENDED = 5;
+   */
+  SUSPENDED = 5,
+
+  /**
+   * Day 45 — the T-14 notice naming the exact date stored media goes. Nothing
+   * new is enforced here; the mail IS the event.
+   *
+   * @generated from enum value: DUNNING_STAGE_DELETION_WARNED = 6;
+   */
+  DELETION_WARNED = 6,
+
+  /**
+   * Day 60 — statements marked uncollectible, ledger entries flagged, stored
+   * media eligible for deletion. The organization stays suspended. Terminal for
+   * this episode.
+   *
+   * Also the state an operator's manual write-off produces: the same end state,
+   * reached earlier and by a human. Which of the two happened is answered by
+   * the audit log, not by this field.
+   *
+   * @generated from enum value: DUNNING_STAGE_WRITTEN_OFF = 7;
+   */
+  WRITTEN_OFF = 7,
+}
+// Retrieve enum metadata with: proto3.getEnumType(DunningStage)
+proto3.util.setEnumType(DunningStage, "transcodely.v1.DunningStage", [
+  { no: 0, name: "DUNNING_STAGE_UNSPECIFIED" },
+  { no: 1, name: "DUNNING_STAGE_NONE" },
+  { no: 2, name: "DUNNING_STAGE_PAST_DUE" },
+  { no: 3, name: "DUNNING_STAGE_WARNED" },
+  { no: 4, name: "DUNNING_STAGE_SOFT_LIMITED" },
+  { no: 5, name: "DUNNING_STAGE_SUSPENDED" },
+  { no: 6, name: "DUNNING_STAGE_DELETION_WARNED" },
+  { no: 7, name: "DUNNING_STAGE_WRITTEN_OFF" },
+]);
+
+/**
  * Pagination request parameters.
  *
  * @generated from message transcodely.v1.PaginationRequest

@@ -264,12 +264,65 @@ export {
   PaymentMethodState,
 } from "./gen/transcodely/v1/billing_pb.js";
 
+// Budgets. A budget only ever NOTIFIES: crossing 100% sends an email and
+// changes nothing else — no job is rejected. The hard cap is the per-app spend
+// limit (`client.apps.setSpendLimit`), which refuses new jobs at 100%. An
+// organization can use either, both, or neither.
+//
+// `amountEur` and `usedPercent` are absent when no budget is set; `spentEur` is
+// populated either way. Amounts here are EUR as doubles, not cents.
+export {
+  type Budget,
+  type GetBudgetRequest,
+  type GetBudgetResponse,
+  type UpdateBudgetRequest,
+  type UpdateBudgetResponse,
+} from "./gen/transcodely/v1/billing_pb.js";
+
+// Outstanding balance — usage accrued but not yet captured onto a statement,
+// and the number that decides whether new jobs are admitted. Not the same as
+// the upcoming invoice (this period's accrual) or a budget (which never stops
+// counting when an invoice is issued).
+//
+// Reminder emails at 80/100/125/150/175% restrict NOTHING; only `hardStopCents`
+// — twice `thresholdCents` — refuses new jobs, with error code
+// `outstanding_balance_exceeded`. Branch on `blocked`, and gate any "pay now"
+// action on `settlementAvailable`.
+//
+// Amounts are integer minor units (cents) and arrive as strings per the
+// protobuf 64-bit integer JSON mapping ("1250" is EUR 12.50).
+export {
+  type OutstandingBalance,
+  type Settlement,
+  type GetOutstandingBalanceRequest,
+  type GetOutstandingBalanceResponse,
+  type SettleOutstandingBalanceRequest,
+  type SettleOutstandingBalanceResponse,
+  TrustTier,
+  ExposureThresholdSource,
+} from "./gen/transcodely/v1/billing_pb.js";
+
 // Billing standing — `BillingProfile.standing`, derived from the organization's
 // billing facts rather than assigned, so there is nothing to set. `FREE` and
 // `DELINQUENT` both resolve usage limits to the free tier's, but `DELINQUENT`
 // still bills; neither is a suspension. An organization exempt from the
 // payment-method requirement always reports `ACTIVE`.
 export { BillingStanding } from "./gen/transcodely/v1/common_pb.js";
+
+// Billing treatment and dunning stage — admin vocabulary, exported so the
+// generated types they annotate can be named, not because a customer-facing
+// call returns them.
+//
+// `BillingTreatment` types `Organization.billingTreatment`, which the API
+// populates for admin readers only; it is a commercial DECISION (may automation
+// act on this account) and is orthogonal to `BillingStanding`, which is a
+// derived FACT about payment health. `DunningStage` is how far the consequences
+// of an unpaid statement have progressed and rides on admin surfaces only —
+// no field reachable from this SDK carries it today.
+export {
+  BillingTreatment,
+  DunningStage,
+} from "./gen/transcodely/v1/common_pb.js";
 
 // Webhooks. The proto-level `Event` is re-exported as `APIEvent` to keep
 // the customer-facing discriminated union `WebhookEvent` (in ./webhooks)
