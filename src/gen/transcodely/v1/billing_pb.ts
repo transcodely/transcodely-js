@@ -132,6 +132,120 @@ proto3.util.setEnumType(InvoiceLineType, "transcodely.v1.InvoiceLineType", [
 ]);
 
 /**
+ * How much unbilled usage an organization's payment history earns it.
+ *
+ * Derived from the number of statements it has paid, never stored, and it only
+ * ever moves upward as payments land. It is not a customer segment, a plan, or
+ * anything anyone is told about beyond the billing page: its single job is to
+ * answer "how much work should we run for this account before asking to be
+ * paid".
+ *
+ * @generated from enum transcodely.v1.TrustTier
+ */
+export enum TrustTier {
+  /**
+   * @generated from enum value: TRUST_TIER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * No settled payments yet. Every account starts here, including the ones that
+   * go on to spend thousands.
+   *
+   * @generated from enum value: TRUST_TIER_NEW = 1;
+   */
+  NEW = 1,
+
+  /**
+   * One or two settled payments.
+   *
+   * @generated from enum value: TRUST_TIER_ESTABLISHED = 2;
+   */
+  ESTABLISHED = 2,
+
+  /**
+   * Three or more settled payments. The tier imposes NO threshold of its own —
+   * the account falls through to whatever ceiling its plan sets, which for most
+   * accounts is none. This is where the ladder is meant to end up.
+   *
+   * @generated from enum value: TRUST_TIER_PROVEN = 3;
+   */
+  PROVEN = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(TrustTier)
+proto3.util.setEnumType(TrustTier, "transcodely.v1.TrustTier", [
+  { no: 0, name: "TRUST_TIER_UNSPECIFIED" },
+  { no: 1, name: "TRUST_TIER_NEW" },
+  { no: 2, name: "TRUST_TIER_ESTABLISHED" },
+  { no: 3, name: "TRUST_TIER_PROVEN" },
+]);
+
+/**
+ * Which rung supplied an organization's outstanding-balance threshold.
+ *
+ * Same purpose as LimitSource on the usage ladder: "€50" reads very differently
+ * depending on whether changing it means an operator editing this organization,
+ * editing its plan, or the account simply paying an invoice.
+ *
+ * @generated from enum transcodely.v1.ExposureThresholdSource
+ */
+export enum ExposureThresholdSource {
+  /**
+   * @generated from enum value: EXPOSURE_THRESHOLD_SOURCE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * An operator set this organization's threshold by hand. Audited, and the
+   * only rung that can RAISE a threshold above what the tier would give.
+   *
+   * @generated from enum value: EXPOSURE_THRESHOLD_SOURCE_OVERRIDE = 1;
+   */
+  OVERRIDE = 1,
+
+  /**
+   * The trust tier's own number — the everyday answer.
+   *
+   * @generated from enum value: EXPOSURE_THRESHOLD_SOURCE_TRUST_TIER = 2;
+   */
+  TRUST_TIER = 2,
+
+  /**
+   * The monthly spend ceiling on the organization's plan. It joins by MINIMUM,
+   * so a plan can only ever tighten what the tier or an operator allowed:
+   * carrying more unbilled usage than an account is permitted to spend in a
+   * month would be extending credit past the amount it may run up at all.
+   *
+   * @generated from enum value: EXPOSURE_THRESHOLD_SOURCE_ORG_PLAN = 3;
+   */
+  ORG_PLAN = 3,
+
+  /**
+   * The platform-wide default ceiling.
+   *
+   * @generated from enum value: EXPOSURE_THRESHOLD_SOURCE_PLATFORM_DEFAULT = 4;
+   */
+  PLATFORM_DEFAULT = 4,
+
+  /**
+   * Every rung declined: no threshold applies, no reminders are sent and
+   * admission is never refused for this reason.
+   *
+   * @generated from enum value: EXPOSURE_THRESHOLD_SOURCE_UNBOUNDED = 5;
+   */
+  UNBOUNDED = 5,
+}
+// Retrieve enum metadata with: proto3.getEnumType(ExposureThresholdSource)
+proto3.util.setEnumType(ExposureThresholdSource, "transcodely.v1.ExposureThresholdSource", [
+  { no: 0, name: "EXPOSURE_THRESHOLD_SOURCE_UNSPECIFIED" },
+  { no: 1, name: "EXPOSURE_THRESHOLD_SOURCE_OVERRIDE" },
+  { no: 2, name: "EXPOSURE_THRESHOLD_SOURCE_TRUST_TIER" },
+  { no: 3, name: "EXPOSURE_THRESHOLD_SOURCE_ORG_PLAN" },
+  { no: 4, name: "EXPOSURE_THRESHOLD_SOURCE_PLATFORM_DEFAULT" },
+  { no: 5, name: "EXPOSURE_THRESHOLD_SOURCE_UNBOUNDED" },
+]);
+
+/**
  * Whether an organization has a payment method the provider can charge.
  *
  * @generated from enum transcodely.v1.PaymentMethodState
@@ -748,6 +862,413 @@ export class BillingPortalSession extends Message<BillingPortalSession> {
 }
 
 /**
+ * An organization's monthly budget and the spend it is measured against.
+ *
+ * A budget is the customer's OWN telemetry: it exists so an account can be told
+ * it is spending more than it meant to. It NEVER enforces anything. Crossing
+ * 100% of a budget sends an email and changes nothing else — no job is
+ * rejected, no video stops playing, no limit is applied.
+ *
+ * It is not the per-app spend LIMIT (App.monthly_spend_limit_eur, set via
+ * AppService.UpdateSpendLimit), which IS a hard cap: at 100% of a spend limit,
+ * new jobs are refused. Limits block; budgets notify. An organization can use
+ * either, both, or neither.
+ *
+ * @generated from message transcodely.v1.Budget
+ */
+export class Budget extends Message<Budget> {
+  /**
+   * Object type, always "budget".
+   *
+   * @generated from field: string object = 1;
+   */
+  object = "";
+
+  /**
+   * Organization this budget belongs to.
+   *
+   * @generated from field: string org_id = 2;
+   */
+  orgId = "";
+
+  /**
+   * The monthly budget in EUR. Absent when no budget is set, which is the
+   * default and means no alerts are sent.
+   *
+   * @generated from field: optional double amount_eur = 3;
+   */
+  amountEur?: number;
+
+  /**
+   * Spend so far in the current billing period, in EUR.
+   *
+   * This is the same ledger, over the same window, that GetUpcomingInvoice
+   * reports — it covers transcoding AND hosting for every app in the
+   * organization, and it excludes usage that will never be billed. It is
+   * therefore NOT the same number as AppService.GetSpend, which is scoped to
+   * one app, counts estimates for jobs still running, and knows nothing about
+   * hosting.
+   *
+   * @generated from field: double spent_eur = 4;
+   */
+  spentEur = 0;
+
+  /**
+   * spent_eur as a percentage of amount_eur. Absent when no budget is set.
+   * Not capped at 100: an organization at 240% of its budget is shown 240.
+   *
+   * @generated from field: optional double used_percent = 5;
+   */
+  usedPercent?: number;
+
+  /**
+   * Start of the current billing period (inclusive), UTC.
+   *
+   * @generated from field: google.protobuf.Timestamp period_start = 6;
+   */
+  periodStart?: Timestamp;
+
+  /**
+   * End of the current billing period (exclusive), UTC. Spend resets here.
+   *
+   * @generated from field: google.protobuf.Timestamp period_end = 7;
+   */
+  periodEnd?: Timestamp;
+
+  /**
+   * The percentage steps that send an alert email, ascending. Fixed at
+   * 50, 80 and 100 today; new steps may be added.
+   *
+   * @generated from field: repeated int32 alert_steps = 8;
+   */
+  alertSteps: number[] = [];
+
+  /**
+   * The steps already emailed this billing period, ascending. Fire-once per
+   * period: a step listed here does not send again, and changing the budget
+   * mid-period does not re-arm it. Empty at the start of every period.
+   *
+   * @generated from field: repeated int32 notified_steps = 9;
+   */
+  notifiedSteps: number[] = [];
+
+  /**
+   * ISO 4217 currency code for every amount here. Always "EUR" today.
+   *
+   * @generated from field: string currency = 10;
+   */
+  currency = "";
+
+  constructor(data?: PartialMessage<Budget>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.Budget";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "org_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "amount_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 4, name: "spent_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 5, name: "used_percent", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 6, name: "period_start", kind: "message", T: Timestamp },
+    { no: 7, name: "period_end", kind: "message", T: Timestamp },
+    { no: 8, name: "alert_steps", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
+    { no: 9, name: "notified_steps", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
+    { no: 10, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Budget {
+    return new Budget().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Budget {
+    return new Budget().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Budget {
+    return new Budget().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Budget | PlainMessage<Budget> | undefined, b: Budget | PlainMessage<Budget> | undefined): boolean {
+    return proto3.util.equals(Budget, a, b);
+  }
+}
+
+/**
+ * An organization's unsettled balance and the threshold it is measured against.
+ *
+ * # What the number is
+ *
+ * Usage that has been accrued and NOT yet captured onto a statement —
+ * transcoding and hosting, across every app in the organization. Paying a
+ * statement, or settling mid-cycle, resets it to zero.
+ *
+ * It is a different number from all three of its neighbours, and the
+ * differences matter:
+ *
+ *   - GetUpcomingInvoice shows what THIS PERIOD has accrued. This shows what is
+ *     UNSETTLED, which also carries anything an earlier period left uncaptured.
+ *   - Budget.spent_eur keeps counting after an invoice is issued, because spend
+ *     does not un-happen when it is billed. This drops to zero when it is.
+ *   - App.monthly_spend_limit_eur is a cap the customer sets on one app for
+ *     themselves. This is the platform's own exposure control over the whole
+ *     organization, and no calendar clears it — only payment does.
+ *
+ * # What happens as it climbs
+ *
+ * Nothing, for a long time. Reminder emails go out at 80%, 100%, 125%, 150% and
+ * 175% of the threshold and NOTHING is restricted at any of them: service
+ * continues past the threshold on purpose, so that a busy month never stops a
+ * pipeline without warning. Only at `hard_stop_cents` — twice the threshold —
+ * are new jobs refused, with error code "outstanding_balance_exceeded".
+ *
+ * Even then, work already queued or running finishes, outputs are delivered,
+ * videos keep playing, uploads keep working and jobs can still be canceled.
+ * Paying lifts the block on the very next request.
+ *
+ * @generated from message transcodely.v1.OutstandingBalance
+ */
+export class OutstandingBalance extends Message<OutstandingBalance> {
+  /**
+   * Object type, always "outstanding_balance".
+   *
+   * @generated from field: string object = 1;
+   */
+  object = "";
+
+  /**
+   * Organization this balance belongs to.
+   *
+   * @generated from field: string org_id = 2;
+   */
+  orgId = "";
+
+  /**
+   * The unsettled amount, in integer minor units (cents) of `currency`.
+   * Rendered as a JSON string per the protobuf 64-bit integer mapping.
+   *
+   * @generated from field: int64 outstanding_cents = 3;
+   */
+  outstandingCents = protoInt64.zero;
+
+  /**
+   * The trust tier the organization's payment history puts it on, which is what
+   * sets the threshold unless an operator or a plan overrides it.
+   *
+   * @generated from field: transcodely.v1.TrustTier tier = 4;
+   */
+  tier = TrustTier.UNSPECIFIED;
+
+  /**
+   * How many statements this organization has PAID. The input behind `tier`,
+   * surfaced so the path to a higher threshold is visible rather than implied.
+   * A mid-cycle settlement counts once it is paid, like any other statement.
+   *
+   * @generated from field: int64 settled_payments = 5;
+   */
+  settledPayments = protoInt64.zero;
+
+  /**
+   * The threshold, in cents. Absent when no threshold applies at all — a
+   * long-standing account with no plan ceiling has none, which is the intended
+   * destination of the whole ladder.
+   *
+   * @generated from field: optional int64 threshold_cents = 6;
+   */
+  thresholdCents?: bigint;
+
+  /**
+   * Which rung supplied `threshold_cents`.
+   *
+   * @generated from field: transcodely.v1.ExposureThresholdSource threshold_source = 7;
+   */
+  thresholdSource = ExposureThresholdSource.UNSPECIFIED;
+
+  /**
+   * The amount at which new-job admission stops: twice `threshold_cents`.
+   * Absent exactly when `threshold_cents` is.
+   *
+   * @generated from field: optional int64 hard_stop_cents = 8;
+   */
+  hardStopCents?: bigint;
+
+  /**
+   * Whether new jobs are being refused right now. Reads the same numbers the
+   * admission gate reads, so a card showing false cannot coexist with a create
+   * being rejected for this reason.
+   *
+   * @generated from field: bool blocked = 9;
+   */
+  blocked = false;
+
+  /**
+   * `outstanding_cents` as a percentage of `threshold_cents`. Absent when no
+   * threshold applies. Not capped at 100: an organization at 180% is shown 180.
+   *
+   * @generated from field: optional double used_percent = 10;
+   */
+  usedPercent?: number;
+
+  /**
+   * The percentage steps that send a reminder email, ascending. 80, 100, 125,
+   * 150, 175 and 200 today; the last one is where admission stops.
+   *
+   * @generated from field: repeated int32 alert_steps = 11;
+   */
+  alertSteps: number[] = [];
+
+  /**
+   * The steps already emailed for the current accrual window, ascending.
+   * Fire-once: a step listed here does not send again until the balance is
+   * settled or the billing period rolls.
+   *
+   * @generated from field: repeated int32 notified_steps = 12;
+   */
+  notifiedSteps: number[] = [];
+
+  /**
+   * ISO 4217 currency code for every amount here. Always "EUR" today.
+   *
+   * @generated from field: string currency = 13;
+   */
+  currency = "";
+
+  /**
+   * Whether SettleOutstandingBalance is available on this deployment. False
+   * while the settlement rail is disabled — a billing page should not render a
+   * "pay now" action that can only fail.
+   *
+   * @generated from field: bool settlement_available = 14;
+   */
+  settlementAvailable = false;
+
+  constructor(data?: PartialMessage<OutstandingBalance>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.OutstandingBalance";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "org_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "outstanding_cents", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 4, name: "tier", kind: "enum", T: proto3.getEnumType(TrustTier) },
+    { no: 5, name: "settled_payments", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 6, name: "threshold_cents", kind: "scalar", T: 3 /* ScalarType.INT64 */, opt: true },
+    { no: 7, name: "threshold_source", kind: "enum", T: proto3.getEnumType(ExposureThresholdSource) },
+    { no: 8, name: "hard_stop_cents", kind: "scalar", T: 3 /* ScalarType.INT64 */, opt: true },
+    { no: 9, name: "blocked", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 10, name: "used_percent", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 11, name: "alert_steps", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
+    { no: 12, name: "notified_steps", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
+    { no: 13, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 14, name: "settlement_available", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutstandingBalance {
+    return new OutstandingBalance().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): OutstandingBalance {
+    return new OutstandingBalance().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): OutstandingBalance {
+    return new OutstandingBalance().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: OutstandingBalance | PlainMessage<OutstandingBalance> | undefined, b: OutstandingBalance | PlainMessage<OutstandingBalance> | undefined): boolean {
+    return proto3.util.equals(OutstandingBalance, a, b);
+  }
+}
+
+/**
+ * A statement produced by paying an outstanding balance mid-cycle.
+ *
+ * @generated from message transcodely.v1.Settlement
+ */
+export class Settlement extends Message<Settlement> {
+  /**
+   * Object type, always "settlement".
+   *
+   * @generated from field: string object = 1;
+   */
+  object = "";
+
+  /**
+   * The statement the balance was captured onto. It is an ordinary invoice —
+   * readable through GetInvoice, listed by ListInvoices, and paid through the
+   * same provider flow as any other.
+   *
+   * @generated from field: string invoice_id = 2;
+   */
+  invoiceId = "";
+
+  /**
+   * What it came to, in integer minor units (cents).
+   *
+   * @generated from field: int64 amount_cents = 3;
+   */
+  amountCents = protoInt64.zero;
+
+  /**
+   * The window the statement covers, UTC. It starts where the previous
+   * statement ended (or at the period start) and ends at the settlement
+   * instant.
+   *
+   * @generated from field: google.protobuf.Timestamp period_start = 4;
+   */
+  periodStart?: Timestamp;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp period_end = 5;
+   */
+  periodEnd?: Timestamp;
+
+  /**
+   * ISO 4217 currency code. Always "EUR" today.
+   *
+   * @generated from field: string currency = 6;
+   */
+  currency = "";
+
+  constructor(data?: PartialMessage<Settlement>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.Settlement";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "invoice_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "amount_cents", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 4, name: "period_start", kind: "message", T: Timestamp },
+    { no: 5, name: "period_end", kind: "message", T: Timestamp },
+    { no: 6, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Settlement {
+    return new Settlement().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Settlement {
+    return new Settlement().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Settlement {
+    return new Settlement().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Settlement | PlainMessage<Settlement> | undefined, b: Settlement | PlainMessage<Settlement> | undefined): boolean {
+    return proto3.util.equals(Settlement, a, b);
+  }
+}
+
+/**
  * Request to list the organization's invoices.
  *
  * @generated from message transcodely.v1.ListInvoicesRequest
@@ -1143,6 +1664,338 @@ export class CreateBillingPortalSessionResponse extends Message<CreateBillingPor
 
   static equals(a: CreateBillingPortalSessionResponse | PlainMessage<CreateBillingPortalSessionResponse> | undefined, b: CreateBillingPortalSessionResponse | PlainMessage<CreateBillingPortalSessionResponse> | undefined): boolean {
     return proto3.util.equals(CreateBillingPortalSessionResponse, a, b);
+  }
+}
+
+/**
+ * Request to read the organization's monthly budget. The organization is taken
+ * from the X-Organization-ID header.
+ *
+ * @generated from message transcodely.v1.GetBudgetRequest
+ */
+export class GetBudgetRequest extends Message<GetBudgetRequest> {
+  constructor(data?: PartialMessage<GetBudgetRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetBudgetRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetBudgetRequest {
+    return new GetBudgetRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetBudgetRequest {
+    return new GetBudgetRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetBudgetRequest {
+    return new GetBudgetRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetBudgetRequest | PlainMessage<GetBudgetRequest> | undefined, b: GetBudgetRequest | PlainMessage<GetBudgetRequest> | undefined): boolean {
+    return proto3.util.equals(GetBudgetRequest, a, b);
+  }
+}
+
+/**
+ * Response carrying the budget and the spend it is measured against.
+ *
+ * @generated from message transcodely.v1.GetBudgetResponse
+ */
+export class GetBudgetResponse extends Message<GetBudgetResponse> {
+  /**
+   * The budget. Always present: an organization with no budget set gets one
+   * with amount_eur absent and spent_eur still populated, so the current
+   * period's spend can be shown before a budget exists.
+   *
+   * @generated from field: transcodely.v1.Budget budget = 1;
+   */
+  budget?: Budget;
+
+  constructor(data?: PartialMessage<GetBudgetResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetBudgetResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "budget", kind: "message", T: Budget },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetBudgetResponse {
+    return new GetBudgetResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetBudgetResponse {
+    return new GetBudgetResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetBudgetResponse {
+    return new GetBudgetResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetBudgetResponse | PlainMessage<GetBudgetResponse> | undefined, b: GetBudgetResponse | PlainMessage<GetBudgetResponse> | undefined): boolean {
+    return proto3.util.equals(GetBudgetResponse, a, b);
+  }
+}
+
+/**
+ * Request to set or clear the organization's monthly budget. The organization
+ * is taken from the X-Organization-ID header.
+ *
+ * @generated from message transcodely.v1.UpdateBudgetRequest
+ */
+export class UpdateBudgetRequest extends Message<UpdateBudgetRequest> {
+  /**
+   * Monthly budget in EUR. When present, sets the budget (must be > 0). When
+   * ABSENT, the budget is cleared and no further alerts are sent — that is the
+   * only way to turn them off. The upper bound matches the NUMERIC(12,2)
+   * storage column.
+   *
+   * @generated from field: optional double amount_eur = 1;
+   */
+  amountEur?: number;
+
+  constructor(data?: PartialMessage<UpdateBudgetRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.UpdateBudgetRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "amount_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateBudgetRequest {
+    return new UpdateBudgetRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateBudgetRequest {
+    return new UpdateBudgetRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateBudgetRequest {
+    return new UpdateBudgetRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdateBudgetRequest | PlainMessage<UpdateBudgetRequest> | undefined, b: UpdateBudgetRequest | PlainMessage<UpdateBudgetRequest> | undefined): boolean {
+    return proto3.util.equals(UpdateBudgetRequest, a, b);
+  }
+}
+
+/**
+ * Response from setting or clearing a budget.
+ *
+ * @generated from message transcodely.v1.UpdateBudgetResponse
+ */
+export class UpdateBudgetResponse extends Message<UpdateBudgetResponse> {
+  /**
+   * The budget as it now stands, with current-period spend recomputed, so a
+   * caller that just moved the number can render the new bar without a second
+   * request. amount_eur is absent when the budget was cleared.
+   *
+   * @generated from field: transcodely.v1.Budget budget = 1;
+   */
+  budget?: Budget;
+
+  constructor(data?: PartialMessage<UpdateBudgetResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.UpdateBudgetResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "budget", kind: "message", T: Budget },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateBudgetResponse {
+    return new UpdateBudgetResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateBudgetResponse {
+    return new UpdateBudgetResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateBudgetResponse {
+    return new UpdateBudgetResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdateBudgetResponse | PlainMessage<UpdateBudgetResponse> | undefined, b: UpdateBudgetResponse | PlainMessage<UpdateBudgetResponse> | undefined): boolean {
+    return proto3.util.equals(UpdateBudgetResponse, a, b);
+  }
+}
+
+/**
+ * Request to read the organization's outstanding balance. The organization is
+ * taken from the X-Organization-ID header.
+ *
+ * @generated from message transcodely.v1.GetOutstandingBalanceRequest
+ */
+export class GetOutstandingBalanceRequest extends Message<GetOutstandingBalanceRequest> {
+  constructor(data?: PartialMessage<GetOutstandingBalanceRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetOutstandingBalanceRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetOutstandingBalanceRequest {
+    return new GetOutstandingBalanceRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetOutstandingBalanceRequest {
+    return new GetOutstandingBalanceRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetOutstandingBalanceRequest {
+    return new GetOutstandingBalanceRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetOutstandingBalanceRequest | PlainMessage<GetOutstandingBalanceRequest> | undefined, b: GetOutstandingBalanceRequest | PlainMessage<GetOutstandingBalanceRequest> | undefined): boolean {
+    return proto3.util.equals(GetOutstandingBalanceRequest, a, b);
+  }
+}
+
+/**
+ * Response carrying the outstanding balance and its threshold.
+ *
+ * @generated from message transcodely.v1.GetOutstandingBalanceResponse
+ */
+export class GetOutstandingBalanceResponse extends Message<GetOutstandingBalanceResponse> {
+  /**
+   * Always present. An organization that owes nothing gets one with
+   * outstanding_cents 0 and its threshold still populated, so a card can show
+   * the headroom before anything has been spent.
+   *
+   * @generated from field: transcodely.v1.OutstandingBalance balance = 1;
+   */
+  balance?: OutstandingBalance;
+
+  constructor(data?: PartialMessage<GetOutstandingBalanceResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetOutstandingBalanceResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "balance", kind: "message", T: OutstandingBalance },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetOutstandingBalanceResponse {
+    return new GetOutstandingBalanceResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetOutstandingBalanceResponse {
+    return new GetOutstandingBalanceResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetOutstandingBalanceResponse {
+    return new GetOutstandingBalanceResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetOutstandingBalanceResponse | PlainMessage<GetOutstandingBalanceResponse> | undefined, b: GetOutstandingBalanceResponse | PlainMessage<GetOutstandingBalanceResponse> | undefined): boolean {
+    return proto3.util.equals(GetOutstandingBalanceResponse, a, b);
+  }
+}
+
+/**
+ * Request to settle the outstanding balance now. The organization is taken from
+ * the X-Organization-ID header.
+ *
+ * It carries no amount ON PURPOSE. The figure is whatever the ledger says at the
+ * instant the settlement runs, and letting a caller name its own number would
+ * let a stale page pay less than is owed and leave the difference looking
+ * settled.
+ *
+ * @generated from message transcodely.v1.SettleOutstandingBalanceRequest
+ */
+export class SettleOutstandingBalanceRequest extends Message<SettleOutstandingBalanceRequest> {
+  constructor(data?: PartialMessage<SettleOutstandingBalanceRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.SettleOutstandingBalanceRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SettleOutstandingBalanceRequest {
+    return new SettleOutstandingBalanceRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SettleOutstandingBalanceRequest {
+    return new SettleOutstandingBalanceRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SettleOutstandingBalanceRequest {
+    return new SettleOutstandingBalanceRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SettleOutstandingBalanceRequest | PlainMessage<SettleOutstandingBalanceRequest> | undefined, b: SettleOutstandingBalanceRequest | PlainMessage<SettleOutstandingBalanceRequest> | undefined): boolean {
+    return proto3.util.equals(SettleOutstandingBalanceRequest, a, b);
+  }
+}
+
+/**
+ * Response from settling an outstanding balance.
+ *
+ * @generated from message transcodely.v1.SettleOutstandingBalanceResponse
+ */
+export class SettleOutstandingBalanceResponse extends Message<SettleOutstandingBalanceResponse> {
+  /**
+   * The statement that was produced.
+   *
+   * @generated from field: transcodely.v1.Settlement settlement = 1;
+   */
+  settlement?: Settlement;
+
+  /**
+   * The balance as it now stands — zero, with the block lifted and the steps
+   * re-armed — so a caller that just paid can render the new state without a
+   * second request.
+   *
+   * @generated from field: transcodely.v1.OutstandingBalance balance = 2;
+   */
+  balance?: OutstandingBalance;
+
+  constructor(data?: PartialMessage<SettleOutstandingBalanceResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.SettleOutstandingBalanceResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "settlement", kind: "message", T: Settlement },
+    { no: 2, name: "balance", kind: "message", T: OutstandingBalance },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SettleOutstandingBalanceResponse {
+    return new SettleOutstandingBalanceResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SettleOutstandingBalanceResponse {
+    return new SettleOutstandingBalanceResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SettleOutstandingBalanceResponse {
+    return new SettleOutstandingBalanceResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SettleOutstandingBalanceResponse | PlainMessage<SettleOutstandingBalanceResponse> | undefined, b: SettleOutstandingBalanceResponse | PlainMessage<SettleOutstandingBalanceResponse> | undefined): boolean {
+    return proto3.util.equals(SettleOutstandingBalanceResponse, a, b);
   }
 }
 

@@ -7,7 +7,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
-import { BillingStanding, PaginationRequest, PaginationResponse } from "./common_pb.js";
+import { BillingStanding, BillingTreatment, PaginationRequest, PaginationResponse } from "./common_pb.js";
 
 /**
  * Organization status.
@@ -207,6 +207,21 @@ export class Organization extends Message<Organization> {
    */
   consecutiveDunnedCycles = 0;
 
+  /**
+   * How automation may treat this organization — see BillingTreatment.
+   *
+   * ADMIN reads only, like standing_reason above: it is a statement about a
+   * commercial relationship, and a customer does not learn from an API field
+   * that we have decided never to interrupt them.
+   *
+   * Orthogonal to billing_standing. A trusted org can report
+   * BILLING_STANDING_DELINQUENT and still be untouched by every automated
+   * path — the founder gets an email instead.
+   *
+   * @generated from field: transcodely.v1.BillingTreatment billing_treatment = 18;
+   */
+  billingTreatment = BillingTreatment.UNSPECIFIED;
+
   constructor(data?: PartialMessage<Organization>) {
     super();
     proto3.util.initPartial(data, this);
@@ -232,6 +247,7 @@ export class Organization extends Message<Organization> {
     { no: 15, name: "standing_reason", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 16, name: "in_dunning", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 17, name: "consecutive_dunned_cycles", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 18, name: "billing_treatment", kind: "enum", T: proto3.getEnumType(BillingTreatment) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Organization {

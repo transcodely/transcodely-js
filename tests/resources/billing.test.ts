@@ -4,16 +4,25 @@ import {
   BillingPaymentMethod,
   BillingPortalSession,
   BillingProfile,
+  Budget,
   CreateBillingPortalSessionResponse,
+  ExposureThresholdSource,
   GetBillingProfileResponse,
+  GetBudgetResponse,
   GetInvoiceResponse,
+  GetOutstandingBalanceResponse,
   GetUpcomingInvoiceResponse,
   Invoice,
   InvoiceLineItem,
   InvoiceLineType,
   InvoiceStatus,
   ListInvoicesResponse,
+  OutstandingBalance,
   PaymentMethodState,
+  Settlement,
+  SettleOutstandingBalanceResponse,
+  TrustTier,
+  UpdateBudgetResponse,
 } from "../../src/gen/transcodely/v1/billing_pb.js";
 import { PaginationResponse } from "../../src/gen/transcodely/v1/common_pb.js";
 import { Billing } from "../../src/resources/billing.js";
@@ -165,6 +174,198 @@ describe("Billing facade", () => {
     const session = await new Billing(transport).createPortalSession();
 
     expect(session.url).toBe("https://portal.example/session/abc");
+  });
+
+  it("retrieveBudget returns a budget with no amount set for an org that has none", async () => {
+    const transport = makeTransport();
+    vi.spyOn(transport, "unary").mockResolvedValue(
+      new GetBudgetResponse({
+        budget: new Budget({
+          object: "budget",
+          orgId: "org_f6g7h8i9j0",
+          spentEur: 41.5,
+          alertSteps: [50, 80, 100],
+          currency: "EUR",
+        }),
+      }),
+    );
+
+    const budget = await new Billing(transport).retrieveBudget();
+
+    // No budget set: the amount and the percentage are absent, but the spend
+    // it would be measured against is still reported.
+    expect(budget.amountEur).toBeUndefined();
+    expect(budget.usedPercent).toBeUndefined();
+    expect(budget.spentEur).toBe(41.5);
+    expect(budget.notifiedSteps).toEqual([]);
+  });
+
+  it("setBudget sends the amount; clearBudget omits it entirely", async () => {
+    const transport = makeTransport();
+    const spy = vi
+      .spyOn(transport, "unary")
+      .mockResolvedValue(new UpdateBudgetResponse({ budget: new Budget({ spentEur: 12 }) }));
+
+    const billing = new Billing(transport);
+    await billing.setBudget(250);
+    expect(spy.mock.calls[0]![2]).toMatchObject({ amountEur: 250 });
+
+    await billing.clearBudget();
+    // Clearing is expressed by the field being absent, not by a zero — a zero
+    // would be rejected (the server requires > 0).
+    expect((spy.mock.calls[1]![2] as { amountEur?: number }).amountEur).toBeUndefined();
+  });
+
+  it("updateBudget returns the recomputed budget, alerts already sent staying sent", async () => {
+    const transport = makeTransport();
+    vi.spyOn(transport, "unary").mockResolvedValue(
+      new UpdateBudgetResponse({
+        budget: new Budget({
+          amountEur: 100,
+          spentEur: 240,
+          usedPercent: 240,
+          alertSteps: [50, 80, 100],
+          notifiedSteps: [50, 80, 100],
+        }),
+      }),
+    );
+
+    const budget = await new Billing(transport).updateBudget({ amountEur: 100 });
+
+    // usedPercent is not capped at 100.
+    expect(budget.usedPercent).toBe(240);
+    // Raising or lowering the budget never re-arms a step already emailed.
+    expect(budget.notifiedSteps).toEqual([50, 80, 100]);
+  });
+
+  it("retrieveOutstandingBalance reports the threshold, its source, and the block state", async () => {
+    const transport = makeTransport();
+    vi.spyOn(transport, "unary").mockResolvedValue(
+      new GetOutstandingBalanceResponse({
+        balance: new OutstandingBalance({
+          object: "outstanding_balance",
+          orgId: "org_f6g7h8i9j0",
+          outstandingCents: 9000n,
+          tier: TrustTier.NEW,
+          settledPayments: 0n,
+          thresholdCents: 5000n,
+          thresholdSource: ExposureThresholdSource.TRUST_TIER,
+          hardStopCents: 10000n,
+          blocked: false,
+          usedPercent: 180,
+          alertSteps: [80, 100, 125, 150, 175, 200],
+          notifiedSteps: [80, 100, 125, 150],
+          currency: "EUR",
+          settlementAvailable: true,
+        }),
+      }),
+    );
+
+    const balance = await new Billing(transport).retrieveOutstandingBalance();
+
+    expect(balance.outstandingCents).toBe(9000n);
+    expect(balance.tier).toBe(TrustTier.NEW);
+    expect(balance.thresholdSource).toBe(ExposureThresholdSource.TRUST_TIER);
+    // Past the threshold at 180% and still serving: only hardStopCents blocks.
+    expect(balance.usedPercent).toBe(180);
+    expect(balance.blocked).toBe(false);
+    expect(balance.hardStopCents).toBe(10000n);
+  });
+
+  it("retrieveOutstandingBalance leaves threshold, hard stop and percent absent when unbounded", async () => {
+    const transport = makeTransport();
+    vi.spyOn(transport, "unary").mockResolvedValue(
+      new GetOutstandingBalanceResponse({
+        balance: new OutstandingBalance({
+          outstandingCents: 250000n,
+          tier: TrustTier.PROVEN,
+          settledPayments: 7n,
+          thresholdSource: ExposureThresholdSource.UNBOUNDED,
+          blocked: false,
+        }),
+      }),
+    );
+
+    const balance = await new Billing(transport).retrieveOutstandingBalance();
+
+    // The intended destination of the ladder: no ceiling, so nothing to be a
+    // percentage of and nothing that can ever block.
+    expect(balance.thresholdCents).toBeUndefined();
+    expect(balance.hardStopCents).toBeUndefined();
+    expect(balance.usedPercent).toBeUndefined();
+    expect(balance.blocked).toBe(false);
+  });
+
+  it("settleOutstandingBalance returns the statement and the zeroed balance together", async () => {
+    const transport = makeTransport();
+    vi.spyOn(transport, "unary").mockResolvedValue(
+      new SettleOutstandingBalanceResponse({
+        settlement: new Settlement({
+          object: "settlement",
+          invoiceId: "inv_a1b2c3d4e5f6",
+          amountCents: 9000n,
+          currency: "EUR",
+        }),
+        balance: new OutstandingBalance({
+          outstandingCents: 0n,
+          blocked: false,
+          notifiedSteps: [],
+          settlementAvailable: true,
+        }),
+      }),
+    );
+
+    const res = await new Billing(transport).settleOutstandingBalance();
+
+    // The statement is an ordinary invoice, readable through `retrieve`.
+    expect(res.settlement!.invoiceId).toBe("inv_a1b2c3d4e5f6");
+    expect(res.settlement!.amountCents).toBe(9000n);
+    // The refreshed balance rides along so no second read is needed.
+    expect(res.balance!.outstandingCents).toBe(0n);
+    expect(res.balance!.blocked).toBe(false);
+    expect(res.balance!.notifiedSteps).toEqual([]);
+  });
+
+  it("decodes the wire form: lowercase enums and string-encoded cents", async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            balance: {
+              object: "outstanding_balance",
+              outstanding_cents: "9000",
+              tier: "established",
+              settled_payments: "2",
+              threshold_cents: "5000",
+              threshold_source: "trust_tier",
+              hard_stop_cents: "10000",
+              blocked: false,
+              used_percent: 180,
+              alert_steps: [80, 100, 125, 150, 175, 200],
+              currency: "EUR",
+              settlement_available: true,
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    ) as unknown as typeof fetch;
+
+    const transport = new Transport({
+      apiKey: "tk_test",
+      baseUrl: "https://example.invalid",
+      organizationId: "org_f6g7h8i9j0",
+      fetchImpl,
+    });
+
+    const balance = await new Billing(transport).retrieveOutstandingBalance();
+
+    // Simplified lowercase enums expand back to the generated members.
+    expect(balance.tier).toBe(TrustTier.ESTABLISHED);
+    expect(balance.thresholdSource).toBe(ExposureThresholdSource.TRUST_TIER);
+    // 64-bit fields arrive as JSON strings and land as bigint.
+    expect(balance.outstandingCents).toBe(9000n);
+    expect(balance.settledPayments).toBe(2n);
+    expect(balance.thresholdCents).toBe(5000n);
   });
 
   it("sends X-Organization-ID only when organizationId is configured", async () => {
