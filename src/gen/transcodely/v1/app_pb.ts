@@ -988,14 +988,23 @@ export class EnableHostingResponse extends Message<EnableHostingResponse> {
  */
 export class HostingConfig extends Message<HostingConfig> {
   /**
-   * Default visibility for new uploads: "public", "unlisted", or "private".
+   * Default visibility for videos this app creates: "public", "unlisted", or
+   * "private". Applies to every creation path — CreateUpload,
+   * CreateMultipartUpload, CreateFromUrl and the video a managed CreateJob
+   * produces — whenever the request itself does not name a visibility. Unset
+   * means "unlisted".
    *
    * @generated from field: optional string default_visibility = 1;
    */
   defaultVisibility?: string;
 
   /**
-   * Max upload file size in bytes (0 = no limit).
+   * Max upload file size in bytes (0 = no limit). Enforced at CreateUpload and
+   * CreateMultipartUpload against the request's declared size_bytes, on top of
+   * the fixed 5 GB per-request ceiling; over-limit requests are rejected with
+   * error code "max_upload_size_exceeded" before anything is created. Not
+   * enforced by CreateFromUrl, whose source size is unknown until the worker
+   * fetches the URL.
    *
    * @generated from field: optional int64 max_upload_size_bytes = 2;
    */
