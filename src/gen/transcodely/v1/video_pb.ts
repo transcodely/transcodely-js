@@ -731,7 +731,11 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
   tags: string[] = [];
 
   /**
-   * Visibility setting. Defaults to "unlisted" if not specified.
+   * Visibility setting: "public", "unlisted" or "private".
+   *
+   * When omitted (or sent as an empty string), the app's hosting
+   * default_visibility applies; if the app has no default_visibility set
+   * either, the video is created "unlisted".
    *
    * @generated from field: optional string visibility = 7;
    */
@@ -996,7 +1000,11 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
   tags: string[] = [];
 
   /**
-   * Visibility setting. Defaults to "unlisted" if not specified.
+   * Visibility setting: "public", "unlisted" or "private".
+   *
+   * When omitted (or sent as an empty string), the app's hosting
+   * default_visibility applies; if the app has no default_visibility set
+   * either, the video is created "unlisted".
    *
    * @generated from field: optional string visibility = 6;
    */
@@ -1285,7 +1293,11 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
   tags: string[] = [];
 
   /**
-   * Visibility setting. Defaults to "unlisted" if not specified.
+   * Visibility setting: "public", "unlisted" or "private".
+   *
+   * When omitted (or sent as an empty string), the app's hosting
+   * default_visibility applies; if the app has no default_visibility set
+   * either, the video is created "unlisted".
    *
    * @generated from field: optional string visibility = 13;
    */
