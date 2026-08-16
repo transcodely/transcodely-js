@@ -14,7 +14,7 @@ if [[ ! -d "$API_PROTOS" ]]; then
   exit 1
 fi
 
-INTERNAL=(admin.proto staff.proto worker.proto)
+INTERNAL=(admin.proto staff.proto worker.proto notification_preference.proto)
 
 is_internal() {
   local name="$1"
