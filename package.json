@@ -4,9 +4,9 @@
     "access": "public"
   },
   "version": "0.3.7",
-  "description": "Official JavaScript / TypeScript SDK for the Transcodely video transcoding API",
+  "description": "Official TypeScript/Node SDK for Transcodely — encode video to HLS, DASH and MP4 into your own S3, GCS or R2 bucket, with DRM and signed playback.",
   "license": "MIT",
-  "homepage": "https://transcodely.com",
+  "homepage": "https://www.transcodely.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/transcodely/transcodely-js.git"
@@ -19,6 +19,16 @@
     "encoding",
     "hls",
     "dash",
+    "cmaf",
+    "drm",
+    "widevine",
+    "fairplay",
+    "abr",
+    "ffmpeg",
+    "s3",
+    "r2",
+    "signed-urls",
+    "video-hosting",
     "streaming",
     "connect-rpc"
   ],
