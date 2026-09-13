@@ -677,12 +677,20 @@ export class VideoTextTrack extends Message<VideoTextTrack> {
 /**
  * Request to create a presigned upload URL for direct client upload.
  *
+ * Managed hosting is enabled for the app the first time a video is created —
+ * there is no dashboard step and no AppService.EnableHosting call to make
+ * first. That first request provisions the app's storage bucket, its managed
+ * origin and its CDN pull zone, so it can take a few seconds longer than the
+ * ones after it. If provisioning fails the request is rejected with error code
+ * `hosting_provisioning_failed` (gRPC `unavailable`) and no video is created;
+ * the request is safe to retry unchanged.
+ *
  * @generated from message transcodely.v1.CreateUploadRequest
  */
 export class CreateUploadRequest extends Message<CreateUploadRequest> {
   /**
-   * App to create the video under. Required. The app must have managed hosting
-   * enabled (AppService.EnableHosting) or the call fails with FailedPrecondition.
+   * App to create the video under. Required. Managed hosting does not have to
+   * be enabled on it first — see the note on this message; the call enables it.
    *
    * @generated from field: string app_id = 8;
    */
@@ -956,12 +964,20 @@ export class CompleteUploadResponse extends Message<CompleteUploadResponse> {
 /**
  * Request to create a hosted video from a remote URL (one-call ingest).
  *
+ * Managed hosting is enabled for the app the first time a video is created —
+ * there is no dashboard step and no AppService.EnableHosting call to make
+ * first. That first request provisions the app's storage bucket, its managed
+ * origin and its CDN pull zone, so it can take a few seconds longer than the
+ * ones after it. If provisioning fails the request is rejected with error code
+ * `hosting_provisioning_failed` (gRPC `unavailable`) and no video is created;
+ * the request is safe to retry unchanged.
+ *
  * @generated from message transcodely.v1.CreateFromUrlRequest
  */
 export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
   /**
-   * App to create the video under. Required. The app must have managed hosting
-   * enabled (AppService.EnableHosting) or the call fails with FailedPrecondition.
+   * App to create the video under. Required. Managed hosting does not have to
+   * be enabled on it first — see the note on this message; the call enables it.
    *
    * @generated from field: string app_id = 1;
    */
@@ -1223,12 +1239,20 @@ export class CompletedPart extends Message<CompletedPart> {
 /**
  * Request to create a multipart upload for large files.
  *
+ * Managed hosting is enabled for the app the first time a video is created —
+ * there is no dashboard step and no AppService.EnableHosting call to make
+ * first. That first request provisions the app's storage bucket, its managed
+ * origin and its CDN pull zone, so it can take a few seconds longer than the
+ * ones after it. If provisioning fails the request is rejected with error code
+ * `hosting_provisioning_failed` (gRPC `unavailable`) and no video is created;
+ * the request is safe to retry unchanged.
+ *
  * @generated from message transcodely.v1.CreateMultipartUploadRequest
  */
 export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadRequest> {
   /**
-   * App to create the video under. Required. The app must have managed hosting
-   * enabled (AppService.EnableHosting) or the call fails with FailedPrecondition.
+   * App to create the video under. Required. Managed hosting does not have to
+   * be enabled on it first — see the note on this message; the call enables it.
    *
    * @generated from field: string app_id = 1;
    */
