@@ -344,9 +344,17 @@ message VideoTextTrack {
 // =============================================================================
 
 // Request to create a presigned upload URL for direct client upload.
+//
+// Managed hosting is enabled for the app the first time a video is created —
+// there is no dashboard step and no AppService.EnableHosting call to make
+// first. That first request provisions the app's storage bucket, its managed
+// origin and its CDN pull zone, so it can take a few seconds longer than the
+// ones after it. If provisioning fails the request is rejected with error code
+// `hosting_provisioning_failed` (gRPC `unavailable`) and no video is created;
+// the request is safe to retry unchanged.
 message CreateUploadRequest {
-  // App to create the video under. Required. The app must have managed hosting
-  // enabled (AppService.EnableHosting) or the call fails with FailedPrecondition.
+  // App to create the video under. Required. Managed hosting does not have to
+  // be enabled on it first — see the note on this message; the call enables it.
   string app_id = 8 [
     (buf.validate.field).required = true,
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
@@ -446,9 +454,17 @@ message CompleteUploadResponse {
 }
 
 // Request to create a hosted video from a remote URL (one-call ingest).
+//
+// Managed hosting is enabled for the app the first time a video is created —
+// there is no dashboard step and no AppService.EnableHosting call to make
+// first. That first request provisions the app's storage bucket, its managed
+// origin and its CDN pull zone, so it can take a few seconds longer than the
+// ones after it. If provisioning fails the request is rejected with error code
+// `hosting_provisioning_failed` (gRPC `unavailable`) and no video is created;
+// the request is safe to retry unchanged.
 message CreateFromUrlRequest {
-  // App to create the video under. Required. The app must have managed hosting
-  // enabled (AppService.EnableHosting) or the call fails with FailedPrecondition.
+  // App to create the video under. Required. Managed hosting does not have to
+  // be enabled on it first — see the note on this message; the call enables it.
   string app_id = 1 [
     (buf.validate.field).required = true,
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
@@ -548,9 +564,17 @@ message CompletedPart {
 }
 
 // Request to create a multipart upload for large files.
+//
+// Managed hosting is enabled for the app the first time a video is created —
+// there is no dashboard step and no AppService.EnableHosting call to make
+// first. That first request provisions the app's storage bucket, its managed
+// origin and its CDN pull zone, so it can take a few seconds longer than the
+// ones after it. If provisioning fails the request is rejected with error code
+// `hosting_provisioning_failed` (gRPC `unavailable`) and no video is created;
+// the request is safe to retry unchanged.
 message CreateMultipartUploadRequest {
-  // App to create the video under. Required. The app must have managed hosting
-  // enabled (AppService.EnableHosting) or the call fails with FailedPrecondition.
+  // App to create the video under. Required. Managed hosting does not have to
+  // be enabled on it first — see the note on this message; the call enables it.
   string app_id = 1 [
     (buf.validate.field).required = true,
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
