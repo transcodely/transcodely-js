@@ -15,6 +15,7 @@ import { Memberships } from "./resources/memberships.js";
 import { Organizations } from "./resources/organizations.js";
 import { Origins } from "./resources/origins.js";
 import { Presets } from "./resources/presets.js";
+import { Uploads } from "./resources/uploads.js";
 import { Users } from "./resources/users.js";
 import { Videos } from "./resources/videos.js";
 import { WebhookEndpoints } from "./resources/webhook-endpoints.js";
@@ -30,6 +31,7 @@ export class Transcodely {
   private readonly transport: Transport;
   private _jobs: Jobs | undefined;
   private _videos: Videos | undefined;
+  private _uploads: Uploads | undefined;
   private _presets: Presets | undefined;
   private _origins: Origins | undefined;
   private _ingestRules: IngestRules | undefined;
@@ -57,6 +59,14 @@ export class Transcodely {
   }
   get videos(): Videos {
     return (this._videos ??= new Videos(this.transport));
+  }
+  /**
+   * Byte uploads for hosted videos. `client.uploads.putFile(path, { appId })`
+   * runs the whole create → PUT → complete dance, picking a single PUT or an
+   * S3 multipart upload by file size.
+   */
+  get uploads(): Uploads {
+    return (this._uploads ??= new Uploads(this.transport));
   }
   get presets(): Presets {
     return (this._presets ??= new Presets(this.transport));
