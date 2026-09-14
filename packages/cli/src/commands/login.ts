@@ -13,6 +13,7 @@ import { Transcodely } from "@transcodely/sdk";
 
 import type { Ctx } from "../context.js";
 import { EXIT_OK, UsageError } from "../errors.js";
+import { META_OPTIONS, meta } from "../meta.js";
 import { printer } from "../output.js";
 
 const OPTIONS = {
@@ -20,6 +21,7 @@ const OPTIONS = {
   app: { type: "string" },
   "base-url": { type: "string" },
   json: { type: "boolean" },
+  ...META_OPTIONS,
 } as const;
 
 export async function loginCommand(ctx: Ctx, argv: string[]): Promise<number> {
@@ -30,6 +32,9 @@ export async function loginCommand(ctx: Ctx, argv: string[]): Promise<number> {
     throw new UsageError(err instanceof Error ? err.message : String(err));
   }
   const flags = parsed.values;
+  const asked = meta(ctx, flags);
+  if (asked !== undefined) return asked;
+
   const out = printer(ctx, flags.json ?? false);
 
   const apiKey = (flags["api-key"] ?? (await readKey(ctx))).trim();
@@ -70,13 +75,16 @@ export async function logoutCommand(ctx: Ctx, argv: string[]): Promise<number> {
   try {
     parsed = parseArgs({
       args: argv,
-      options: { json: { type: "boolean" } },
+      options: { json: { type: "boolean" }, ...META_OPTIONS },
       allowPositionals: false,
       strict: true,
     });
   } catch (err) {
     throw new UsageError(err instanceof Error ? err.message : String(err));
   }
+  const asked = meta(ctx, parsed.values);
+  if (asked !== undefined) return asked;
+
   const out = printer(ctx, parsed.values.json ?? false);
   await ctx.store.clear();
   out.result({ cleared: true, store: ctx.store.label });

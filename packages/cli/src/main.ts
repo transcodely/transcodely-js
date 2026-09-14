@@ -20,19 +20,19 @@ import { CLI_VERSION } from "./version.js";
 const SUBCOMMANDS = new Set(["login", "logout", "jobs", "videos"]);
 
 export async function run(ctx: Ctx): Promise<number> {
-  // `--help` and `--version` win from anywhere on the line. The one casualty is
-  // a literal `--help` used as a flag *value* (`--title --help`), which nobody
-  // means; every other CLI in this space behaves the same way.
-  if (ctx.argv.length === 0 || ctx.argv.some((a) => a === "help" || a === "--help" || a === "-h")) {
+  // Only the BARE words are handled here. The `--help` / `--version` flags are
+  // real options on every command (see meta.ts): scanning the argv for them
+  // could not tell `--title help` from a request for help, and answered the
+  // upload with a help page and exit 0.
+  const head = ctx.argv[0] ?? "";
+  if (ctx.argv.length === 0 || head === "help") {
     ctx.stdout(HELP);
     return EXIT_OK;
   }
-  if (ctx.argv.some((a) => a === "version" || a === "--version" || a === "-v")) {
+  if (head === "version") {
     ctx.stdout(`${CLI_VERSION}\n`);
     return EXIT_OK;
   }
-
-  const head = ctx.argv[0] ?? "";
   try {
     if (SUBCOMMANDS.has(head)) {
       const rest = ctx.argv.slice(1);

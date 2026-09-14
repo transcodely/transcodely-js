@@ -109,6 +109,39 @@ describe("the built binary", () => {
     expect(api.puts).toHaveLength(1);
   });
 
+  it("uploads a file titled `help` instead of printing the help page (H4)", async () => {
+    api = await startMockApi();
+    const path = join(tmp, "clip.mp4");
+    await writeFile(path, Buffer.alloc(2048, 3));
+    const res = await bin([path, "--title", "help"], {
+      TRANSCODELY_API_KEY: "ak_test",
+      TRANSCODELY_APP_ID: "app_k1l2m3n4o5",
+      TRANSCODELY_BASE_URL: api.baseUrl,
+    });
+    expect(res.code).toBe(0);
+    expect(res.stdout).not.toContain("USAGE");
+    expect(api.puts).toHaveLength(1);
+    expect(api.calls[0]!.body.title).toBe("help");
+  });
+
+  it("refuses a dash-leading flag value as ambiguous rather than answering it", async () => {
+    api = await startMockApi();
+    const res = await bin(["https://example.com/talk.mp4", "--title", "-h"], {
+      TRANSCODELY_API_KEY: "ak_test",
+      TRANSCODELY_APP_ID: "app_k1l2m3n4o5",
+      TRANSCODELY_BASE_URL: api.baseUrl,
+    });
+    expect(res.code).toBe(2);
+    expect(res.stdout).not.toContain("USAGE");
+    expect(api.calls).toHaveLength(0);
+  });
+
+  it("still prints help for a --help anywhere on the line", async () => {
+    const withPositional = await bin(["./x.mp4", "--help"]);
+    expect(withPositional.code).toBe(0);
+    expect(withPositional.stdout).toContain("USAGE");
+  });
+
   it("exits 2 on a genuinely unknown option", async () => {
     const res = await bin(["--definitely-not-a-flag", "x.mp4"], {
       TRANSCODELY_API_KEY: "ak_test",

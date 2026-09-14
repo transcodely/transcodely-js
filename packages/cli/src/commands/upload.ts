@@ -30,6 +30,7 @@ import {
 
 import { openSession, requireApp, type Ctx } from "../context.js";
 import { EXIT_OK, UsageError } from "../errors.js";
+import { META_OPTIONS, meta } from "../meta.js";
 import { fields, formatBytes, printer, wire } from "../output.js";
 
 const OPTIONS = {
@@ -46,6 +47,7 @@ const OPTIONS = {
   "base-url": { type: "string" },
   "part-size": { type: "string" },
   concurrency: { type: "string" },
+  ...META_OPTIONS,
 } as const;
 
 const TERMINAL_JOB = new Set([
@@ -60,7 +62,7 @@ const TERMINAL_JOB = new Set([
  * ready | error | deleted. There is no "failed" video status (that is a job
  * word), and "archived" is deliberately not terminal.
  */
-const TERMINAL_VIDEO = new Set(["ready", "error", "deleted"]);
+export const TERMINAL_VIDEO = new Set(["ready", "error", "deleted"]);
 
 /** Only a clean finish is a success; everything else terminal exits 1. */
 const VIDEO_SUCCESS = "ready";
@@ -82,6 +84,9 @@ export async function uploadCommand(ctx: Ctx, argv: string[]): Promise<number> {
     throw new UsageError(err instanceof Error ? err.message : String(err));
   }
   const flags = parsed.values;
+  const asked = meta(ctx, flags);
+  if (asked !== undefined) return asked;
+
   const target = parsed.positionals[0];
   if (!target) throw new UsageError("give me a file path or an http(s) URL to encode");
   if (parsed.positionals.length > 1) {

@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { TERMINAL_VIDEO } from "../src/commands/upload.js";
 import { fileStore, type CredentialStore } from "../src/credentials.js";
 import { run } from "../src/main.js";
 import { JOB_ID, VIDEO_ID, jobJson, startMockApi, type MockApi, type MockApiOptions } from "./mock-api.js";
@@ -96,6 +97,101 @@ describe("help and version", () => {
     expect(res.code).toBe(2);
     expect(res.stderr.toLowerCase()).toContain("unknown option");
   });
+});
+
+describe("the video terminal set", () => {
+  // The --wait tests keep emitting past the terminal frame, which catches a set
+  // that is too NARROW. They cannot catch one that is too WIDE: a status the
+  // server never sends is inert. So the set is pinned against its source —
+  // api internal/domain/video.go, `func (v *Video) IsTerminal`, which is
+  // VideoStatusReady | VideoStatusError | VideoStatusDeleted. "failed" is a job
+  // word and is not a video status at all.
+  it("is exactly ready | error | deleted", () => {
+    expect([...TERMINAL_VIDEO].sort()).toEqual(["deleted", "error", "ready"]);
+  });
+});
+
+describe("`help` and `version` as flag VALUES, not requests for help (H4)", () => {
+  // Scanning the argv could not tell an option from an option's value, so
+  // `--title help` printed the help page and exited 0 without uploading — a
+  // silent no-op reported as success. These are the tests that catch that.
+  it.each([
+    ["--title", "help"],
+    ["--title", "version"],
+    ["--visibility", "help"],
+  ])("a URL ingest with %s %s still reaches the API", async (flag, value) => {
+    const env = await withApi();
+    const res = await cli(["https://example.com/talk.mp4", flag, value], { env });
+    expect(res.code).toBe(0);
+    expect(api!.calls.map((c) => c.method)).toEqual(["CreateFromUrl"]);
+    expect(res.stdout).not.toContain("USAGE");
+  });
+
+  it("an upload titled `help` is actually uploaded", async () => {
+    const env = await withApi();
+    const path = await fixture("clip.mp4", 2048);
+    const res = await cli([path, "--title", "help"], { env });
+    expect(res.code).toBe(0);
+    expect(api!.puts).toHaveLength(1);
+    expect(api!.calls[0]!.body.title).toBe("help");
+  });
+
+  it("a preset named `version` does not print the version", async () => {
+    const env = await withApi();
+    const res = await cli(["https://example.com/talk.mp4", "--preset", "version"], { env });
+    expect(res.code).toBe(0);
+    expect(res.stdout).not.toMatch(/^\d+\.\d+\.\d+\s*$/);
+    expect(api!.calls[0]!.body.preset).toBe("version");
+  });
+
+  it.each([
+    ["--title", "-h"],
+    ["--visibility", "-v"],
+  ])("refuses %s %s as ambiguous instead of answering it", async (flag, value) => {
+    const env = await withApi();
+    const res = await cli(["https://example.com/talk.mp4", flag, value], { env });
+    expect(res.code).toBe(2);
+    expect(res.stdout).not.toContain("USAGE");
+    expect(res.stderr).toContain("ambiguous");
+    expect(api!.calls).toHaveLength(0);
+  });
+
+  it("takes a dash-leading value through the documented `=` escape", async () => {
+    const env = await withApi();
+    const res = await cli(["https://example.com/talk.mp4", "--title=-h"], { env });
+    expect(res.code).toBe(0);
+    expect(api!.calls[0]!.body.title).toBe("-h");
+  });
+
+  it.each([
+    [["--help"]],
+    [["-h"]],
+    [["./whatever.mp4", "--help"]],
+    [["https://example.com/talk.mp4", "--help"]],
+    [["jobs", "--help"]],
+    [["jobs", "ls", "--help"]],
+    [["videos", "--help"]],
+    [["login", "--help"]],
+    [["logout", "--help"]],
+    [["help"]],
+  ])("%j still prints help, exits 0 and calls nothing", async (argv) => {
+    const env = await withApi();
+    const res = await cli(argv, { env });
+    expect(res.code).toBe(0);
+    expect(res.stdout).toContain("USAGE");
+    expect(api!.calls).toHaveLength(0);
+  });
+
+  it.each([[["--version"]], [["-v"]], [["version"]], [["jobs", "ls", "--version"]]])(
+    "%j still prints just the version",
+    async (argv) => {
+      const env = await withApi();
+      const res = await cli(argv, { env });
+      expect(res.code).toBe(0);
+      expect(res.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(api!.calls).toHaveLength(0);
+    },
+  );
 });
 
 describe("flags may appear before the positional (H2)", () => {

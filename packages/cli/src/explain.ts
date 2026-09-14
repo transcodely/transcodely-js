@@ -22,8 +22,10 @@ const HINTS: Record<string, string> = {
     "Too many jobs are already queued for this app. Existing jobs still run; try again once some finish.",
   intake_paused: "Transcodely is not accepting new work right now. Nothing is lost — try again shortly.",
   app_suspended: "This app is suspended. Reading still works; creating does not.",
-  managed_delivery_not_provisioned:
-    "This app's managed storage origin was archived, which provisioning cannot undo. Support has to restore it.",
+  // No entry for the archived-managed-origin case: `ErrManagedDeliveryNotProvisioned`
+  // maps to a bare `failed_precondition` with no domain ErrorCode
+  // (internal/connect/errors.go:696), so there is no wire code to key on. Adding
+  // one would be inert and would make this file's provenance claim false.
   invalid_api_key: "Check the key, or run `transcodely login` again.",
   unauthenticated: "Check the key, or run `transcodely login` again.",
 };
