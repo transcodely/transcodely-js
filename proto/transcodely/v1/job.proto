@@ -695,6 +695,214 @@ message JobOutput {
   // is signed so that variant playlists and segments referenced by the manifest
   // inherit the same authorization.
   optional string signed_url = 26;
+
+  // What the produced file actually is, measured from the file itself, plus
+  // the verdict of comparing those measurements against what this output
+  // asked for. See OutputReport.
+  //
+  // Absent until the output has been measured: outputs that never produced a
+  // file, and outputs produced before this field existed, carry no report.
+  // Absence means "not measured" — never "nothing wrong".
+  optional OutputReport report = 27;
+}
+
+// OutputReport is what the produced file turned out to be: codec, profile,
+// pixel format, color signaling, dimensions, frame rate, audio and duration,
+// all read back from the encoded file after it was written — not copied from
+// the request and not inherited from the input. The one field that is not a
+// measurement is container, which states the delivery format (see below).
+//
+// Alongside the facts sits a verdict: whether the file matches what the job
+// asked for, and the exact field-by-field differences where it does not. The
+// facts are measured by the encoder host; the verdict is computed by the API,
+// so the same request always produces the same verdict.
+//
+// For a single-file output the facts describe that file. For a multi-rendition
+// output (an ABR ladder, HLS, DASH, adaptive) they describe the
+// HIGHEST-RESOLUTION rendition — the same one width, height and
+// average_bitrate_kbps already report, and the one the verdict is judged
+// against. Per-rendition detail stays in variant_results.
+//
+// Every value here is a parsed, named fact. The report never carries encoder
+// command lines, tool output, stack traces, log lines or storage paths, and
+// values that do not look like the short identifiers media tools emit are
+// dropped rather than passed through.
+//
+// The string-typed fields (container, codec, profile, level, pix_fmt, the
+// color fields, hdr_format) are deliberately strings and not enums: their
+// vocabularies belong to the media formats themselves, and a value we have not
+// catalogued yet must be reportable the day it appears rather than wait for a
+// new enum value to travel through every SDK. They are always lowercase, and
+// the documented spellings below are the ones you will see in practice.
+message OutputReport {
+  // Delivery format of this output, lowercase: "mp4", "mov", "webm", "mkv",
+  // "hls", "dash" or "adaptive" — the same vocabulary as the request's
+  // OutputSpec.type, and what a container mismatch is stated in.
+  //
+  // It names what was DELIVERED, not what a demuxer called an intermediate
+  // file: for a streaming output the delivered thing is the manifest and its
+  // segments, while the measurements in the fields below were taken on the
+  // encoded rendition before it was packaged.
+  //
+  // That makes this the one field the verdict cannot really police — a report
+  // echoing the requested type always matches. The check that a file is in the
+  // container it was promised runs on the encoder host, before delivery, and
+  // fails the output outright rather than describing it. This field is here so
+  // the report is self-describing, not as that check's second opinion.
+  string container = 1;
+
+  // The produced video stream. Absent when the file carries no video stream.
+  optional OutputReportVideo video = 2;
+
+  // The produced audio streams, in the order the container carries them.
+  // Empty for an output encoded without audio.
+  repeated OutputReportAudio audio = 3;
+
+  // Measured playback duration of the produced file in seconds.
+  //
+  // This is read from the produced file. It is not the input's duration and
+  // not the requested length, which is exactly what makes it able to catch an
+  // encode that stopped early.
+  optional double duration_seconds = 4;
+
+  // Whether the produced file matches what this output asked for, and where it
+  // does not. Always present on a report.
+  OutputReportVerdict verdict = 5;
+
+  // When the produced file was measured.
+  google.protobuf.Timestamp checked_at = 6;
+}
+
+// Measured properties of a produced video stream.
+message OutputReportVideo {
+  // Codec the stream is encoded with, lowercase, e.g. "h264", "hevc", "vp9",
+  // "av1". Note "hevc" — that is the decoder name for the codec this API calls
+  // "h265" on a request.
+  string codec = 1;
+
+  // Encoded profile, lowercase and without spaces, e.g. "high", "main",
+  // "main10", "baseline", "profile0". Absent when the codec has no profile
+  // concept or the encoder reported none.
+  optional string profile = 2;
+
+  // Encoded level as the codec expresses it, e.g. "4.0", "5.1". Absent when
+  // not reported.
+  optional string level = 3;
+
+  // Pixel format, lowercase, e.g. "yuv420p" (8-bit) or "yuv420p10le"
+  // (10-bit). This is how bit depth is read back: a 10-bit output that came
+  // out 8-bit says so here.
+  optional string pix_fmt = 4;
+
+  // Encoded frame dimensions in pixels, as stored.
+  int32 width = 5;
+  int32 height = 6;
+
+  // Measured average frame rate in frames per second, e.g. 29.97, 30, 59.94.
+  optional double frame_rate = 7;
+
+  // Measured video bitrate in kbps. Absent when the container does not carry a
+  // per-stream bitrate.
+  optional int32 bitrate_kbps = 8;
+
+  // Color signaling carried by the stream.
+  optional OutputReportColor color = 9;
+
+  // HDR format the stream signals. Today this resolves to exactly one of
+  // "none", "hdr10" or "hlg" — nothing else is ever emitted.
+  //
+  // It is derived from the color signaling above, so it is a reading of the
+  // file and not an echo of the request: an SDR source that arrived wearing HDR
+  // tags, and whose tags we rewrote, reports "none". Wide-gamut primaries with
+  // a PQ transfer read as "hdr10"; with an HLG transfer, as "hlg".
+  //
+  // "hdr10_plus" and "dolby_vision" are RESERVED spellings — documented so
+  // consumers can switch on them ahead of time, and NOT EMITTED. Telling HDR10+
+  // from static HDR10, or finding a Dolby Vision RPU, needs the per-frame side
+  // data this report does not carry. Until that lands, an HDR10+ or Dolby
+  // Vision output reads as "hdr10" here, which is the static layer it also
+  // genuinely signals. Do not read "hdr10" as proof the dynamic layer is
+  // absent.
+  string hdr_format = 10;
+}
+
+// Color signaling read from a produced video stream. Each value is the
+// lowercase name the format assigns it; absent means the stream carries no
+// value for it.
+message OutputReportColor {
+  // Color primaries, e.g. "bt709" (SDR), "bt2020" (wide gamut).
+  optional string primaries = 1;
+
+  // Transfer characteristics, e.g. "bt709" (SDR), "smpte2084" (PQ / HDR10),
+  // "arib-std-b67" (HLG).
+  optional string transfer = 2;
+
+  // Matrix coefficients, e.g. "bt709", "bt2020nc".
+  optional string matrix = 3;
+
+  // Signal range: "tv" (limited) or "pc" (full).
+  optional string range = 4;
+}
+
+// Measured properties of a produced audio stream.
+message OutputReportAudio {
+  // Codec the stream is encoded with, lowercase, e.g. "aac", "opus", "mp3",
+  // "flac".
+  string codec = 1;
+
+  // Channel count: 1 for mono, 2 for stereo, 6 for 5.1.
+  optional int32 channels = 2;
+
+  // Sampling rate in hertz, e.g. 48000.
+  optional int32 sample_rate_hz = 3;
+
+  // Measured audio bitrate in kbps. Absent when the container does not carry
+  // a per-stream bitrate.
+  optional int32 bitrate_kbps = 4;
+
+  // Language tag carried by the stream, e.g. "eng", "spa". Absent when the
+  // stream is untagged.
+  optional string language = 5;
+}
+
+// The result of comparing a produced file against what the job asked for.
+message OutputReportVerdict {
+  // True when every property we can check matched the request.
+  //
+  // Properties the request left open — "keep the original frame rate", a
+  // container that does not pin its audio codec — are not checked and cannot
+  // make this false.
+  bool matches_request = 1;
+
+  // Every property that did not match, one entry each. Empty when
+  // matches_request is true; a mismatch list is never empty when it is false.
+  repeated OutputReportMismatch mismatches = 2;
+}
+
+// One property of the produced file that does not match what was requested.
+message OutputReportMismatch {
+  // Which property differs, from a fixed vocabulary: "container",
+  // "video.present", "video.codec", "video.profile", "video.pix_fmt",
+  // "video.resolution", "video.width", "video.height", "video.frame_rate",
+  // "video.color.transfer", "video.color.primaries", "audio.present",
+  // "duration_seconds".
+  //
+  // "video.resolution" carries resolution tier names ("1080p") and appears
+  // when the request named a tier; "video.width" / "video.height" carry pixel
+  // counts and appear when the request named exact dimensions.
+  //
+  // Branch on this, not on the values beside it.
+  string field = 1;
+
+  // What the request asked for, as a short value, e.g. "h264", "1920",
+  // "high", "present". Where the request allows several answers — a
+  // multi-codec ABR ladder, for instance — this is the alternatives joined
+  // with "|", e.g. "h264|hevc".
+  string expected = 2;
+
+  // What the produced file carries instead, in the same vocabulary as
+  // expected, e.g. "hevc", "1280", "main", "absent".
+  string actual = 3;
 }
 
 // Measured encode results for one variant of a multi-variant output.

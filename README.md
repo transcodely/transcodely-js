@@ -43,6 +43,42 @@ for await (const event of client.jobs.watch(job.id)) {
 }
 ```
 
+## Read the output report
+
+Every completed output carries a report of what the produced file actually
+turned out to be — measured from the encoded file rather than copied from the
+request — plus the verdict of comparing those measurements against what was
+asked for.
+
+```ts
+import type { OutputReport } from "@transcodely/sdk";
+
+const done = await client.jobs.get(job.id);
+
+for (const output of done.outputs) {
+  const report: OutputReport | undefined = output.report;
+  if (!report) continue; // not measured — never "nothing wrong"
+
+  console.log(
+    output.id,
+    report.video?.codec,
+    `${report.video?.width}x${report.video?.height}`,
+    `${report.durationSeconds}s`,
+  );
+
+  if (report.verdict && !report.verdict.matchesRequest) {
+    for (const m of report.verdict.mismatches) {
+      console.log(`  ${m.field}: asked for ${m.expected}, got ${m.actual}`);
+    }
+  }
+}
+```
+
+Branch on `m.field` — it comes from a fixed vocabulary (`video.codec`,
+`video.resolution`, `duration_seconds`, …) — rather than on the values beside
+it. For an ABR ladder the facts describe the highest-resolution rendition, the
+same one the verdict judges; per-rendition detail stays in `variantResults`.
+
 ## AI captions
 
 Add auto-generated captions to any output with a `generate` subtitle track.
