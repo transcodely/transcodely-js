@@ -23,10 +23,17 @@ in `api-reference/webhooks`) document this SDK's exact public surface. Rules:
 - Before renaming/removing anything public, grep the web repo's docs for usages
   (` ```typescript ` fences calling `client.<resource>.<method>` and named imports
   from `@transcodely/sdk`); docs may also reference capabilities that shipped here first.
-- Six generated enums keep their full proto prefix in member identifiers
+- Seven generated enums keep their full proto prefix in member identifiers
   (`DRMSystem.DRM_SYSTEM_WIDEVINE`, `HDRFormat.HDR_FORMAT_HDR10`, `HDRMode`,
-  `HLSSegmentFormat`, `HLSPlaylistType`, `GOPAlignmentMode`) — docs snippets using
-  shorthand members for these will not type-check.
+  `HLSSegmentFormat`, `HLSPlaylistType`, `GOPAlignmentMode`, and `Resolution`,
+  whose members would otherwise start with a digit: `Resolution.RESOLUTION_1080P`)
+  — docs snippets using shorthand members for these will not type-check. The
+  authority is each value's `localName` in the generated `setEnumType` call, which
+  `tests/facade-enums.test.ts` reads rather than guessing.
+- Every proto enum must be re-exported from `src/index.ts`. `tests/facade-enums.test.ts`
+  fails if one is missing, added with the wrong members, or spelled non-lowercase on
+  the wire — it derives all three from the vendored protos and the generated code, so
+  a resync plus `buf generate` is enough to surface a new value.
 - Vendored proto comments flow into generated code and docs — when resyncing, take
   the api repo's comments verbatim (they are maintained as public documentation there).
 

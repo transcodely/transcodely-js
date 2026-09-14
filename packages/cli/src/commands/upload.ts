@@ -50,7 +50,13 @@ const OPTIONS = {
   ...META_OPTIONS,
 } as const;
 
-const TERMINAL_JOB = new Set([
+/**
+ * Job statuses `--wait` stops on. A SUBSET of JobStatus on purpose, so it is
+ * not derivable — exported so the tests can assert it partitions the enum and
+ * a status added upstream has to be classified rather than silently treated as
+ * "keep waiting".
+ */
+export const TERMINAL_JOB = new Set([
   JobStatus.COMPLETED,
   JobStatus.FAILED,
   JobStatus.CANCELED,
