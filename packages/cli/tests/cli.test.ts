@@ -4,7 +4,9 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { TERMINAL_VIDEO } from "../src/commands/upload.js";
+import { JobStatus, VideoStatus } from "@transcodely/sdk";
+
+import { TERMINAL_JOB, TERMINAL_VIDEO } from "../src/commands/upload.js";
 import { fileStore, type CredentialStore } from "../src/credentials.js";
 import { run } from "../src/main.js";
 import { JOB_ID, VIDEO_ID, jobJson, startMockApi, type MockApi, type MockApiOptions } from "./mock-api.js";
@@ -108,6 +110,42 @@ describe("the video terminal set", () => {
   // word and is not a video status at all.
   it("is exactly ready | error | deleted", () => {
     expect([...TERMINAL_VIDEO].sort()).toEqual(["deleted", "error", "ready"]);
+  });
+
+  it("names only real VideoStatus values", () => {
+    // The set holds wire strings, so a typo would be inert rather than a type
+    // error — check each one against the enum the API actually sends.
+    const wire = Object.keys(VideoStatus)
+      .filter((k) => Number.isNaN(Number(k)))
+      .map((k) => k.toLowerCase());
+    for (const status of TERMINAL_VIDEO) expect(wire).toContain(status);
+  });
+});
+
+describe("the job terminal set", () => {
+  // Same hazard as the video set, one level up: JobStatus gained PARTIAL and
+  // AWAITING_CONFIRMATION after the first SDK release. A new status must be
+  // classified, so the two sets are asserted to partition the enum — adding
+  // one upstream fails here until someone decides whether --wait stops on it.
+  const NON_TERMINAL = [
+    JobStatus.UNSPECIFIED,
+    JobStatus.PENDING,
+    JobStatus.PROBING,
+    JobStatus.PROCESSING,
+    JobStatus.AWAITING_CONFIRMATION,
+  ];
+
+  it("together with the non-terminal statuses covers every JobStatus exactly once", () => {
+    const all = Object.values(JobStatus).filter((v): v is JobStatus => typeof v === "number");
+    const classified = [...TERMINAL_JOB, ...NON_TERMINAL].sort((a, b) => a - b);
+    expect(classified).toEqual([...all].sort((a, b) => a - b));
+  });
+
+  it("does not stop on a job still awaiting confirmation", () => {
+    // A delayed-start job parks in AWAITING_CONFIRMATION until the caller
+    // confirms it; treating that as terminal would report an unfinished job
+    // as a finished one.
+    expect(TERMINAL_JOB.has(JobStatus.AWAITING_CONFIRMATION)).toBe(false);
   });
 });
 

@@ -433,6 +433,16 @@ export {
   type VerifyOptions,
 } from "./webhooks/index.js";
 
+// Health. `client.health.check()` resolves to a HealthCheckResponse whose
+// `status` — and each entry of `components` — is a HealthStatus, so both the
+// enum and the message types belong on the public surface.
+export {
+  type HealthCheckRequest,
+  type HealthCheckResponse,
+  type ComponentHealth,
+  HealthStatus,
+} from "./gen/transcodely/v1/health_pb.js";
+
 // API keys.
 export {
   type APIKey,

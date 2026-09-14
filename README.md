@@ -233,6 +233,20 @@ client.users           // getMe / get / list / updateMe
 client.health          // check
 ```
 
+Every enum in the API schema is exported by name from the package root, so you
+can branch on one without reaching into the generated code:
+
+```ts
+import { HealthStatus } from "@transcodely/sdk";
+
+const health = await client.health.check();
+for (const component of health.components) {
+  if (component.status !== HealthStatus.HEALTHY) {
+    console.warn(component.name, component.message);
+  }
+}
+```
+
 ## Origins
 
 An origin tells Transcodely where to read source media from and where to write outputs. Every origin belongs to a single provider; pass exactly one provider-config field (`s3`, `gcs`, `http`, or `r2`) on create.
