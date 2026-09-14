@@ -24,16 +24,23 @@ jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
-    # A two-package manifest changes the action's output shape: it emits
-    # `releases_created` plus per-path `<path>--release_created`, where the
-    # single-package config emitted the bare `release_created`. Which of the two
-    # a given version emits for the ROOT path is not something to guess at, so
-    # both are read and either one counts — the SDK must keep publishing.
+    # Output names, read from the pinned action's own source (v4,
+    # src/index.ts `setPathOutput`): every per-release key is emitted as
+    # `<path>--<key>`, EXCEPT for the root path ".", which is special-cased to
+    # the bare name. So the SDK keeps the unprefixed `release_created` it always
+    # had, and the CLI is `packages/cli--release_created`. There is no
+    # `.--release_created`.
+    #
+    # These keys are set only INSIDE the loop over created releases, so when
+    # nothing is released they are unset (empty) rather than the string "false"
+    # — which is what makes a bare `if:` on them safe. `releases_created`
+    # (plural) is always set, to "false" when empty, and a bare `if:` on THAT
+    # would be truthy every run. Do not gate on it.
     outputs:
-      sdk_released: ${{ steps.release.outputs['.--release_created'] || steps.release.outputs.release_created }}
+      sdk_released: ${{ steps.release.outputs.release_created }}
       cli_released: ${{ steps.release.outputs['packages/cli--release_created'] }}
-      tag_name: ${{ steps.release.outputs['.--tag_name'] || steps.release.outputs.tag_name }}
-      version: ${{ steps.release.outputs['.--version'] || steps.release.outputs.version }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - name: Run Release Please
         id: release
