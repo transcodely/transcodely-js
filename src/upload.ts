@@ -261,9 +261,13 @@ function inferName(opts: PutFileOptions, fallback: string | undefined): string {
         "filename is required for this source — pass `filename` (a path or a File supplies it automatically)",
     });
   }
-  if (name.length > MAX_FILENAME_LENGTH) {
+  // protovalidate's `max_len` counts Unicode code points, so a surrogate pair
+  // is one character to the server and two to `String.length`. Counting the
+  // same way keeps the local refusal from firing early on an astral name.
+  const codePoints = [...name].length;
+  if (codePoints > MAX_FILENAME_LENGTH) {
     throw new UploadError({
-      message: `filename is ${String(name.length)} characters; the API accepts at most ${String(MAX_FILENAME_LENGTH)}`,
+      message: `filename is ${String(codePoints)} characters; the API accepts at most ${String(MAX_FILENAME_LENGTH)}`,
     });
   }
   return name;

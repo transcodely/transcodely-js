@@ -560,6 +560,31 @@ describe("putFile — abort on every failure path", () => {
     // The single lane failed on part 1 and never went on to 2..6.
     expect(server!.puts.map((p) => p.partNumber)).toEqual([1]);
   });
+
+  it("stops the OTHER lanes too, instead of draining the file into a doomed upload", async () => {
+    // With one lane the throw alone ends the run, so the shared stop flag is
+    // only observable with several: part 1 fails immediately while the other
+    // lanes are slow, and they must not go on to claim parts 5..12.
+    const c = await client({
+      failures: { 1: [400] },
+      onPut: async (put) => {
+        if (put.partNumber !== 1) await new Promise((r) => setTimeout(r, 60));
+      },
+    });
+    const { path } = await fixture("big.mp4", PART * 12);
+    await expect(
+      c.uploads.putFile(path, {
+        appId: "app_k1l2m3n4o5",
+        partSize: PART,
+        concurrency: 4,
+        retryBaseDelayMs: 1,
+      }),
+    ).rejects.toBeInstanceOf(UploadError);
+    // The four lanes in flight when part 1 failed may finish what they hold;
+    // nothing beyond that first wave may start.
+    expect(server!.puts.length).toBeLessThanOrEqual(4);
+    expect(server!.puts.map((p) => p.partNumber).sort((a, b) => a - b)).toEqual([1, 2, 3, 4]);
+  });
 });
 
 describe("putFile — the file changing underneath it", () => {
@@ -709,6 +734,18 @@ describe("putFile — input validation", () => {
       }),
     ).rejects.toThrow(/5 GB/);
     expect(server!.calls).toHaveLength(0);
+  });
+
+  it("counts filename length in code points, the way protovalidate does", async () => {
+    // 200 astral characters are 400 UTF-16 units but 200 code points, so the
+    // server would accept this and a `.length` check would not.
+    const c = await client();
+    const name = `${"\u{1F3AC}".repeat(200)}.mp4`;
+    await c.uploads.putFile(new Blob([pattern(1024)]), {
+      appId: "app_k1l2m3n4o5",
+      filename: name,
+    });
+    expect(server!.calls[0]!.body.filename).toBe(name);
   });
 
   it("refuses a filename longer than the API's 255-character limit", async () => {
