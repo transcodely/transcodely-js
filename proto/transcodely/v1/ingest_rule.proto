@@ -1,0 +1,621 @@
+// Ingest rules — watch a bucket, transcode what lands in it.
+//
+// An ingest rule is a standing instruction attached to one storage origin:
+// "when an object matching these filters appears, create this job for it".
+// Your storage provider posts an event to the rule's endpoint, we record it,
+// and a matching event becomes a job with no server of yours in the path.
+//
+// The endpoint accepts the event shapes the major providers already emit —
+// Amazon S3 via SNS, Google Cloud Storage via a Pub/Sub push subscription,
+// Supabase Storage via a database webhook, and a generic shape for everything
+// else (a Cloudflare R2 queue consumer, for instance). See
+// docs/features/ingest-rules.md for the per-provider setup.
+//
+// Every source delivers at least once, and some deliver the same object twice
+// on purpose. Duplicate deliveries are absorbed: an object is identified by
+// (rule, bucket, key, etag) and produces exactly one job.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+import "transcodely/v1/job.proto";
+import "transcodely/v1/thumbnails.proto";
+
+// IngestRuleService manages ingest rules and the storage events they receive.
+service IngestRuleService {
+  // Create an ingest rule on a readable storage origin.
+  //
+  // The response carries the rule's inbound secret in full. It is shown ONCE
+  // and never again — store it wherever the event sender will read it from.
+  rpc Create(CreateIngestRuleRequest) returns (CreateIngestRuleResponse);
+
+  // Get an ingest rule by ID.
+  rpc Get(GetIngestRuleRequest) returns (GetIngestRuleResponse);
+
+  // List ingest rules.
+  rpc List(ListIngestRulesRequest) returns (ListIngestRulesResponse);
+
+  // Update a rule's mutable fields, and optionally rotate its secret.
+  rpc Update(UpdateIngestRuleRequest) returns (UpdateIngestRuleResponse);
+
+  // Delete an ingest rule. Its endpoint stops accepting events immediately.
+  // The storage events it already received are kept, so a delete never erases
+  // the record of what was ingested.
+  rpc Delete(DeleteIngestRuleRequest) returns (DeleteIngestRuleResponse);
+
+  // List the storage events a rule (or the whole app) has received, newest
+  // first, with the outcome of each.
+  rpc ListEvents(ListIngestEventsRequest) returns (ListIngestEventsResponse);
+
+  // Dry-run an object key against a rule without creating anything: says
+  // whether the filters match and, when they do, returns the exact job request
+  // the rule would submit. Nothing is stored and no job is created.
+  rpc Test(TestIngestRuleRequest) returns (TestIngestRuleResponse);
+
+  // Re-queue an event that was skipped or refused, giving the object one more
+  // pass through the rule.
+  //
+  // This exists because deduplication is permanent: an object is identified by
+  // (rule, bucket, key, etag), so simply re-sending the event — or re-uploading
+  // the same bytes — is absorbed and produces nothing. Without a replay, every
+  // object that arrived while a rule was paused, or that was refused while an
+  // account was over its spend cap, would be un-ingestable forever.
+  //
+  // The event itself is reset rather than duplicated, so it keeps its id and
+  // its history. Only `skipped` and `failed` events can be replayed: one that
+  // is already queued would be queued twice, and one that already created a job
+  // has nothing to redo.
+  rpc ReplayEvent(ReplayIngestEventRequest) returns (ReplayIngestEventResponse);
+}
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+// Which provider shape an inbound event arrived in. Detected from the payload;
+// you never declare it.
+enum StorageEventSource {
+  STORAGE_EVENT_SOURCE_UNSPECIFIED = 0;
+
+  // Amazon S3 event notification delivered through an SNS HTTPS subscription.
+  STORAGE_EVENT_SOURCE_S3_SNS = 1;
+
+  // Google Cloud Storage notification delivered by a Pub/Sub push
+  // subscription.
+  STORAGE_EVENT_SOURCE_GCS_PUBSUB = 2;
+
+  // Supabase Storage, delivered by a database webhook on storage.objects.
+  STORAGE_EVENT_SOURCE_SUPABASE = 3;
+
+  // The generic shape: {"bucket", "key", "etag", "size", "content_type"}.
+  // Used by the Cloudflare R2 queue-consumer template and anything you write
+  // yourself.
+  STORAGE_EVENT_SOURCE_GENERIC = 4;
+}
+
+// What happened to a storage event.
+enum StorageEventStatus {
+  STORAGE_EVENT_STATUS_UNSPECIFIED = 0;
+
+  // Accepted and stored; not processed yet.
+  STORAGE_EVENT_STATUS_RECEIVED = 1;
+
+  // Matched the rule's filters; the job is being created.
+  STORAGE_EVENT_STATUS_MATCHED = 2;
+
+  // Deliberately not turned into a job. `reason` says why — the filters did
+  // not match, the object is in a different bucket than the rule's origin, the
+  // rule is disabled, or the same object was already ingested.
+  STORAGE_EVENT_STATUS_SKIPPED = 3;
+
+  // A job was created. `job_id` names it.
+  STORAGE_EVENT_STATUS_CREATED = 4;
+
+  // Job creation was refused and will not be retried. `reason` carries the API
+  // error code that refused it, e.g. `limit_exceeded` or `billing_past_due`.
+  STORAGE_EVENT_STATUS_FAILED = 5;
+}
+
+// =============================================================================
+// Core messages
+// =============================================================================
+
+// IngestRule is one standing instruction on one origin.
+message IngestRule {
+  // Rule ID, e.g. "ing_a1b2c3d4e5f6".
+  string id = 1;
+
+  // App that owns the rule.
+  string app_id = 2;
+
+  // Origin the objects live in. Must have read permission.
+  string origin_id = 3;
+
+  // Human-readable name.
+  string name = 4;
+
+  // Whether the endpoint accepts events. A disabled rule answers 202 and
+  // records the event as skipped, so a provider subscription does not start
+  // failing while the rule is paused.
+  bool enabled = 5;
+
+  // Which objects this rule acts on. An empty filter set matches everything in
+  // the origin's bucket.
+  IngestRuleFilters filters = 6;
+
+  // The job to create for a matching object.
+  IngestRuleAction action = 7;
+
+  // Where the event sender posts. Computed; read-only.
+  string endpoint_url = 8;
+
+  // First 8 characters of the inbound secret, e.g. "ings_a1b". Enough to tell
+  // two secrets apart in a log; never enough to use one.
+  string secret_prefix = 9;
+
+  // Last 4 characters of the inbound secret.
+  string secret_hint = 10;
+
+  // When the secret was last rotated. Absent if it has never been rotated.
+  optional google.protobuf.Timestamp secret_rotated_at = 11;
+
+  // Until when the PREVIOUS secret is still accepted after a rotation, so the
+  // sender can be updated without dropping an event. Absent when no rotation is
+  // in flight.
+  optional google.protobuf.Timestamp previous_secret_expires_at = 12;
+
+  // How many events this rule has accepted, all time.
+  int64 events_received = 13;
+
+  // How many jobs this rule has created, all time.
+  int64 jobs_created = 14;
+
+  // When the last event arrived.
+  optional google.protobuf.Timestamp last_event_at = 15;
+
+  // When the rule was created.
+  google.protobuf.Timestamp created_at = 16;
+
+  // When the rule was last updated.
+  google.protobuf.Timestamp updated_at = 17;
+}
+
+// IngestRuleFilters narrows which objects a rule acts on. All set filters must
+// pass. An object that fails any of them is recorded as skipped, never as an
+// error.
+message IngestRuleFilters {
+  // A window that can never be satisfied is a rule that silently ingests
+  // nothing and reports no error — the worst failure a filter can have. Caught
+  // here so it is an invalid_argument naming the field, rather than a database
+  // constraint surfacing as an internal error.
+  option (buf.validate.message).cel = {
+    id: "ingest_filters.size_window_satisfiable"
+    message: "max_bytes must be 0 (no upper bound) or greater than or equal to min_bytes"
+    expression: "this.max_bytes == 0 || this.max_bytes >= this.min_bytes"
+  };
+
+  // Object key prefix, e.g. "uploads/". Matched against the key as the
+  // provider reports it, after URL-decoding.
+  string prefix = 1 [
+    (buf.validate.field).string.max_len = 1024
+  ];
+
+  // Case-insensitive key suffixes, e.g. [".mp4", ".mov"]. The object matches
+  // if it ends with any one of them. Empty accepts every extension.
+  repeated string suffixes = 2 [
+    (buf.validate.field).repeated.max_items = 20,
+    (buf.validate.field).repeated.items = {
+      string: {min_len: 1, max_len: 64}
+    }
+  ];
+
+  // Exact content types, e.g. ["video/mp4"]. The object matches if the event
+  // reports any one of them. Empty accepts every content type — including an
+  // event that reports none, which several providers do.
+  repeated string content_types = 3 [
+    (buf.validate.field).repeated.max_items = 20,
+    (buf.validate.field).repeated.items = {
+      string: {min_len: 1, max_len: 128}
+    }
+  ];
+
+  // Smallest object size to act on, in bytes. 0 means no lower bound. Useful
+  // for ignoring the zero-byte placeholder some clients write first.
+  int64 min_bytes = 4 [
+    (buf.validate.field).int64.gte = 0
+  ];
+
+  // Largest object size to act on, in bytes. 0 means no upper bound.
+  int64 max_bytes = 5 [
+    (buf.validate.field).int64.gte = 0
+  ];
+}
+
+// IngestRuleAction is the job a rule creates. It is the subset of
+// CreateJobRequest that can be decided ahead of time; the input is supplied by
+// the event (the rule's origin, and the key the event names).
+message IngestRuleAction {
+  // Output specifications, exactly as CreateJobRequest.outputs. Presets may be
+  // referenced by ID or slug.
+  repeated OutputSpec outputs = 1 [
+    (buf.validate.field).repeated.min_items = 1,
+    (buf.validate.field).repeated.max_items = 10
+  ];
+
+  // Write outputs to Transcodely-managed storage and create a hosted video,
+  // playable over our CDN. Set this or output_origin_id, not both.
+  bool managed = 2;
+
+  // Origin to write outputs to. Must have write permission. Set this or
+  // managed, not both.
+  optional string output_origin_id = 3 [
+    (buf.validate.field).string.pattern = "^ori_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Job-level output path template, as CreateJobRequest.output_path_template.
+  // In addition to the job variables it accepts {input_key}, {input_name} (the
+  // key's last segment without its extension) and {input_dir} (everything
+  // before the last segment), so outputs can mirror the source layout.
+  optional string output_path_template = 4 [
+    (buf.validate.field).string.max_len = 512,
+    (buf.validate.field).cel = {
+      id: "ingest_action.output_path_template_safe"
+      message: "output_path_template must not start with `/` or contain `..`"
+      expression: "this == '' || (!this.startsWith('/') && !this.contains('..'))"
+    }
+  ];
+
+  // Thumbnail specifications, as CreateJobRequest.thumbnails.
+  repeated ThumbnailSpec thumbnails = 5 [
+    (buf.validate.field).repeated.max_items = 5
+  ];
+
+  // Job priority.
+  JobPriority priority = 6 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Metadata copied onto every job the rule creates. The rule also adds
+  // `ingest_rule_id` and `ingest_object_key` of its own, which you can read
+  // back on the job and in webhook payloads.
+  map<string, string> metadata = 7 [
+    (buf.validate.field).map.max_pairs = 18,
+    (buf.validate.field).map.keys = {string: {min_len: 1, max_len: 64}},
+    (buf.validate.field).map.values = {string: {max_len: 1024}}
+  ];
+}
+
+// StorageEvent is one delivery from a storage provider, and what came of it.
+message StorageEvent {
+  // Event ID, e.g. "sev_a1b2c3d4e5f6g7".
+  string id = 1;
+
+  // Rule that received it.
+  string rule_id = 2;
+
+  // App that owns the rule.
+  string app_id = 3;
+
+  // Bucket the object is in, as the provider reported it.
+  string bucket = 4;
+
+  // Object key, URL-decoded. S3 percent-encodes keys and writes a space as
+  // "+"; what is stored here is the real key.
+  string object_key = 5;
+
+  // Object version identity, used for deduplication: an S3/R2 eTag, a GCS
+  // generation, or a Supabase metadata eTag. Empty when the provider sent
+  // none — the key alone then identifies the object.
+  string etag = 6;
+
+  // Object size in bytes, when the event reported one.
+  int64 size_bytes = 7;
+
+  // Content type, when the event reported one.
+  string content_type = 8;
+
+  // Which provider shape the event arrived in.
+  StorageEventSource source = 9;
+
+  // What happened to it.
+  StorageEventStatus status = 10;
+
+  // Why, for `skipped` and `failed`. A short machine-readable slug:
+  // "filter_prefix", "filter_suffix", "filter_content_type", "filter_size",
+  // "bucket_mismatch", "rule_disabled", "duplicate", or the API error code
+  // that refused the job.
+  string reason = 11;
+
+  // The job created from this event, if one was.
+  string job_id = 12;
+
+  // When the event was accepted.
+  google.protobuf.Timestamp received_at = 13;
+
+  // When the event reached a terminal status.
+  optional google.protobuf.Timestamp processed_at = 14;
+}
+
+// =============================================================================
+// Service requests and responses
+// =============================================================================
+
+// Request to create an ingest rule.
+message CreateIngestRuleRequest {
+  option (buf.validate.message).cel = {
+    id: "create_ingest_rule.output_destination"
+    message: "set exactly one output destination: action.managed or action.output_origin_id"
+    expression: "!has(this.action) || (this.action.managed != has(this.action.output_origin_id))"
+  };
+
+  // Origin the objects land in. Must be active and have read permission.
+  string origin_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ori_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Human-readable name.
+  string name = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 255
+  ];
+
+  // Which objects to act on. Omit to act on everything in the bucket.
+  IngestRuleFilters filters = 3;
+
+  // The job to create for a matching object.
+  IngestRuleAction action = 4 [
+    (buf.validate.field).required = true
+  ];
+
+  // Whether the rule starts enabled. Defaults to true; send false to create it
+  // paused and turn it on once the sender is configured.
+  optional bool enabled = 5;
+
+  // Optional target app. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to create in a specific app in their org;
+  // omitted selects the org's first active app.
+  optional string app_id = 6 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from creating an ingest rule.
+message CreateIngestRuleResponse {
+  // The created rule.
+  IngestRule rule = 1;
+
+  // The inbound secret, in full. Returned ONCE, here. We keep only enough of
+  // it to verify a delivery and to show you its first and last characters, so
+  // this value cannot be recovered later — rotate the rule to get a new one.
+  string secret = 2;
+}
+
+// Request to get an ingest rule.
+message GetIngestRuleRequest {
+  // ID of the rule.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ing_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from getting an ingest rule.
+message GetIngestRuleResponse {
+  // The requested rule.
+  IngestRule rule = 1;
+}
+
+// Request to list ingest rules.
+message ListIngestRulesRequest {
+  // Only rules on this origin.
+  optional string origin_id = 1 [
+    (buf.validate.field).string.pattern = "^ori_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Only enabled, or only disabled, rules.
+  optional bool enabled = 2;
+
+  // Pagination parameters.
+  PaginationRequest pagination = 3;
+
+  // Optional app filter. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to list a specific app in their org; omitted
+  // returns rules across all apps in the org.
+  optional string app_id = 4 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from listing ingest rules.
+message ListIngestRulesResponse {
+  // The rules, newest first.
+  repeated IngestRule rules = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to update an ingest rule.
+message UpdateIngestRuleRequest {
+  // The same destination rule Create enforces. Without it an update could store
+  // an action with both destinations or neither, and the rule would go on
+  // accepting events and failing every job at admission — a break that shows up
+  // as a pile of refusals rather than as a rejected request.
+  option (buf.validate.message).cel = {
+    id: "update_ingest_rule.output_destination"
+    message: "set exactly one output destination: action.managed or action.output_origin_id"
+    expression: "!has(this.action) || (this.action.managed != has(this.action.output_origin_id))"
+  };
+
+  // ID of the rule to update.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ing_[a-zA-Z0-9_-]+$"
+  ];
+
+  // New name. Omit to leave unchanged.
+  optional string name = 2 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 255
+  ];
+
+  // Enable or disable the rule. Omit to leave unchanged.
+  optional bool enabled = 3;
+
+  // Replace the filter set. Omit to leave unchanged. Sending an empty
+  // IngestRuleFilters clears every filter, so the rule matches everything.
+  IngestRuleFilters filters = 4;
+
+  // Replace the action. Omit to leave unchanged.
+  IngestRuleAction action = 5;
+
+  // Issue a new secret. The previous one keeps working for 24 hours so the
+  // sender can be updated without dropping an event; the new secret is
+  // returned once, on this response.
+  bool rotate_secret = 6;
+}
+
+// Response from updating an ingest rule.
+message UpdateIngestRuleResponse {
+  // The updated rule.
+  IngestRule rule = 1;
+
+  // The new inbound secret, in full. Present only when rotate_secret was set,
+  // and returned only here.
+  string secret = 2;
+
+  // How many objects this rule declined while it was switched off, and can now
+  // be replayed with ReplayEvent.
+  //
+  // Returned when an update turns a paused rule back on, because pausing is
+  // advertised as safe and that is only half true: the deliveries were accepted
+  // and recorded, but nothing will retry them on its own. This is the number
+  // you would otherwise have to go and discover.
+  int64 events_skipped_while_disabled = 3;
+}
+
+// Request to delete an ingest rule.
+message DeleteIngestRuleRequest {
+  // ID of the rule to delete.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ing_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from deleting an ingest rule.
+message DeleteIngestRuleResponse {
+  // The rule as it was at deletion.
+  IngestRule rule = 1;
+}
+
+// Request to list storage events.
+message ListIngestEventsRequest {
+  // Only events for this rule. Omit for every rule in scope.
+  optional string rule_id = 1 [
+    (buf.validate.field).string.pattern = "^ing_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Only events with this status.
+  optional StorageEventStatus status = 2 [
+    (buf.validate.field).enum.defined_only = true
+  ];
+
+  // Pagination parameters.
+  PaginationRequest pagination = 3;
+
+  // Optional app filter. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to read a specific app in their org; omitted
+  // returns events across all apps in the org.
+  optional string app_id = 4 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from listing storage events.
+message ListIngestEventsResponse {
+  // The events, newest first.
+  repeated StorageEvent events = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to dry-run an object against a rule.
+message TestIngestRuleRequest {
+  // ID of the rule to test.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^ing_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Object key to test, e.g. "uploads/clip.mp4".
+  string object_key = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.max_len = 1024
+  ];
+
+  // Bucket the object would be in. Omit to use the rule's origin bucket, which
+  // is what a real event will almost always carry.
+  string bucket = 3 [
+    (buf.validate.field).string.max_len = 255
+  ];
+
+  // Object size in bytes, for testing the size filters.
+  int64 size_bytes = 4 [
+    (buf.validate.field).int64.gte = 0
+  ];
+
+  // Content type, for testing the content-type filter.
+  string content_type = 5 [
+    (buf.validate.field).string.max_len = 128
+  ];
+
+  // Version identity the real event would carry — an S3/R2 eTag, a GCS
+  // generation, a Supabase metadata eTag.
+  //
+  // It changes no filter decision, and it is here for one reason: the
+  // idempotency key on the returned job request is derived from it, so a dry
+  // run that omits it predicts a key no real delivery will ever use. Supply it
+  // when you want the preview to name the key the job will actually carry.
+  string etag = 6 [
+    (buf.validate.field).string.max_len = 128
+  ];
+}
+
+// Request to replay a storage event.
+message ReplayIngestEventRequest {
+  // ID of the event to re-queue.
+  string event_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^sev_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from a replay.
+message ReplayIngestEventResponse {
+  // The event, back in `received` and waiting to be processed.
+  StorageEvent event = 1;
+}
+
+// Response from a dry run.
+message TestIngestRuleResponse {
+  // Whether the object would produce a job.
+  bool matched = 1;
+
+  // Why not, when it would not. Same slugs as StorageEvent.reason.
+  string reason = 2;
+
+  // The job request this rule would submit for the object. Present only when
+  // matched. Nothing was created — this is what WOULD be sent.
+  CreateJobRequest job_request = 3;
+}

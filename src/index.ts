@@ -203,6 +203,32 @@ export {
   R2Jurisdiction,
 } from "./gen/transcodely/v1/origin_pb.js";
 
+// Ingest rules.
+export {
+  type IngestRule,
+  type IngestRuleFilters,
+  type IngestRuleAction,
+  type StorageEvent,
+  type CreateIngestRuleRequest,
+  type CreateIngestRuleResponse,
+  type GetIngestRuleRequest,
+  type GetIngestRuleResponse,
+  type ListIngestRulesRequest,
+  type ListIngestRulesResponse,
+  type UpdateIngestRuleRequest,
+  type UpdateIngestRuleResponse,
+  type DeleteIngestRuleRequest,
+  type DeleteIngestRuleResponse,
+  type ListIngestEventsRequest,
+  type ListIngestEventsResponse,
+  type TestIngestRuleRequest,
+  type TestIngestRuleResponse,
+  type ReplayIngestEventRequest,
+  type ReplayIngestEventResponse,
+  StorageEventSource,
+  StorageEventStatus,
+} from "./gen/transcodely/v1/ingest_rule_pb.js";
+
 // Apps.
 export {
   type App,
