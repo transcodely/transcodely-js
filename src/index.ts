@@ -108,6 +108,7 @@ export {
   type OutputReportAudio,
   type OutputReportVerdict,
   type OutputReportMismatch,
+  type OutputReportContentAware,
   type PricingSnapshot,
   type VariantPricingSnapshot,
   type JobFee,

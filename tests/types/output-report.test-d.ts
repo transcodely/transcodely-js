@@ -17,6 +17,7 @@ import type {
   OutputReport,
   OutputReportAudio,
   OutputReportColor,
+  OutputReportContentAware,
   OutputReportMismatch,
   OutputReportVerdict,
   OutputReportVideo,
@@ -34,6 +35,7 @@ expectType<Equal<OutputReportColor, gen.OutputReportColor>>();
 expectType<Equal<OutputReportAudio, gen.OutputReportAudio>>();
 expectType<Equal<OutputReportVerdict, gen.OutputReportVerdict>>();
 expectType<Equal<OutputReportMismatch, gen.OutputReportMismatch>>();
+expectType<Equal<OutputReportContentAware, gen.OutputReportContentAware>>();
 
 // (2) The report hangs off a job output, and is optional there — "not
 //     measured" stays distinguishable from "measured, nothing wrong".
@@ -58,5 +60,18 @@ if (output.report) {
     expectType<Equal<typeof output.report.video.codec, string>>();
     expectType<Equal<typeof output.report.video.hdrFormat, string>>();
     expectType<Equal<typeof output.report.video.color, OutputReportColor | undefined>>();
+  }
+
+  // (4) The per-title search result is optional on the report — absent on
+  //     every ordinary output, and on a content-aware output whose analysis
+  //     never reported.
+  expectType<
+    Equal<typeof output.report.contentAware, OutputReportContentAware | undefined>
+  >();
+  if (output.report.contentAware) {
+    expectType<Equal<typeof output.report.contentAware.mode, string>>();
+    expectType<Equal<typeof output.report.contentAware.vmafTarget, number | undefined>>();
+    expectType<Equal<typeof output.report.contentAware.vmafAchieved, number | undefined>>();
+    expectType<Equal<typeof output.report.contentAware.crfChosen, number | undefined>>();
   }
 }

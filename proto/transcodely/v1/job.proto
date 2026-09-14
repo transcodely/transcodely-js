@@ -771,6 +771,52 @@ message OutputReport {
 
   // When the produced file was measured.
   google.protobuf.Timestamp checked_at = 6;
+
+  // What the content-aware analysis decided for this output, when the output
+  // was encoded with per-title analysis.
+  //
+  // Present ONLY for an output whose encode ran that analysis. Absent on every
+  // ordinary output, which is the overwhelming majority of them, and absent on
+  // an output that requested content-aware encoding but whose analysis pass
+  // never reported (it fell back to the quality tier's own CRF).
+  optional OutputReportContentAware content_aware = 7;
+}
+
+// What the content-aware analysis decided for one output: the quality it aimed
+// at, the quality it reached on its samples, and the encoder setting it chose.
+//
+// These describe the SEARCH, not the finished file. The search runs on short
+// samples taken from the source before the real encode starts, so
+// vmaf_achieved is the score those samples got at the chosen setting — not a
+// measurement of the delivered output, which is never scored. The facts about
+// the delivered file are the other fields of OutputReport.
+//
+// The fields are strings and numbers for the same reason the rest of the report
+// is: this records what an encoder did, and a value we have not catalogued must
+// be reportable the day it appears.
+message OutputReportContentAware {
+  // Analysis mode that ran, lowercase: "per_title". Same vocabulary as the
+  // request's ContentAwareMode.
+  string mode = 1;
+
+  // VMAF score the search aimed at, 0-100.
+  //
+  // This is the target actually used, which is not always the one requested:
+  // a value outside the range the analysis can search is clamped into it, and
+  // what you read here is the clamped one.
+  optional double vmaf_target = 2;
+
+  // VMAF score the chosen setting reached on the analysis samples, 0-100.
+  // Absent when the search ended without a scored result.
+  optional double vmaf_achieved = 3;
+
+  // Constant-rate-factor the search settled on, in the encoder's own scale
+  // (lower is higher quality). Absent when the search produced none and the
+  // encode fell back to the quality tier's default.
+  //
+  // For a multi-rendition output this is the highest-resolution rendition's
+  // value; the lower rungs derive from it by the ladder's fixed offsets.
+  optional int32 crf_chosen = 4;
 }
 
 // Measured properties of a produced video stream.

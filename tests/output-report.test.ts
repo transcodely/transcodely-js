@@ -87,6 +87,51 @@ describe("output report", () => {
     expect(report!.audio[0]!.sampleRateHz).toBe(48000);
   });
 
+  it("carries what the per-title search decided, when one ran", () => {
+    const resp = deserialize(
+      encode({
+        job: {
+          id: "job_abc123def456",
+          outputs: [
+            {
+              id: "out_abc123def4567",
+              report: {
+                container: "mp4",
+                content_aware: {
+                  mode: "per_title",
+                  vmaf_target: 95,
+                  vmaf_achieved: 95.4,
+                  crf_chosen: 24,
+                },
+              },
+            },
+          ],
+        },
+      }),
+      GetJobResponse,
+    );
+
+    const ca = resp.job?.outputs[0]!.report?.contentAware;
+    expect(ca).toBeDefined();
+    expect(ca!.mode).toBe("per_title");
+    expect(ca!.vmafTarget).toBe(95);
+    expect(ca!.vmafAchieved).toBeCloseTo(95.4);
+    expect(ca!.crfChosen).toBe(24);
+  });
+
+  it("leaves an ordinary output's content_aware undefined", () => {
+    const resp = deserialize(
+      encode({
+        job: {
+          id: "job_abc123def456",
+          outputs: [{ id: "out_abc123def4567", report: { container: "mp4" } }],
+        },
+      }),
+      GetJobResponse,
+    );
+    expect(resp.job?.outputs[0]!.report?.contentAware).toBeUndefined();
+  });
+
   it("leaves an unmeasured output's report undefined rather than empty", () => {
     const resp = deserialize(
       encode({
