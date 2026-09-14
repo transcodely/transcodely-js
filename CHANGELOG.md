@@ -4,6 +4,14 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.8](https://github.com/transcodely/transcodely-js/compare/v0.3.7...v0.3.8) (2026-09-14)
+
+
+### Features
+
+* **proto:** sync IngestRuleService (ingest rules) ([#63](https://github.com/transcodely/transcodely-js/issues/63)) ([af8992a](https://github.com/transcodely/transcodely-js/commit/af8992ade9d01ccaa314869198a20dab54e7af16))
+* **proto:** sync OutputReport (job output facts + verdict) ([#61](https://github.com/transcodely/transcodely-js/issues/61)) ([4bf7f6c](https://github.com/transcodely/transcodely-js/commit/4bf7f6c2c26c462f62b2f269f93c22f5c94fcd2c))
+
 ## [0.3.7](https://github.com/transcodely/transcodely-js/compare/v0.3.6...v0.3.7) (2026-08-16)
 
 
