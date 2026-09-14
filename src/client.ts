@@ -9,6 +9,7 @@ import { Apps } from "./resources/apps.js";
 import { Billing } from "./resources/billing.js";
 import { Events } from "./resources/events.js";
 import { Health } from "./resources/health.js";
+import { IngestRules } from "./resources/ingest-rules.js";
 import { Jobs } from "./resources/jobs.js";
 import { Memberships } from "./resources/memberships.js";
 import { Organizations } from "./resources/organizations.js";
@@ -31,6 +32,7 @@ export class Transcodely {
   private _videos: Videos | undefined;
   private _presets: Presets | undefined;
   private _origins: Origins | undefined;
+  private _ingestRules: IngestRules | undefined;
   private _apps: Apps | undefined;
   private _apiKeys: ApiKeys | undefined;
   private _organizations: Organizations | undefined;
@@ -61,6 +63,13 @@ export class Transcodely {
   }
   get origins(): Origins {
     return (this._origins ??= new Origins(this.transport));
+  }
+  /**
+   * Ingest rules: watch a bucket, transcode what lands in it. See
+   * {@link IngestRules}.
+   */
+  get ingestRules(): IngestRules {
+    return (this._ingestRules ??= new IngestRules(this.transport));
   }
   get apps(): Apps {
     return (this._apps ??= new Apps(this.transport));

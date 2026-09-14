@@ -133,6 +133,7 @@ client.jobs            // create / get / list / cancel / confirm / watch
 client.videos          // upload helpers, multipart, createFromUrl, get / list / update / delete / watch / getStats / listTopVideos
 client.presets         // create / get / getBySlug / list / update / duplicate / archive
 client.origins         // create / get / list / update / validate / archive
+client.ingestRules     // create / get / list / update / delete / listEvents / test / replayEvent
 client.apps            // create / get / list / update / archive / enableHosting
 client.apiKeys         // create / get / list / revoke
 client.organizations   // create / get / list / update / checkSlug
@@ -235,6 +236,74 @@ r2: {
 ```
 
 Provide either `accountId` or `endpoint`, never both. `jurisdiction` only applies when `accountId` is set.
+
+## Ingest rules
+
+An ingest rule is a standing instruction on one readable origin: *when an object
+matching these filters lands, create this job for it*. Your storage provider
+posts its object-created events to the rule's endpoint, and no server of yours
+is in the path. Amazon S3 via SNS, Google Cloud Storage via a Pub/Sub push
+subscription, Supabase Storage via a database webhook, and a generic shape for
+anything else are all recognised from the payload.
+
+```ts
+const { rule, secret } = await client.ingestRules.create({
+  originId: "ori_a1b2c3d4e5f6",
+  name: "Watch uploads/",
+  filters: {
+    prefix: "uploads/",
+    suffixes: [".mp4", ".mov"],
+    minBytes: 1024n, // ignore the zero-byte placeholder some clients write first
+  },
+  action: {
+    outputs: [{ preset: "web_1080p_standard" }],
+    managed: true, // host and deliver the result; set outputOriginId for your own bucket
+    priority: JobPriority.STANDARD,
+  },
+});
+
+console.log("point your bucket notifications at", rule!.endpointUrl);
+console.log("secret (shown once):", secret);
+```
+
+`secret` is the **only** time the inbound secret is readable — store it wherever
+the event sender will read it from. A later `get` returns just `secretPrefix`
+and `secretHint`. Lost it? `update` with `rotateSecret: true` issues a new one,
+and the previous one keeps working for 24 hours so the sender can be changed
+without dropping an event.
+
+Every delivery is recorded, whether or not it became a job:
+
+```ts
+for await (const event of client.ingestRules
+  .listEvents({ ruleId: rule!.id })
+  .autoPage()) {
+  console.log(event.id, event.source, event.objectKey, event.status, event.reason);
+}
+```
+
+A `SKIPPED` event names why in `reason` — `filter_prefix`, `filter_suffix`,
+`filter_content_type`, `filter_size`, `bucket_mismatch`, `rule_disabled`, or
+`duplicate`. A `FAILED` one carries the API error code that refused the job,
+such as `limit_exceeded`.
+
+Deduplication is permanent: an object is identified by (rule, bucket, key,
+etag), so re-sending the event or re-uploading the same bytes produces nothing.
+To give an object another pass — one that arrived while the rule was paused, or
+was refused while the account was over its cap — replay it:
+
+```ts
+const replayed = await client.ingestRules.replayEvent("sev_a1b2c3d4e5f6g7");
+console.log(replayed.id, "is back in", StorageEventStatus[replayed.status]);
+```
+
+Only `SKIPPED` and `FAILED` events can be replayed. When an `update` switches a
+paused rule back on, the response reports how large that backlog is in
+`eventsSkippedWhileDisabled`.
+
+Before wiring the provider up, dry-run a key against the rule with
+`client.ingestRules.test(...)`: it reports whether the filters match and, when
+they do, the exact job request the rule would submit. Nothing is stored.
 
 ## Webhooks
 
