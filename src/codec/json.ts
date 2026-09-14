@@ -55,6 +55,31 @@ export function deserialize<T extends Message<T>>(
   return type.fromJson(parsed, { ignoreUnknownFields: true });
 }
 
+/**
+ * Render a generated message as a plain JSON value in the Transcodely wire
+ * format — snake_case field names, simplified lowercase enums, exactly what
+ * the REST/Connect API returns. Useful for logging and for tools that print
+ * API entities (the `transcodely` CLI's `--json` mode uses it).
+ *
+ * Unlike {@link serialize} it takes no MessageType: the message carries its
+ * own descriptor.
+ */
+export function toWireJson<T extends Message<T>>(
+  msg: T,
+  opts: SerializeOptions = {},
+): JsonValue {
+  const merged = { ...DEFAULT_OPTS, ...opts };
+  const obj = msg.toJson({
+    useProtoFieldName: true,
+    emitDefaultValues: merged.emitDefaultValues,
+    enumAsInteger: false,
+  }) as JsonValue;
+  if (typeof obj === "object" && obj !== null && !Array.isArray(obj)) {
+    transformEnumsInJson(obj, msg.getType() as MessageType<T>, "simplify");
+  }
+  return obj;
+}
+
 /** Same as `deserialize` but takes an already-parsed JsonValue. */
 export function fromJson<T extends Message<T>>(
   json: JsonValue,

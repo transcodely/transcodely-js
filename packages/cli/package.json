@@ -1,0 +1,52 @@
+{
+  "name": "transcodely",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Transcode, host and deliver a video from the command line \u2014 npx transcodely ./talk.mp4",
+  "license": "MIT",
+  "homepage": "https://www.transcodely.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/transcodely/transcodely-js.git",
+    "directory": "packages/cli"
+  },
+  "bugs": "https://github.com/transcodely/transcodely-js/issues",
+  "keywords": [
+    "transcodely",
+    "cli",
+    "video",
+    "transcoding",
+    "hls",
+    "upload",
+    "ffmpeg"
+  ],
+  "type": "module",
+  "bin": {
+    "transcodely": "./dist/index.mjs"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@transcodely/sdk": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "@bufbuild/protobuf": "^1.10.0"
+  }
+}

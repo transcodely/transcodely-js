@@ -24,10 +24,16 @@ jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
+    # A two-package manifest changes the action's output shape: it emits
+    # `releases_created` plus per-path `<path>--release_created`, where the
+    # single-package config emitted the bare `release_created`. Which of the two
+    # a given version emits for the ROOT path is not something to guess at, so
+    # both are read and either one counts — the SDK must keep publishing.
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-      version: ${{ steps.release.outputs.version }}
+      sdk_released: ${{ steps.release.outputs['.--release_created'] || steps.release.outputs.release_created }}
+      cli_released: ${{ steps.release.outputs['packages/cli--release_created'] }}
+      tag_name: ${{ steps.release.outputs['.--tag_name'] || steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs['.--version'] || steps.release.outputs.version }}
     steps:
       - name: Run Release Please
         id: release
@@ -45,7 +51,7 @@ jobs:
   publish-npm:
     name: Publish to npm
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch' }}
+    if: ${{ needs.release-please.outputs.sdk_released || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -97,3 +103,60 @@ jobs:
           echo "- **Tag:** \`${{ needs.release-please.outputs.tag_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Install:** \`npm install @transcodely/sdk@${{ needs.release-please.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **npm:** https://www.npmjs.com/package/@transcodely/sdk/v/${{ needs.release-please.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Publish the CLI (`transcodely`) — a separate package with its own release
+  # PR and its own tag (cli-vX.Y.Z). Without this job a merged CLI release PR
+  # would tag and cut a GitHub Release with no publish at all, which reads like
+  # a successful release. While the package is still `private` the job says so
+  # and stops, rather than failing a release that was never meant to ship it.
+  # ============================================================================
+  publish-cli:
+    name: Publish CLI to npm
+    needs: release-please
+    if: ${{ needs.release-please.outputs.cli_released }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck, test and build
+        run: pnpm typecheck && pnpm test && pnpm build
+
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@11
+
+      # `npm publish` does NOT rewrite the `workspace:` protocol, so a tarball
+      # built while the dependency still reads `workspace:^` would install
+      # nothing. Refuse loudly rather than publish something broken.
+      - name: Publish
+        working-directory: packages/cli
+        run: |
+          if [ "$(node -p "require('./package.json').private === true")" = "true" ]; then
+            echo "## CLI publish skipped" >> $GITHUB_STEP_SUMMARY
+            echo "\`packages/cli\` is still \`private\`. Drop it and pin @transcodely/sdk to a published version to ship the CLI (see packages/cli/README.md)." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          if node -p "JSON.stringify(require('./package.json').dependencies)" | grep -q 'workspace:'; then
+            echo "packages/cli still depends on @transcodely/sdk via the workspace protocol; pin a published version first." >&2
+            exit 1
+          fi
+          npm publish --provenance

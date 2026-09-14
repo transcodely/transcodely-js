@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    // The published package depends on @transcodely/sdk; in this repo the
+    // workspace link resolves to the SDK's built dist, which typecheck must
+    // not require. Point it at the source instead. tsup keeps it external.
+    "paths": {
+      "@transcodely/sdk": ["../../src/index.ts"]
+    }
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}

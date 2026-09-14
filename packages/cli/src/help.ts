@@ -1,0 +1,55 @@
+import { CLI_VERSION } from "./version.js";
+
+export const HELP = `transcodely ${CLI_VERSION} — transcode, host and deliver video
+
+USAGE
+  transcodely <file|url> [options]     encode and host one video
+  transcodely login [options]          save an API key
+  transcodely logout                   forget the saved API key
+  transcodely jobs ls [options]        list recent jobs
+  transcodely jobs get <job_id>        show one job
+  transcodely videos get <video_id>    show one hosted video
+
+ENCODE AND HOST
+  transcodely ./talk.mp4
+  transcodely https://example.com/talk.mp4 --wait
+  transcodely https://example.com/talk.mp4 --own-bucket ori_a1b2c3d4e5f6 --hls
+
+  --own-bucket <ori_…>   write the outputs to your own storage origin
+                         instead of Transcodely-managed delivery (URL inputs
+                         only — uploaded bytes always land in managed storage)
+  --hls                  produce an HLS ladder (1080p/720p/480p, H.264)
+  --mp4                  produce a single 1080p H.264 MP4
+  --preset <pst_…>       encode with a preset, by id or slug
+  --title <text>         title for the hosted video
+  --visibility <v>       public, unlisted or private
+  --wait                 stay attached until the job reaches a final state
+  --part-size <bytes>    upload part size (default 25 MiB, minimum 5 MiB)
+  --concurrency <n>      parts uploaded at once (default 4)
+
+LOGIN
+  transcodely login --api-key ak_…     save a key non-interactively
+  echo "$KEY" | transcodely login      read the key from stdin
+  transcodely login --app app_…        also save a default app
+
+GLOBAL  (flags may go before or after the input)
+  --app <app_…>          app to act in (else TRANSCODELY_APP_ID, else saved)
+  --api-key <ak_…>       key for this command only (lands in shell history + ps)
+  --base-url <url>       API base URL (staging or a local stack)
+  --json                 print one JSON document instead of human output,
+                         including on failure ({"error": {...}})
+  -h, --help             this text
+  -v, --version          print the CLI version
+
+ENVIRONMENT
+  TRANSCODELY_API_KEY    outranks anything saved by \`transcodely login\`
+  TRANSCODELY_APP_ID     default app
+  TRANSCODELY_BASE_URL   default API base URL
+
+EXIT CODES
+  0  success — with --wait, a job that reached "completed" or a video "ready"
+  1  the API refused the request, or --wait ended anywhere else
+  2  the command line was wrong
+
+The CLI sends no telemetry.
+`;

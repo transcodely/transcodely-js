@@ -109,6 +109,18 @@ export class InvalidRequestError extends TranscodelyError {}
 export class PreconditionError extends TranscodelyError {}
 
 /**
+ * Raised by `client.uploads.putFile` when the byte transfer itself fails —
+ * a presigned PUT rejected after retries, a store that returned no ETag, or a
+ * source the SDK refuses to send (empty, over the 5 GB ceiling, a stream with
+ * no declared size). Errors from the upload RPCs themselves stay in their own
+ * classes; this one covers the part of the upload the API never sees.
+ */
+export class UploadError extends TranscodelyError {}
+
+/** The upload's `signal` fired. The multipart upload is aborted server-side. */
+export class UploadAbortedError extends UploadError {}
+
+/**
  * Base class for errors thrown by {@link Webhooks.constructEvent}. Unlike the
  * other SDK errors, these originate locally — the SDK never made a network
  * call when these fire — so `httpStatus` and `requestId` are always

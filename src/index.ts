@@ -30,6 +30,8 @@ export {
   PreconditionError,
   RateLimitError,
   TranscodelyError,
+  UploadAbortedError,
+  UploadError,
   WebhookError,
   WebhookPayloadError,
   WebhookSignatureError,
@@ -39,6 +41,27 @@ export {
 export type { CallOptions, LogEvent } from "./transport/transport.js";
 
 export { Page } from "./pagination.js";
+
+/** Render any generated message as wire-format JSON (snake_case, lowercase enums). */
+export { toWireJson } from "./codec/json.js";
+
+// Uploads — the byte-pushing helper behind `client.uploads.putFile(...)`.
+export {
+  DEFAULT_CONCURRENCY,
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_PART_SIZE,
+  DEFAULT_RETRY_BASE_DELAY_MS,
+  MAX_PARTS,
+  MAX_UPLOAD_SIZE_BYTES,
+  MIN_PART_SIZE,
+  calculatePartSize,
+  calculateTotalParts,
+  contentTypeForFilename,
+  type PutFileOptions,
+  type UploadProgress,
+  type UploadSource,
+} from "./upload.js";
+export { Uploads } from "./resources/uploads.js";
 
 export { API_VERSION, SDK_VERSION, DEFAULT_BASE_URL } from "./version.js";
 

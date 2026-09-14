@@ -52,6 +52,8 @@ jobs:
           test -f dist/index.cjs
           test -f dist/index.d.ts
           test -f dist/index.d.cts
+          test -f packages/cli/dist/index.mjs
+          head -1 packages/cli/dist/index.mjs | grep -q '^#!/usr/bin/env node'
 
   ci:
     name: Typecheck, Test, Build

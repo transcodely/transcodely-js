@@ -43,6 +43,96 @@ for await (const event of client.jobs.watch(job.id)) {
 }
 ```
 
+## Upload a file
+
+`client.uploads.putFile` takes a file from your disk to a hosted, playable
+video in one call. It opens the upload, pushes the bytes straight to object
+storage, and tells the API the bytes landed — the API never proxies the media.
+
+```ts
+const video = await client.uploads.putFile("./talk.mp4", {
+  appId: "app_k1l2m3n4o5",
+  title: "Conference talk",
+  onProgress: (p) => process.stdout.write(`\r${p.percent}%`),
+});
+
+console.log(video.id, video.status); // "vid_a1b2c3d4e5f6g7" "processing"
+```
+
+The transcode starts on its own as soon as the upload completes, so the video
+comes back already `processing`. Follow it with `client.videos.watch(video.id)`
+until it reaches `ready` (or `error`, or `deleted`), or subscribe to the
+`video.ready` webhook.
+
+**The app does not need managed hosting turned on first.** An app that has never
+hosted anything is provisioned by the create call itself — bucket, managed
+origin and CDN pull zone — which is why a first upload takes a few seconds
+longer than the ones after it. Two things can still refuse it, and they are
+worth telling apart:
+
+- `hosting_provisioning_failed` — provisioning did not complete. Nothing was
+  created, so the identical call is safe to retry.
+- a billing or admission code — `billing_past_due`,
+  `outstanding_balance_exceeded`, `limit_exceeded`, `intake_paused`,
+  `app_suspended`. These are about the account, not about hosting, and retrying
+  will not clear them.
+
+**Sources.** A filesystem path, a `Blob`/`File`, or a `ReadableStream`. A path
+and a `File` supply their own name and size; a bare `Blob` needs `filename`,
+and a stream needs both `filename` and `sizeBytes` because the API has to know
+the total before the first byte moves.
+
+```ts
+await client.uploads.putFile(blob, { appId, filename: "talk.mp4" });
+await client.uploads.putFile(stream, { appId, filename: "talk.mp4", sizeBytes: 734003200 });
+```
+
+**How it moves the bytes.** A file that fits in one part goes up as a single
+`PUT`. Anything larger becomes an S3 multipart upload: parts are uploaded
+`concurrency` at a time (default 4), a part that fails on a 5xx, 429, 408 or a
+network error is retried with jittered backoff, and a presigned URL that has
+expired is re-signed and retried. If the upload cannot finish, the multipart
+upload is aborted server-side before the error is thrown — nothing sweeps
+orphaned multipart uploads, so an abandoned one would cost storage forever.
+
+**Knobs.**
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `partSize` | 25 MiB | Raised to the 5 MiB S3 minimum, and further if 10,000 parts would not cover the file. |
+| `concurrency` | 4 | Parts in flight at once. For a stream source this also caps how much is buffered. |
+| `maxRetries` | 4 | Retries per part, after the first attempt. |
+| `signal` | — | Aborts the upload and the multipart upload behind it. |
+| `onProgress` | — | Called once per completed part, not per byte. |
+
+**Limits and errors.** The platform ceiling is 5 GB; an empty file or one over
+the ceiling is refused before the first request. Transfer failures throw
+`UploadError` (`UploadAbortedError` when your `signal` fired); everything the
+API itself refuses keeps its usual error class.
+
+```ts
+import { UploadAbortedError, UploadError } from "@transcodely/sdk";
+```
+
+Need finer control? The individual RPCs are still there on `client.videos`
+(`createUpload`, `createMultipartUpload`, `getUploadPartUrls`,
+`completeMultipartUpload`, `abortMultipartUpload`).
+
+## Command line
+
+The same flows from a shell, with no code:
+
+```bash
+npx transcodely ./talk.mp4
+npx transcodely https://example.com/talk.mp4 --wait
+```
+
+**Not published yet.** The `transcodely` CLI lives in this repository under
+[`packages/cli`](packages/cli/README.md) and ships once this SDK releases the
+version it pins. Until then the commands above do not resolve on npm; build it
+from the repo instead (`pnpm install && pnpm build`, then
+`node packages/cli/dist/index.mjs --help`).
+
 ## Read the output report
 
 Every completed output carries a report of what the produced file actually
@@ -130,7 +220,8 @@ const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 
 ```ts
 client.jobs            // create / get / list / cancel / confirm / watch
-client.videos          // upload helpers, multipart, createFromUrl, get / list / update / delete / watch / getStats / listTopVideos
+client.uploads         // putFile — the whole create / PUT / complete upload, for a path, Blob or stream
+client.videos          // upload RPCs, multipart, createFromUrl, get / list / update / delete / watch / getStats / listTopVideos
 client.presets         // create / get / getBySlug / list / update / duplicate / archive
 client.origins         // create / get / list / update / validate / archive
 client.ingestRules     // create / get / list / update / delete / listEvents / test / replayEvent
