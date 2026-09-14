@@ -76,6 +76,14 @@
       "release-type": "node",
       "package-name": "transcodely",
       "component": "cli",
+      "initial-version": "0.1.0",
+      "exclude-paths": [
+        "src",
+        "tests",
+        "proto",
+        "examples",
+        "scripts"
+      ],
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
