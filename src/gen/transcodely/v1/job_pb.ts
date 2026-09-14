@@ -1405,6 +1405,19 @@ export class JobOutput extends Message<JobOutput> {
    */
   signedUrl?: string;
 
+  /**
+   * What the produced file actually is, measured from the file itself, plus
+   * the verdict of comparing those measurements against what this output
+   * asked for. See OutputReport.
+   *
+   * Absent until the output has been measured: outputs that never produced a
+   * file, and outputs produced before this field existed, carry no report.
+   * Absence means "not measured" — never "nothing wrong".
+   *
+   * @generated from field: optional transcodely.v1.OutputReport report = 27;
+   */
+  report?: OutputReport;
+
   constructor(data?: PartialMessage<JobOutput>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1437,6 +1450,7 @@ export class JobOutput extends Message<JobOutput> {
     { no: 24, name: "average_bitrate_kbps", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
     { no: 25, name: "variant_results", kind: "message", T: OutputVariantResult, repeated: true },
     { no: 26, name: "signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 27, name: "report", kind: "message", T: OutputReport, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JobOutput {
@@ -1453,6 +1467,535 @@ export class JobOutput extends Message<JobOutput> {
 
   static equals(a: JobOutput | PlainMessage<JobOutput> | undefined, b: JobOutput | PlainMessage<JobOutput> | undefined): boolean {
     return proto3.util.equals(JobOutput, a, b);
+  }
+}
+
+/**
+ * OutputReport is what the produced file turned out to be: codec, profile,
+ * pixel format, color signaling, dimensions, frame rate, audio and duration,
+ * all read back from the encoded file after it was written — not copied from
+ * the request and not inherited from the input. The one field that is not a
+ * measurement is container, which states the delivery format (see below).
+ *
+ * Alongside the facts sits a verdict: whether the file matches what the job
+ * asked for, and the exact field-by-field differences where it does not. The
+ * facts are measured by the encoder host; the verdict is computed by the API,
+ * so the same request always produces the same verdict.
+ *
+ * For a single-file output the facts describe that file. For a multi-rendition
+ * output (an ABR ladder, HLS, DASH, adaptive) they describe the
+ * HIGHEST-RESOLUTION rendition — the same one width, height and
+ * average_bitrate_kbps already report, and the one the verdict is judged
+ * against. Per-rendition detail stays in variant_results.
+ *
+ * Every value here is a parsed, named fact. The report never carries encoder
+ * command lines, tool output, stack traces, log lines or storage paths, and
+ * values that do not look like the short identifiers media tools emit are
+ * dropped rather than passed through.
+ *
+ * The string-typed fields (container, codec, profile, level, pix_fmt, the
+ * color fields, hdr_format) are deliberately strings and not enums: their
+ * vocabularies belong to the media formats themselves, and a value we have not
+ * catalogued yet must be reportable the day it appears rather than wait for a
+ * new enum value to travel through every SDK. They are always lowercase, and
+ * the documented spellings below are the ones you will see in practice.
+ *
+ * @generated from message transcodely.v1.OutputReport
+ */
+export class OutputReport extends Message<OutputReport> {
+  /**
+   * Delivery format of this output, lowercase: "mp4", "mov", "webm", "mkv",
+   * "hls", "dash" or "adaptive" — the same vocabulary as the request's
+   * OutputSpec.type, and what a container mismatch is stated in.
+   *
+   * It names what was DELIVERED, not what a demuxer called an intermediate
+   * file: for a streaming output the delivered thing is the manifest and its
+   * segments, while the measurements in the fields below were taken on the
+   * encoded rendition before it was packaged.
+   *
+   * That makes this the one field the verdict cannot really police — a report
+   * echoing the requested type always matches. The check that a file is in the
+   * container it was promised runs on the encoder host, before delivery, and
+   * fails the output outright rather than describing it. This field is here so
+   * the report is self-describing, not as that check's second opinion.
+   *
+   * @generated from field: string container = 1;
+   */
+  container = "";
+
+  /**
+   * The produced video stream. Absent when the file carries no video stream.
+   *
+   * @generated from field: optional transcodely.v1.OutputReportVideo video = 2;
+   */
+  video?: OutputReportVideo;
+
+  /**
+   * The produced audio streams, in the order the container carries them.
+   * Empty for an output encoded without audio.
+   *
+   * @generated from field: repeated transcodely.v1.OutputReportAudio audio = 3;
+   */
+  audio: OutputReportAudio[] = [];
+
+  /**
+   * Measured playback duration of the produced file in seconds.
+   *
+   * This is read from the produced file. It is not the input's duration and
+   * not the requested length, which is exactly what makes it able to catch an
+   * encode that stopped early.
+   *
+   * @generated from field: optional double duration_seconds = 4;
+   */
+  durationSeconds?: number;
+
+  /**
+   * Whether the produced file matches what this output asked for, and where it
+   * does not. Always present on a report.
+   *
+   * @generated from field: transcodely.v1.OutputReportVerdict verdict = 5;
+   */
+  verdict?: OutputReportVerdict;
+
+  /**
+   * When the produced file was measured.
+   *
+   * @generated from field: google.protobuf.Timestamp checked_at = 6;
+   */
+  checkedAt?: Timestamp;
+
+  constructor(data?: PartialMessage<OutputReport>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.OutputReport";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "container", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "video", kind: "message", T: OutputReportVideo, opt: true },
+    { no: 3, name: "audio", kind: "message", T: OutputReportAudio, repeated: true },
+    { no: 4, name: "duration_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 5, name: "verdict", kind: "message", T: OutputReportVerdict },
+    { no: 6, name: "checked_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputReport {
+    return new OutputReport().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): OutputReport {
+    return new OutputReport().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): OutputReport {
+    return new OutputReport().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: OutputReport | PlainMessage<OutputReport> | undefined, b: OutputReport | PlainMessage<OutputReport> | undefined): boolean {
+    return proto3.util.equals(OutputReport, a, b);
+  }
+}
+
+/**
+ * Measured properties of a produced video stream.
+ *
+ * @generated from message transcodely.v1.OutputReportVideo
+ */
+export class OutputReportVideo extends Message<OutputReportVideo> {
+  /**
+   * Codec the stream is encoded with, lowercase, e.g. "h264", "hevc", "vp9",
+   * "av1". Note "hevc" — that is the decoder name for the codec this API calls
+   * "h265" on a request.
+   *
+   * @generated from field: string codec = 1;
+   */
+  codec = "";
+
+  /**
+   * Encoded profile, lowercase and without spaces, e.g. "high", "main",
+   * "main10", "baseline", "profile0". Absent when the codec has no profile
+   * concept or the encoder reported none.
+   *
+   * @generated from field: optional string profile = 2;
+   */
+  profile?: string;
+
+  /**
+   * Encoded level as the codec expresses it, e.g. "4.0", "5.1". Absent when
+   * not reported.
+   *
+   * @generated from field: optional string level = 3;
+   */
+  level?: string;
+
+  /**
+   * Pixel format, lowercase, e.g. "yuv420p" (8-bit) or "yuv420p10le"
+   * (10-bit). This is how bit depth is read back: a 10-bit output that came
+   * out 8-bit says so here.
+   *
+   * @generated from field: optional string pix_fmt = 4;
+   */
+  pixFmt?: string;
+
+  /**
+   * Encoded frame dimensions in pixels, as stored.
+   *
+   * @generated from field: int32 width = 5;
+   */
+  width = 0;
+
+  /**
+   * @generated from field: int32 height = 6;
+   */
+  height = 0;
+
+  /**
+   * Measured average frame rate in frames per second, e.g. 29.97, 30, 59.94.
+   *
+   * @generated from field: optional double frame_rate = 7;
+   */
+  frameRate?: number;
+
+  /**
+   * Measured video bitrate in kbps. Absent when the container does not carry a
+   * per-stream bitrate.
+   *
+   * @generated from field: optional int32 bitrate_kbps = 8;
+   */
+  bitrateKbps?: number;
+
+  /**
+   * Color signaling carried by the stream.
+   *
+   * @generated from field: optional transcodely.v1.OutputReportColor color = 9;
+   */
+  color?: OutputReportColor;
+
+  /**
+   * HDR format the stream signals. Today this resolves to exactly one of
+   * "none", "hdr10" or "hlg" — nothing else is ever emitted.
+   *
+   * It is derived from the color signaling above, so it is a reading of the
+   * file and not an echo of the request: an SDR source that arrived wearing HDR
+   * tags, and whose tags we rewrote, reports "none". Wide-gamut primaries with
+   * a PQ transfer read as "hdr10"; with an HLG transfer, as "hlg".
+   *
+   * "hdr10_plus" and "dolby_vision" are RESERVED spellings — documented so
+   * consumers can switch on them ahead of time, and NOT EMITTED. Telling HDR10+
+   * from static HDR10, or finding a Dolby Vision RPU, needs the per-frame side
+   * data this report does not carry. Until that lands, an HDR10+ or Dolby
+   * Vision output reads as "hdr10" here, which is the static layer it also
+   * genuinely signals. Do not read "hdr10" as proof the dynamic layer is
+   * absent.
+   *
+   * @generated from field: string hdr_format = 10;
+   */
+  hdrFormat = "";
+
+  constructor(data?: PartialMessage<OutputReportVideo>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.OutputReportVideo";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "codec", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "profile", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "level", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "pix_fmt", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 5, name: "width", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 6, name: "height", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 7, name: "frame_rate", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 8, name: "bitrate_kbps", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 9, name: "color", kind: "message", T: OutputReportColor, opt: true },
+    { no: 10, name: "hdr_format", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputReportVideo {
+    return new OutputReportVideo().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): OutputReportVideo {
+    return new OutputReportVideo().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): OutputReportVideo {
+    return new OutputReportVideo().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: OutputReportVideo | PlainMessage<OutputReportVideo> | undefined, b: OutputReportVideo | PlainMessage<OutputReportVideo> | undefined): boolean {
+    return proto3.util.equals(OutputReportVideo, a, b);
+  }
+}
+
+/**
+ * Color signaling read from a produced video stream. Each value is the
+ * lowercase name the format assigns it; absent means the stream carries no
+ * value for it.
+ *
+ * @generated from message transcodely.v1.OutputReportColor
+ */
+export class OutputReportColor extends Message<OutputReportColor> {
+  /**
+   * Color primaries, e.g. "bt709" (SDR), "bt2020" (wide gamut).
+   *
+   * @generated from field: optional string primaries = 1;
+   */
+  primaries?: string;
+
+  /**
+   * Transfer characteristics, e.g. "bt709" (SDR), "smpte2084" (PQ / HDR10),
+   * "arib-std-b67" (HLG).
+   *
+   * @generated from field: optional string transfer = 2;
+   */
+  transfer?: string;
+
+  /**
+   * Matrix coefficients, e.g. "bt709", "bt2020nc".
+   *
+   * @generated from field: optional string matrix = 3;
+   */
+  matrix?: string;
+
+  /**
+   * Signal range: "tv" (limited) or "pc" (full).
+   *
+   * @generated from field: optional string range = 4;
+   */
+  range?: string;
+
+  constructor(data?: PartialMessage<OutputReportColor>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.OutputReportColor";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "primaries", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 2, name: "transfer", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "matrix", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "range", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputReportColor {
+    return new OutputReportColor().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): OutputReportColor {
+    return new OutputReportColor().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): OutputReportColor {
+    return new OutputReportColor().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: OutputReportColor | PlainMessage<OutputReportColor> | undefined, b: OutputReportColor | PlainMessage<OutputReportColor> | undefined): boolean {
+    return proto3.util.equals(OutputReportColor, a, b);
+  }
+}
+
+/**
+ * Measured properties of a produced audio stream.
+ *
+ * @generated from message transcodely.v1.OutputReportAudio
+ */
+export class OutputReportAudio extends Message<OutputReportAudio> {
+  /**
+   * Codec the stream is encoded with, lowercase, e.g. "aac", "opus", "mp3",
+   * "flac".
+   *
+   * @generated from field: string codec = 1;
+   */
+  codec = "";
+
+  /**
+   * Channel count: 1 for mono, 2 for stereo, 6 for 5.1.
+   *
+   * @generated from field: optional int32 channels = 2;
+   */
+  channels?: number;
+
+  /**
+   * Sampling rate in hertz, e.g. 48000.
+   *
+   * @generated from field: optional int32 sample_rate_hz = 3;
+   */
+  sampleRateHz?: number;
+
+  /**
+   * Measured audio bitrate in kbps. Absent when the container does not carry
+   * a per-stream bitrate.
+   *
+   * @generated from field: optional int32 bitrate_kbps = 4;
+   */
+  bitrateKbps?: number;
+
+  /**
+   * Language tag carried by the stream, e.g. "eng", "spa". Absent when the
+   * stream is untagged.
+   *
+   * @generated from field: optional string language = 5;
+   */
+  language?: string;
+
+  constructor(data?: PartialMessage<OutputReportAudio>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.OutputReportAudio";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "codec", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "channels", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 3, name: "sample_rate_hz", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 4, name: "bitrate_kbps", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 5, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputReportAudio {
+    return new OutputReportAudio().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): OutputReportAudio {
+    return new OutputReportAudio().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): OutputReportAudio {
+    return new OutputReportAudio().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: OutputReportAudio | PlainMessage<OutputReportAudio> | undefined, b: OutputReportAudio | PlainMessage<OutputReportAudio> | undefined): boolean {
+    return proto3.util.equals(OutputReportAudio, a, b);
+  }
+}
+
+/**
+ * The result of comparing a produced file against what the job asked for.
+ *
+ * @generated from message transcodely.v1.OutputReportVerdict
+ */
+export class OutputReportVerdict extends Message<OutputReportVerdict> {
+  /**
+   * True when every property we can check matched the request.
+   *
+   * Properties the request left open — "keep the original frame rate", a
+   * container that does not pin its audio codec — are not checked and cannot
+   * make this false.
+   *
+   * @generated from field: bool matches_request = 1;
+   */
+  matchesRequest = false;
+
+  /**
+   * Every property that did not match, one entry each. Empty when
+   * matches_request is true; a mismatch list is never empty when it is false.
+   *
+   * @generated from field: repeated transcodely.v1.OutputReportMismatch mismatches = 2;
+   */
+  mismatches: OutputReportMismatch[] = [];
+
+  constructor(data?: PartialMessage<OutputReportVerdict>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.OutputReportVerdict";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "matches_request", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "mismatches", kind: "message", T: OutputReportMismatch, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputReportVerdict {
+    return new OutputReportVerdict().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): OutputReportVerdict {
+    return new OutputReportVerdict().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): OutputReportVerdict {
+    return new OutputReportVerdict().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: OutputReportVerdict | PlainMessage<OutputReportVerdict> | undefined, b: OutputReportVerdict | PlainMessage<OutputReportVerdict> | undefined): boolean {
+    return proto3.util.equals(OutputReportVerdict, a, b);
+  }
+}
+
+/**
+ * One property of the produced file that does not match what was requested.
+ *
+ * @generated from message transcodely.v1.OutputReportMismatch
+ */
+export class OutputReportMismatch extends Message<OutputReportMismatch> {
+  /**
+   * Which property differs, from a fixed vocabulary: "container",
+   * "video.present", "video.codec", "video.profile", "video.pix_fmt",
+   * "video.resolution", "video.width", "video.height", "video.frame_rate",
+   * "video.color.transfer", "video.color.primaries", "audio.present",
+   * "duration_seconds".
+   *
+   * "video.resolution" carries resolution tier names ("1080p") and appears
+   * when the request named a tier; "video.width" / "video.height" carry pixel
+   * counts and appear when the request named exact dimensions.
+   *
+   * Branch on this, not on the values beside it.
+   *
+   * @generated from field: string field = 1;
+   */
+  field = "";
+
+  /**
+   * What the request asked for, as a short value, e.g. "h264", "1920",
+   * "high", "present". Where the request allows several answers — a
+   * multi-codec ABR ladder, for instance — this is the alternatives joined
+   * with "|", e.g. "h264|hevc".
+   *
+   * @generated from field: string expected = 2;
+   */
+  expected = "";
+
+  /**
+   * What the produced file carries instead, in the same vocabulary as
+   * expected, e.g. "hevc", "1280", "main", "absent".
+   *
+   * @generated from field: string actual = 3;
+   */
+  actual = "";
+
+  constructor(data?: PartialMessage<OutputReportMismatch>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.OutputReportMismatch";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "field", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "expected", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "actual", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputReportMismatch {
+    return new OutputReportMismatch().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): OutputReportMismatch {
+    return new OutputReportMismatch().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): OutputReportMismatch {
+    return new OutputReportMismatch().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: OutputReportMismatch | PlainMessage<OutputReportMismatch> | undefined, b: OutputReportMismatch | PlainMessage<OutputReportMismatch> | undefined): boolean {
+    return proto3.util.equals(OutputReportMismatch, a, b);
   }
 }
 
