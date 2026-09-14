@@ -1564,6 +1564,19 @@ export class OutputReport extends Message<OutputReport> {
    */
   checkedAt?: Timestamp;
 
+  /**
+   * What the content-aware analysis decided for this output, when the output
+   * was encoded with per-title analysis.
+   *
+   * Present ONLY for an output whose encode ran that analysis. Absent on every
+   * ordinary output, which is the overwhelming majority of them, and absent on
+   * an output that requested content-aware encoding but whose analysis pass
+   * never reported (it fell back to the quality tier's own CRF).
+   *
+   * @generated from field: optional transcodely.v1.OutputReportContentAware content_aware = 7;
+   */
+  contentAware?: OutputReportContentAware;
+
   constructor(data?: PartialMessage<OutputReport>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1578,6 +1591,7 @@ export class OutputReport extends Message<OutputReport> {
     { no: 4, name: "duration_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 5, name: "verdict", kind: "message", T: OutputReportVerdict },
     { no: 6, name: "checked_at", kind: "message", T: Timestamp },
+    { no: 7, name: "content_aware", kind: "message", T: OutputReportContentAware, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputReport {
@@ -1594,6 +1608,93 @@ export class OutputReport extends Message<OutputReport> {
 
   static equals(a: OutputReport | PlainMessage<OutputReport> | undefined, b: OutputReport | PlainMessage<OutputReport> | undefined): boolean {
     return proto3.util.equals(OutputReport, a, b);
+  }
+}
+
+/**
+ * What the content-aware analysis decided for one output: the quality it aimed
+ * at, the quality it reached on its samples, and the encoder setting it chose.
+ *
+ * These describe the SEARCH, not the finished file. The search runs on short
+ * samples taken from the source before the real encode starts, so
+ * vmaf_achieved is the score those samples got at the chosen setting — not a
+ * measurement of the delivered output, which is never scored. The facts about
+ * the delivered file are the other fields of OutputReport.
+ *
+ * The fields are strings and numbers for the same reason the rest of the report
+ * is: this records what an encoder did, and a value we have not catalogued must
+ * be reportable the day it appears.
+ *
+ * @generated from message transcodely.v1.OutputReportContentAware
+ */
+export class OutputReportContentAware extends Message<OutputReportContentAware> {
+  /**
+   * Analysis mode that ran, lowercase: "per_title". Same vocabulary as the
+   * request's ContentAwareMode.
+   *
+   * @generated from field: string mode = 1;
+   */
+  mode = "";
+
+  /**
+   * VMAF score the search aimed at, 0-100.
+   *
+   * This is the target actually used, which is not always the one requested:
+   * a value outside the range the analysis can search is clamped into it, and
+   * what you read here is the clamped one.
+   *
+   * @generated from field: optional double vmaf_target = 2;
+   */
+  vmafTarget?: number;
+
+  /**
+   * VMAF score the chosen setting reached on the analysis samples, 0-100.
+   * Absent when the search ended without a scored result.
+   *
+   * @generated from field: optional double vmaf_achieved = 3;
+   */
+  vmafAchieved?: number;
+
+  /**
+   * Constant-rate-factor the search settled on, in the encoder's own scale
+   * (lower is higher quality). Absent when the search produced none and the
+   * encode fell back to the quality tier's default.
+   *
+   * For a multi-rendition output this is the highest-resolution rendition's
+   * value; the lower rungs derive from it by the ladder's fixed offsets.
+   *
+   * @generated from field: optional int32 crf_chosen = 4;
+   */
+  crfChosen?: number;
+
+  constructor(data?: PartialMessage<OutputReportContentAware>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.OutputReportContentAware";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "mode", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "vmaf_target", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 3, name: "vmaf_achieved", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 4, name: "crf_chosen", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputReportContentAware {
+    return new OutputReportContentAware().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): OutputReportContentAware {
+    return new OutputReportContentAware().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): OutputReportContentAware {
+    return new OutputReportContentAware().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: OutputReportContentAware | PlainMessage<OutputReportContentAware> | undefined, b: OutputReportContentAware | PlainMessage<OutputReportContentAware> | undefined): boolean {
+    return proto3.util.equals(OutputReportContentAware, a, b);
   }
 }
 

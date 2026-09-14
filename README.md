@@ -169,6 +169,12 @@ Branch on `m.field` — it comes from a fixed vocabulary (`video.codec`,
 it. For an ABR ladder the facts describe the highest-resolution rendition, the
 same one the verdict judges; per-rendition detail stays in `variantResults`.
 
+An output encoded with per-title content-aware analysis also carries
+`report.contentAware`: the VMAF target the search aimed at, the score it reached
+on its samples, and the CRF it chose. It describes the SEARCH, not the delivered
+file — `vmafAchieved` scores short samples taken before the real encode, which is
+never scored itself. It is `undefined` on every ordinary output.
+
 ## AI captions
 
 Add auto-generated captions to any output with a `generate` subtitle track.
