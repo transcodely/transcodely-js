@@ -9,6 +9,7 @@ import { JobStatus, VideoStatus } from "@transcodely/sdk";
 import { TERMINAL_JOB, TERMINAL_VIDEO } from "../src/commands/upload.js";
 import { fileStore, type CredentialStore } from "../src/credentials.js";
 import { run } from "../src/main.js";
+import { CLI_VERSION } from "../src/version.js";
 import { JOB_ID, VIDEO_ID, jobJson, startMockApi, type MockApi, type MockApiOptions } from "./mock-api.js";
 
 let tmp: string;
@@ -78,7 +79,9 @@ describe("help and version", () => {
   it("prints help with no arguments and exits 0", async () => {
     const res = await cli([]);
     expect(res.code).toBe(0);
-    expect(res.stdout).toMatchSnapshot();
+    // release-please rewrites CLI_VERSION on every release; the snapshot
+    // pins the help text, not the version, so replace it before comparing.
+    expect(res.stdout.replaceAll(CLI_VERSION, "<version>")).toMatchSnapshot();
   });
 
   it("prints the same help for --help", async () => {
