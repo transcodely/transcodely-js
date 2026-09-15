@@ -4,6 +4,22 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.8](https://github.com/transcodely/transcodely-js/compare/v0.3.7...v0.3.8) (2026-09-15)
+
+
+### Features
+
+* **proto:** sync content-analysis report (per-title) ([#68](https://github.com/transcodely/transcodely-js/issues/68)) ([e010f10](https://github.com/transcodely/transcodely-js/commit/e010f1010e78ad86cace86a3b67216669198cb39))
+* **proto:** sync IngestRuleService (ingest rules) ([#63](https://github.com/transcodely/transcodely-js/issues/63)) ([af8992a](https://github.com/transcodely/transcodely-js/commit/af8992ade9d01ccaa314869198a20dab54e7af16))
+* **proto:** sync OutputReport (job output facts + verdict) ([#61](https://github.com/transcodely/transcodely-js/issues/61)) ([4bf7f6c](https://github.com/transcodely/transcodely-js/commit/4bf7f6c2c26c462f62b2f269f93c22f5c94fcd2c))
+* **proto:** sync protos to api 5.21.0 — optional app_id, per-title accepted, rule clear flags ([#69](https://github.com/transcodely/transcodely-js/issues/69)) ([1ad04ae](https://github.com/transcodely/transcodely-js/commit/1ad04aefc4ec6851b76e38adcea02ee78ded1043))
+* **uploads:** client.uploads.putFile + the npx transcodely CLI ([#64](https://github.com/transcodely/transcodely-js/issues/64)) ([e3e7d58](https://github.com/transcodely/transcodely-js/commit/e3e7d58756492183c966e2eeb3ece4e4eaf7fc6a))
+
+
+### Bug Fixes
+
+* **types:** export HealthStatus and guard every enum against proto drift ([#67](https://github.com/transcodely/transcodely-js/issues/67)) ([d30da94](https://github.com/transcodely/transcodely-js/commit/d30da9462fbf5a68ac18884c5990de93b3c0d2f2))
+
 ## [0.3.7](https://github.com/transcodely/transcodely-js/compare/v0.3.6...v0.3.7) (2026-08-16)
 
 
