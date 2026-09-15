@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/transcodely/transcodely-js/compare/cli-v0.1.0...cli-v0.1.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* **cli:** publish the CLI — drop private, pin @transcodely/sdk ^0.3.8 ([#71](https://github.com/transcodely/transcodely-js/issues/71)) ([7f2957a](https://github.com/transcodely/transcodely-js/commit/7f2957a1c9e94da97f32347f2143d618d8ee2e6f))
+
 ## 0.1.0 (2026-09-15)
 
 

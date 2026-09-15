@@ -1,6 +1,6 @@
 {
   "name": "transcodely",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Transcode, host and deliver a video from the command line — npx transcodely ./talk.mp4",
   "license": "MIT",
   "homepage": "https://www.transcodely.com",

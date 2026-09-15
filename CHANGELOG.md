@@ -4,6 +4,13 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.9](https://github.com/transcodely/transcodely-js/compare/v0.3.8...v0.3.9) (2026-09-15)
+
+
+### Bug Fixes
+
+* **cli:** publish the CLI — drop private, pin @transcodely/sdk ^0.3.8 ([#71](https://github.com/transcodely/transcodely-js/issues/71)) ([7f2957a](https://github.com/transcodely/transcodely-js/commit/7f2957a1c9e94da97f32347f2143d618d8ee2e6f))
+
 ## [0.3.8](https://github.com/transcodely/transcodely-js/compare/v0.3.7...v0.3.8) (2026-09-15)
 
 
