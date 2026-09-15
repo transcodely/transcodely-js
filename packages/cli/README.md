@@ -168,12 +168,10 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
 node packages/cli/dist/index.mjs --help
 ```
 
-**Not published yet.** The package is marked `private` until `@transcodely/sdk`
-cuts the release carrying `client.uploads.putFile`, because the CLI has to pin a
-published SDK version — today it resolves the SDK through the workspace link.
-Dropping `private` and pinning that version is what turns the release workflow's
-`publish-cli` job from a no-op into a real publish; until then it records why it
-skipped and succeeds.
+**Published as `transcodely` on npm** since cli 0.1.1, pinned to a released
+`@transcodely/sdk` (the version in `package.json`). Bump that pin when the CLI
+needs a newer SDK feature; the release workflow's `publish-cli` job publishes
+with npm provenance.
 
 ## License
 
