@@ -8,31 +8,31 @@ import "transcodely/v1/common.proto";
 
 // Content-aware encoding mode.
 //
-// NOT YET ACCEPTED ON A REQUEST. Any output carrying a ContentAwareConfig is
-// still rejected at CreateJob with error code `parameter_unsupported` (see
-// issue #167). The enum values are retained for wire compatibility and will
-// become active when the feature ships.
-//
-// The REPORTING side of the feature is already live: an output encoded with
-// per-title analysis carries what that analysis decided on
-// OutputReport.content_aware. Nothing populates it until requests are accepted.
+// One of the two modes ships: `per_title` is accepted and acted on. `auto_abr`
+// is still rejected at CreateJob with error code `parameter_unsupported` and
+// the message "auto_abr is not available yet; per_title is" (issue #167),
+// because it would change the NUMBER of renditions after the job was already
+// quoted per rendition at create time.
 enum ContentAwareMode {
   CONTENT_AWARE_MODE_UNSPECIFIED = 0;
 
-  // Optimize CRF for target VMAF on specific content. NOT YET ACCEPTED —
-  // rejected at create.
+  // Find the CRF this source needs to reach the VMAF target, and encode the
+  // declared ladder at it. The search runs once per output, on the ladder's
+  // highest-resolution quality-driven rendition; the lower rungs move by the
+  // CRF offsets the ladder already declares. Priced at 1.5x. What the search
+  // decided comes back on OutputReport.content_aware.
   CONTENT_AWARE_MODE_PER_TITLE = 1;
 
-  // Generate optimal bitrate ladder automatically. NOT YET ACCEPTED —
-  // rejected at create.
+  // Generate the bitrate ladder automatically. NOT YET ACCEPTED — rejected at
+  // create.
   CONTENT_AWARE_MODE_AUTO_ABR = 2;
 }
 
 // Auto ABR ladder generation constraints.
 //
 // NOT YET ACCEPTED — see ContentAwareConfig. These constraints are validated
-// for shape but never applied, because a request carrying content_aware is
-// rejected at create.
+// for shape but never applied, because a request in auto_abr mode is rejected
+// at create.
 message AutoABRConfig {
   // Minimum number of variants in the ladder.
   // Default: 2.
@@ -61,24 +61,31 @@ message AutoABRConfig {
 
 // Content-aware encoding configuration for an output.
 //
-// NOT YET ACCEPTED. Setting content_aware on any output causes CreateJob to
-// fail with error code `parameter_unsupported` and the message "content-aware
-// encoding (per_title/auto_abr) is not yet supported". The worker does not yet
-// implement per-title CRF optimization or auto-ABR ladder generation — both
-// modes would run the identical plain-encode path — so the API rejects the
-// request rather than silently no-op it while charging the content-aware
-// multiplier (issue #167 / transcodely/worker#90). The message and fields are
-// retained for wire compatibility and forward-planning.
+// In `per_title` mode the encode is tuned to this particular source: the worker
+// measures short samples of it at several CRFs and encodes the declared ladder
+// at the cheapest one that reaches the VMAF target. The ladder itself is
+// unchanged — same renditions, same resolutions — so the price quoted at create
+// still holds, with the 1.5x per-title multiplier applied.
+//
+// Three requests are refused at create:
+//   - `auto_abr` mode (`parameter_unsupported`) — not available yet;
+//   - an output with no video renditions, or one whose every video rendition is
+//     pinned to an explicit bitrate (`parameter_incompatible`) — a pinned
+//     rendition ignores CRF, so the search would change nothing while still
+//     being billed;
+//   - a source shorter than 120 seconds, refused at probe with
+//     `per_title_source_too_short` once the input has been measured.
+//
+// What the search decided is reported back on OutputReport.content_aware.
 message ContentAwareConfig {
-  // Encoding mode (required). NOT YET ACCEPTED — any value here causes the
-  // request to be rejected at create.
+  // Encoding mode (required). `per_title` is accepted; `auto_abr` is rejected
+  // at create.
   ContentAwareMode mode = 1 [
     (buf.validate.field).required = true,
     (buf.validate.field).enum.defined_only = true
   ];
 
-  // Override VMAF target (80-97). NOT YET ACCEPTED — content-aware encoding is
-  // rejected at create, so this value is never applied.
+  // Override VMAF target (80-97). Default: 93, regardless of quality tier.
   //
   // The range is the one the per-title search can actually work in, narrowed
   // from 70-99 before the feature was ever accepted: below 80 the result is not
@@ -93,8 +100,8 @@ message ContentAwareConfig {
     (buf.validate.field).double.lte = 97
   ];
 
-  // Auto ABR constraints (only for auto_abr mode). NOT YET ACCEPTED — rejected
-  // at create.
+  // Auto ABR constraints (only for auto_abr mode). NOT YET ACCEPTED — an
+  // auto_abr request is rejected at create whatever these say.
   optional AutoABRConfig auto_abr = 3;
 }
 

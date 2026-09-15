@@ -533,7 +533,10 @@ export class WebhookDelivery extends Message<WebhookDelivery> {
  */
 export class CreateWebhookEndpointRequest extends Message<CreateWebhookEndpointRequest> {
   /**
-   * App to create the endpoint for.
+   * App to create the endpoint for. API-key callers may omit it (their key's
+   * app is used) or pass their own app; a different app is rejected with
+   * PermissionDenied. Portal/JWT callers pass it to create in a specific app in
+   * their org; omitted selects the org's first active app.
    *
    * @generated from field: string app_id = 1;
    */
@@ -936,7 +939,10 @@ export class DeleteWebhookEndpointResponse extends Message<DeleteWebhookEndpoint
  */
 export class ListWebhookEndpointsRequest extends Message<ListWebhookEndpointsRequest> {
   /**
-   * App to list endpoints for.
+   * Optional app filter. API-key callers may omit it (their key's app is used)
+   * or pass their own app; a different app is rejected with PermissionDenied.
+   * Portal/JWT callers pass it to list a specific app in their org; omitted
+   * returns endpoints across all apps in the org.
    *
    * @generated from field: string app_id = 1;
    */
@@ -1132,7 +1138,10 @@ export class RotateWebhookSecretResponse extends Message<RotateWebhookSecretResp
  */
 export class ListEventsRequest extends Message<ListEventsRequest> {
   /**
-   * App to list events for.
+   * Optional app filter. API-key callers may omit it (their key's app is used)
+   * or pass their own app; a different app is rejected with PermissionDenied.
+   * Portal/JWT callers pass it to list a specific app in their org; omitted
+   * returns events across all apps in the org.
    *
    * @generated from field: string app_id = 1;
    */

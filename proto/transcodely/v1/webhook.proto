@@ -269,9 +269,12 @@ message WebhookDelivery {
 
 // Request to create a new webhook endpoint.
 message CreateWebhookEndpointRequest {
-  // App to create the endpoint for.
+  // App to create the endpoint for. API-key callers may omit it (their key's
+  // app is used) or pass their own app; a different app is rejected with
+  // PermissionDenied. Portal/JWT callers pass it to create in a specific app in
+  // their org; omitted selects the org's first active app.
   string app_id = 1 [
-    (buf.validate.field).required = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
   ];
 
@@ -372,9 +375,12 @@ message DeleteWebhookEndpointResponse {}
 
 // Request to list webhook endpoints for an app.
 message ListWebhookEndpointsRequest {
-  // App to list endpoints for.
+  // Optional app filter. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to list a specific app in their org; omitted
+  // returns endpoints across all apps in the org.
   string app_id = 1 [
-    (buf.validate.field).required = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
   ];
 
@@ -419,9 +425,12 @@ message RotateWebhookSecretResponse {
 
 // Request to list events for an app.
 message ListEventsRequest {
-  // App to list events for.
+  // Optional app filter. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to list a specific app in their org; omitted
+  // returns events across all apps in the org.
   string app_id = 1 [
-    (buf.validate.field).required = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
   ];
 

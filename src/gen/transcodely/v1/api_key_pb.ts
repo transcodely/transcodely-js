@@ -170,8 +170,12 @@ export class CreateAPIKeyRequest extends Message<CreateAPIKeyRequest> {
   expiresAt?: Timestamp;
 
   /**
-   * App ID to create the key for.
-   * Required when unauthenticated. Ignored when authenticated (uses the authenticated app).
+   * App ID to create the key for. API-key callers may omit it (their key's app
+   * is used) or pass their own app; a different app is rejected with
+   * PermissionDenied. Portal/JWT callers pass it to create in a specific app in
+   * their org; omitted selects the org's first active app. Still REQUIRED on
+   * the unauthenticated onboarding bootstrap path, where nothing else can name
+   * an app: omitting it there is invalid_argument (`app_id_required`).
    *
    * @generated from field: string app_id = 5;
    */

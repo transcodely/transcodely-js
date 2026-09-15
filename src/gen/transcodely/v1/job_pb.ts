@@ -794,7 +794,10 @@ export class OutputSpec extends Message<OutputSpec> {
 
   /**
    * Content-aware encoding configuration.
-   * Enables per-title encoding or automatic ABR ladder generation.
+   * Enables per-title encoding, which tunes this output's CRF to the source
+   * rather than to its quality tier. Requires at least one video rendition that
+   * is not pinned to an explicit bitrate, and a source of at least 120 seconds.
+   * `auto_abr` mode is not accepted yet.
    *
    * @generated from field: optional transcodely.v1.ContentAwareConfig content_aware = 13;
    */

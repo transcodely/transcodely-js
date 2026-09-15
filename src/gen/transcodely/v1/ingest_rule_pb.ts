@@ -404,6 +404,12 @@ export class IngestRuleAction extends Message<IngestRuleAction> {
    * Output specifications, exactly as CreateJobRequest.outputs. Presets may be
    * referenced by ID or slug.
    *
+   * A rule always has at least one, enforced on the requests that can leave it
+   * without one (`create_ingest_rule.outputs_required` and
+   * `update_ingest_rule.clear_action_is_complete`) rather than on this field —
+   * an Update that changes only the priority sends no outputs at all, and a
+   * min_items here would refuse it.
+   *
    * @generated from field: repeated transcodely.v1.OutputSpec outputs = 1;
    */
   outputs: OutputSpec[] = [];
@@ -980,6 +986,19 @@ export class ListIngestRulesResponse extends Message<ListIngestRulesResponse> {
 /**
  * Request to update an ingest rule.
  *
+ * Every field is optional and an update applies only what it carries: a field
+ * you do not send keeps the value it has, down to the individual filters and
+ * the individual parts of the action. This matters more here than on most
+ * objects, because a rule is a standing instruction to spend money — its
+ * filters are the only thing between "the objects I meant" and "everything that
+ * lands in the bucket", and a request that silently cleared them would be paid
+ * for one transcode at a time.
+ *
+ * Because the fields inside `filters` and `action` carry no presence of their
+ * own, "not sent" means "left at its default" — the same rule
+ * UpdateVideoRequest.tags states. Set `clear_filters` or `clear_action` when
+ * you mean to remove something rather than change it.
+ *
  * @generated from message transcodely.v1.UpdateIngestRuleRequest
  */
 export class UpdateIngestRuleRequest extends Message<UpdateIngestRuleRequest> {
@@ -998,22 +1017,47 @@ export class UpdateIngestRuleRequest extends Message<UpdateIngestRuleRequest> {
   name?: string;
 
   /**
-   * Enable or disable the rule. Omit to leave unchanged.
+   * Enable or disable the rule. Omit to leave unchanged. Turning a rule back on
+   * reports how many events it declined while it was off, in
+   * `events_skipped_while_disabled`.
    *
    * @generated from field: optional bool enabled = 3;
    */
   enabled?: boolean;
 
   /**
-   * Replace the filter set. Omit to leave unchanged. Sending an empty
-   * IngestRuleFilters clears every filter, so the rule matches everything.
+   * Filters to change. Each one you send replaces that filter; each one you
+   * leave out keeps the value it has. Narrowing a rule to a new prefix is
+   * therefore `{"filters": {"prefix": "raw/"}}` and nothing else — the suffix,
+   * content-type and size filters are untouched.
+   *
+   * A filter is removed rather than changed with `clear_filters`, which empties
+   * the set before this one is applied. So `clear_filters` alone widens the rule
+   * to everything in the bucket, and `clear_filters` together with a filter set
+   * replaces the set outright.
    *
    * @generated from field: transcodely.v1.IngestRuleFilters filters = 4;
    */
   filters?: IngestRuleFilters;
 
   /**
-   * Replace the action. Omit to leave unchanged.
+   * Parts of the action to change. Each field you send replaces that part of
+   * the action; each field you leave out keeps what it had. Repeated and map
+   * fields replace whole — sending one output replaces the output list, and
+   * sending one metadata pair replaces the metadata map — because neither
+   * carries the presence needed to merge a single entry.
+   *
+   * The destination is a pair, so it changes as a pair: send `managed` or
+   * `output_origin_id` to move the outputs, or neither to leave them where they
+   * are. Sending both is refused.
+   *
+   * `managed: false` is not a way to turn managed storage off — a false boolean
+   * is indistinguishable from an absent one, so it reads as "leave the
+   * destination alone" and changes nothing. Send `output_origin_id` instead.
+   *
+   * Emptying a repeated or map field is not expressible by sending it empty, so
+   * dropping the thumbnails or the metadata means `clear_action` with the action
+   * you want kept.
    *
    * @generated from field: transcodely.v1.IngestRuleAction action = 5;
    */
@@ -1027,6 +1071,24 @@ export class UpdateIngestRuleRequest extends Message<UpdateIngestRuleRequest> {
    * @generated from field: bool rotate_secret = 6;
    */
   rotateSecret = false;
+
+  /**
+   * Empty the filter set before applying `filters`. On its own it widens the
+   * rule to every object in the bucket; with `filters` it replaces the set
+   * outright instead of merging into it.
+   *
+   * @generated from field: bool clear_filters = 7;
+   */
+  clearFilters = false;
+
+  /**
+   * Replace the action outright instead of merging into it. `action` must then
+   * be complete — at least one output and exactly one destination — because
+   * nothing is carried over. This is how thumbnails or metadata are removed.
+   *
+   * @generated from field: bool clear_action = 8;
+   */
+  clearAction = false;
 
   constructor(data?: PartialMessage<UpdateIngestRuleRequest>) {
     super();
@@ -1042,6 +1104,8 @@ export class UpdateIngestRuleRequest extends Message<UpdateIngestRuleRequest> {
     { no: 4, name: "filters", kind: "message", T: IngestRuleFilters },
     { no: 5, name: "action", kind: "message", T: IngestRuleAction },
     { no: 6, name: "rotate_secret", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 7, name: "clear_filters", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 8, name: "clear_action", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateIngestRuleRequest {
