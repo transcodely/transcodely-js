@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`help and version > prints help with no arguments and exits 0 1`] = `
-"transcodely 0.0.0 — transcode, host and deliver video
+"transcodely <version> — transcode, host and deliver video
 
 USAGE
   transcodely <file|url> [options]     encode and host one video
