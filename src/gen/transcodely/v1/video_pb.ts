@@ -689,8 +689,13 @@ export class VideoTextTrack extends Message<VideoTextTrack> {
  */
 export class CreateUploadRequest extends Message<CreateUploadRequest> {
   /**
-   * App to create the video under. Required. Managed hosting does not have to
-   * be enabled on it first — see the note on this message; the call enables it.
+   * App to create the video under. API-key callers may omit it (their key's app
+   * is used) or pass their own app; a different app is rejected with
+   * PermissionDenied. Portal/JWT callers pass it to create in a specific app in
+   * their org; omitted selects the org's first active app.
+   *
+   * Managed hosting does not have to be enabled on it first — see the note on
+   * this message; the call enables it.
    *
    * @generated from field: string app_id = 8;
    */
@@ -976,8 +981,13 @@ export class CompleteUploadResponse extends Message<CompleteUploadResponse> {
  */
 export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
   /**
-   * App to create the video under. Required. Managed hosting does not have to
-   * be enabled on it first — see the note on this message; the call enables it.
+   * App to create the video under. API-key callers may omit it (their key's app
+   * is used) or pass their own app; a different app is rejected with
+   * PermissionDenied. Portal/JWT callers pass it to create in a specific app in
+   * their org; omitted selects the org's first active app.
+   *
+   * Managed hosting does not have to be enabled on it first — see the note on
+   * this message; the call enables it.
    *
    * @generated from field: string app_id = 1;
    */
@@ -1251,8 +1261,13 @@ export class CompletedPart extends Message<CompletedPart> {
  */
 export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadRequest> {
   /**
-   * App to create the video under. Required. Managed hosting does not have to
-   * be enabled on it first — see the note on this message; the call enables it.
+   * App to create the video under. API-key callers may omit it (their key's app
+   * is used) or pass their own app; a different app is rejected with
+   * PermissionDenied. Portal/JWT callers pass it to create in a specific app in
+   * their org; omitted selects the org's first active app.
+   *
+   * Managed hosting does not have to be enabled on it first — see the note on
+   * this message; the call enables it.
    *
    * @generated from field: string app_id = 1;
    */

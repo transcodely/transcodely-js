@@ -68,7 +68,11 @@ export interface UploadProgress {
 
 export interface PutFileOptions {
   /**
-   * App the video is created under.
+   * App the video is created under. Optional for an API-key client: omit it
+   * and the key's own app is used. Pass it to be explicit, or when the client
+   * authenticates as a portal user, where omitting it selects the
+   * organization's first active app. An API key given a different app's ID is
+   * refused with `permission_denied`.
    *
    * The app does not have to have managed hosting turned on first: the create
    * call provisions the bucket, the managed origin and the CDN pull zone on an
@@ -79,7 +83,7 @@ export interface PutFileOptions {
    * admission grounds carries its own code instead (`billing_past_due`,
    * `outstanding_balance_exceeded`, `limit_exceeded`, `intake_paused`, …).
    */
-  appId: string;
+  appId?: string;
   /** Required for a `Blob` or stream; inferred from the path or `File.name` otherwise. */
   filename?: string;
   /** Inferred from the extension (or `Blob.type`) when omitted. */
@@ -532,7 +536,7 @@ async function putBytes({ url, body, contentType, fetchImpl, signal }: PutPartAr
 /** The subset of VideoService the uploader drives. Lets tests stand in a double. */
 export interface UploadRpcClient {
   createUpload(req: {
-    appId: string;
+    appId?: string;
     filename: string;
     contentType: string;
     sizeBytes: bigint;
@@ -546,7 +550,7 @@ export interface UploadRpcClient {
   }): Promise<{ video?: Video; uploadUrl: string }>;
   completeUpload(req: { id: string }): Promise<{ video?: Video }>;
   createMultipartUpload(req: {
-    appId: string;
+    appId?: string;
     filename: string;
     contentType: string;
     sizeBytes: bigint;
@@ -631,7 +635,7 @@ export class UploadEngine {
     report(0, 0);
 
     const meta = {
-      appId: opts.appId,
+      ...(opts.appId !== undefined ? { appId: opts.appId } : {}),
       filename: src.filename,
       contentType: src.contentType,
       ...(opts.title !== undefined ? { title: opts.title } : {}),
@@ -656,7 +660,7 @@ export class UploadEngine {
   ): Promise<Video> {
     const body = await src.readAll();
     const created = await this.rpc.createUpload({
-      ...(meta as { appId: string; filename: string; contentType: string }),
+      ...(meta as { appId?: string; filename: string; contentType: string }),
       sizeBytes: BigInt(src.totalBytes),
     });
     const videoId = created.video?.id;
@@ -685,7 +689,7 @@ export class UploadEngine {
     report: (bytes: number, parts: number) => void,
   ): Promise<Video> {
     const started = await this.rpc.createMultipartUpload({
-      ...(meta as { appId: string; filename: string; contentType: string }),
+      ...(meta as { appId?: string; filename: string; contentType: string }),
       sizeBytes: BigInt(src.totalBytes),
       totalParts,
       partSizeBytes: BigInt(partSize),

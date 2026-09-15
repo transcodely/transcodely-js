@@ -180,6 +180,20 @@ describe("putFile — single PUT (one part)", () => {
     expect(server!.calls[1]!.body.id).toBe("vid_a1b2c3d4e5f6g7");
   });
 
+  it("uploads without an app when the caller names none", async () => {
+    const c = await client();
+    const { path } = await fixture("clip.mp4", 1024 * 64);
+
+    // An API-key client need not name an app: the key's own app is used. The
+    // field goes out empty, which the server reads as "not provided" — so the
+    // uploader must not require one from the caller.
+    await c.uploads.putFile(path, { title: "Clip" });
+
+    const create = server!.calls[0]!.body;
+    expect(create.app_id).toBe("");
+    expect(create.filename).toBe("clip.mp4");
+  });
+
   it("never opens a multipart upload for a file that fits in one part", async () => {
     const c = await client();
     const { path } = await fixture("tiny.mov", 4096);

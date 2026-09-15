@@ -353,10 +353,15 @@ message VideoTextTrack {
 // `hosting_provisioning_failed` (gRPC `unavailable`) and no video is created;
 // the request is safe to retry unchanged.
 message CreateUploadRequest {
-  // App to create the video under. Required. Managed hosting does not have to
-  // be enabled on it first — see the note on this message; the call enables it.
+  // App to create the video under. API-key callers may omit it (their key's app
+  // is used) or pass their own app; a different app is rejected with
+  // PermissionDenied. Portal/JWT callers pass it to create in a specific app in
+  // their org; omitted selects the org's first active app.
+  //
+  // Managed hosting does not have to be enabled on it first — see the note on
+  // this message; the call enables it.
   string app_id = 8 [
-    (buf.validate.field).required = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
   ];
 
@@ -463,10 +468,15 @@ message CompleteUploadResponse {
 // `hosting_provisioning_failed` (gRPC `unavailable`) and no video is created;
 // the request is safe to retry unchanged.
 message CreateFromUrlRequest {
-  // App to create the video under. Required. Managed hosting does not have to
-  // be enabled on it first — see the note on this message; the call enables it.
+  // App to create the video under. API-key callers may omit it (their key's app
+  // is used) or pass their own app; a different app is rejected with
+  // PermissionDenied. Portal/JWT callers pass it to create in a specific app in
+  // their org; omitted selects the org's first active app.
+  //
+  // Managed hosting does not have to be enabled on it first — see the note on
+  // this message; the call enables it.
   string app_id = 1 [
-    (buf.validate.field).required = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
   ];
 
@@ -573,10 +583,15 @@ message CompletedPart {
 // `hosting_provisioning_failed` (gRPC `unavailable`) and no video is created;
 // the request is safe to retry unchanged.
 message CreateMultipartUploadRequest {
-  // App to create the video under. Required. Managed hosting does not have to
-  // be enabled on it first — see the note on this message; the call enables it.
+  // App to create the video under. API-key callers may omit it (their key's app
+  // is used) or pass their own app; a different app is rejected with
+  // PermissionDenied. Portal/JWT callers pass it to create in a specific app in
+  // their org; omitted selects the org's first active app.
+  //
+  // Managed hosting does not have to be enabled on it first — see the note on
+  // this message; the call enables it.
   string app_id = 1 [
-    (buf.validate.field).required = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
   ];
 

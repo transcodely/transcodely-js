@@ -240,8 +240,13 @@ message IngestRuleFilters {
 message IngestRuleAction {
   // Output specifications, exactly as CreateJobRequest.outputs. Presets may be
   // referenced by ID or slug.
+  //
+  // A rule always has at least one, enforced on the requests that can leave it
+  // without one (`create_ingest_rule.outputs_required` and
+  // `update_ingest_rule.clear_action_is_complete`) rather than on this field —
+  // an Update that changes only the priority sends no outputs at all, and a
+  // min_items here would refuse it.
   repeated OutputSpec outputs = 1 [
-    (buf.validate.field).repeated.min_items = 1,
     (buf.validate.field).repeated.max_items = 10
   ];
 
@@ -351,6 +356,15 @@ message CreateIngestRuleRequest {
     expression: "!has(this.action) || (this.action.managed != has(this.action.output_origin_id))"
   };
 
+  // A new rule must say what to produce. The rule lives on IngestRuleAction's
+  // behalf here rather than on the field, because Update merges and an update
+  // that changes only the priority legitimately carries no outputs.
+  option (buf.validate.message).cel = {
+    id: "create_ingest_rule.outputs_required"
+    message: "action.outputs must contain at least one output"
+    expression: "!has(this.action) || size(this.action.outputs) >= 1"
+  };
+
   // Origin the objects land in. Must be active and have read permission.
   string origin_id = 1 [
     (buf.validate.field).required = true,
@@ -443,15 +457,38 @@ message ListIngestRulesResponse {
 }
 
 // Request to update an ingest rule.
+//
+// Every field is optional and an update applies only what it carries: a field
+// you do not send keeps the value it has, down to the individual filters and
+// the individual parts of the action. This matters more here than on most
+// objects, because a rule is a standing instruction to spend money — its
+// filters are the only thing between "the objects I meant" and "everything that
+// lands in the bucket", and a request that silently cleared them would be paid
+// for one transcode at a time.
+//
+// Because the fields inside `filters` and `action` carry no presence of their
+// own, "not sent" means "left at its default" — the same rule
+// UpdateVideoRequest.tags states. Set `clear_filters` or `clear_action` when
+// you mean to remove something rather than change it.
 message UpdateIngestRuleRequest {
-  // The same destination rule Create enforces. Without it an update could store
-  // an action with both destinations or neither, and the rule would go on
-  // accepting events and failing every job at admission — a break that shows up
-  // as a pile of refusals rather than as a rejected request.
+  // An action may name one output destination or, because it merges, neither —
+  // neither means "leave the destination as it is". Both is always wrong: the
+  // rule would go on accepting events and failing every job at admission, a
+  // break that shows up as a pile of refusals rather than as a rejected
+  // request. An action that REPLACES (clear_action) must name exactly one, the
+  // same rule Create enforces, because there is nothing left to inherit.
   option (buf.validate.message).cel = {
     id: "update_ingest_rule.output_destination"
-    message: "set exactly one output destination: action.managed or action.output_origin_id"
-    expression: "!has(this.action) || (this.action.managed != has(this.action.output_origin_id))"
+    message: "set at most one output destination: action.managed or action.output_origin_id; with clear_action set exactly one"
+    expression: "!has(this.action) ? true : (this.clear_action ? (this.action.managed != has(this.action.output_origin_id)) : !(this.action.managed && has(this.action.output_origin_id)))"
+  };
+
+  // clear_action throws the stored action away, so the request has to carry a
+  // complete one — starting with the outputs the rule exists to produce.
+  option (buf.validate.message).cel = {
+    id: "update_ingest_rule.clear_action_is_complete"
+    message: "clear_action requires a complete action, including at least one output"
+    expression: "!this.clear_action || (has(this.action) && size(this.action.outputs) >= 1)"
   };
 
   // ID of the rule to update.
@@ -466,20 +503,55 @@ message UpdateIngestRuleRequest {
     (buf.validate.field).string.max_len = 255
   ];
 
-  // Enable or disable the rule. Omit to leave unchanged.
+  // Enable or disable the rule. Omit to leave unchanged. Turning a rule back on
+  // reports how many events it declined while it was off, in
+  // `events_skipped_while_disabled`.
   optional bool enabled = 3;
 
-  // Replace the filter set. Omit to leave unchanged. Sending an empty
-  // IngestRuleFilters clears every filter, so the rule matches everything.
+  // Filters to change. Each one you send replaces that filter; each one you
+  // leave out keeps the value it has. Narrowing a rule to a new prefix is
+  // therefore `{"filters": {"prefix": "raw/"}}` and nothing else — the suffix,
+  // content-type and size filters are untouched.
+  //
+  // A filter is removed rather than changed with `clear_filters`, which empties
+  // the set before this one is applied. So `clear_filters` alone widens the rule
+  // to everything in the bucket, and `clear_filters` together with a filter set
+  // replaces the set outright.
   IngestRuleFilters filters = 4;
 
-  // Replace the action. Omit to leave unchanged.
+  // Parts of the action to change. Each field you send replaces that part of
+  // the action; each field you leave out keeps what it had. Repeated and map
+  // fields replace whole — sending one output replaces the output list, and
+  // sending one metadata pair replaces the metadata map — because neither
+  // carries the presence needed to merge a single entry.
+  //
+  // The destination is a pair, so it changes as a pair: send `managed` or
+  // `output_origin_id` to move the outputs, or neither to leave them where they
+  // are. Sending both is refused.
+  //
+  // `managed: false` is not a way to turn managed storage off — a false boolean
+  // is indistinguishable from an absent one, so it reads as "leave the
+  // destination alone" and changes nothing. Send `output_origin_id` instead.
+  //
+  // Emptying a repeated or map field is not expressible by sending it empty, so
+  // dropping the thumbnails or the metadata means `clear_action` with the action
+  // you want kept.
   IngestRuleAction action = 5;
 
   // Issue a new secret. The previous one keeps working for 24 hours so the
   // sender can be updated without dropping an event; the new secret is
   // returned once, on this response.
   bool rotate_secret = 6;
+
+  // Empty the filter set before applying `filters`. On its own it widens the
+  // rule to every object in the bucket; with `filters` it replaces the set
+  // outright instead of merging into it.
+  bool clear_filters = 7;
+
+  // Replace the action outright instead of merging into it. `action` must then
+  // be complete — at least one output and exactly one destination — because
+  // nothing is carried over. This is how thumbnails or metadata are removed.
+  bool clear_action = 8;
 }
 
 // Response from updating an ingest rule.
