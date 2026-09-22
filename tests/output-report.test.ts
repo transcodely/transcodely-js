@@ -119,6 +119,47 @@ describe("output report", () => {
     expect(ca!.crfChosen).toBe(24);
   });
 
+  it("carries the whole search curve, when the worker reported one", () => {
+    const resp = deserialize(
+      encode({
+        job: {
+          id: "job_abc123def456",
+          outputs: [
+            {
+              id: "out_abc123def4567",
+              report: {
+                container: "mp4",
+                content_aware: {
+                  mode: "per_title",
+                  vmaf_target: 93,
+                  vmaf_achieved: 93.2,
+                  crf_chosen: 22,
+                  seed_crf: 20,
+                  met_target: true,
+                  probes: [
+                    { crf: 20, vmaf: 96.1, bitrate_kbps: 5200 },
+                    { crf: 22, vmaf: 93.2, bitrate_kbps: 4100 },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      }),
+      GetJobResponse,
+    );
+
+    const ca = resp.job?.outputs[0]!.report?.contentAware;
+    expect(ca).toBeDefined();
+    expect(ca!.seedCrf).toBe(20);
+    expect(ca!.metTarget).toBe(true);
+    expect(ca!.probes).toHaveLength(2);
+    expect(ca!.probes[0]!.crf).toBe(20);
+    expect(ca!.probes[0]!.vmaf).toBeCloseTo(96.1);
+    expect(ca!.probes[0]!.bitrateKbps).toBe(5200);
+    expect(ca!.probes[1]!.bitrateKbps).toBe(4100);
+  });
+
   it("leaves an ordinary output's content_aware undefined", () => {
     const resp = deserialize(
       encode({

@@ -1670,6 +1670,35 @@ export class OutputReportContentAware extends Message<OutputReportContentAware> 
    */
   crfChosen?: number;
 
+  /**
+   * Constant-rate-factor the rung would have used WITHOUT the search: the
+   * quality tier's static value, and the first point the search measured.
+   * Compare it with crf_chosen to see what per-title changed. Absent when the
+   * search did not report where it started.
+   *
+   * @generated from field: optional int32 seed_crf = 5;
+   */
+  seedCrf?: number;
+
+  /**
+   * Whether the search found a setting that reached vmaf_target. When false,
+   * crf_chosen is the best-scoring setting it measured, and vmaf_achieved is
+   * below the target.
+   *
+   * @generated from field: optional bool met_target = 6;
+   */
+  metTarget?: boolean;
+
+  /**
+   * Every sample the search measured, in the order it measured them. Each is
+   * a short cut of the source encoded at one CRF with this rung's delivery
+   * settings and scored against the original. Empty when the analysis did not
+   * report its probes (workers before 1.29.0).
+   *
+   * @generated from field: repeated transcodely.v1.OutputReportContentAwareProbe probes = 7;
+   */
+  probes: OutputReportContentAwareProbe[] = [];
+
   constructor(data?: PartialMessage<OutputReportContentAware>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1682,6 +1711,9 @@ export class OutputReportContentAware extends Message<OutputReportContentAware> 
     { no: 2, name: "vmaf_target", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 3, name: "vmaf_achieved", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 4, name: "crf_chosen", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 5, name: "seed_crf", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 6, name: "met_target", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 7, name: "probes", kind: "message", T: OutputReportContentAwareProbe, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputReportContentAware {
@@ -1698,6 +1730,72 @@ export class OutputReportContentAware extends Message<OutputReportContentAware> 
 
   static equals(a: OutputReportContentAware | PlainMessage<OutputReportContentAware> | undefined, b: OutputReportContentAware | PlainMessage<OutputReportContentAware> | undefined): boolean {
     return proto3.util.equals(OutputReportContentAware, a, b);
+  }
+}
+
+/**
+ * One measured point on the search's VMAF/CRF curve.
+ *
+ * @generated from message transcodely.v1.OutputReportContentAwareProbe
+ */
+export class OutputReportContentAwareProbe extends Message<OutputReportContentAwareProbe> {
+  /**
+   * CRF the sample was encoded at.
+   *
+   * @generated from field: int32 crf = 1;
+   */
+  crf = 0;
+
+  /**
+   * VMAF the sample scored, 0-100.
+   *
+   * @generated from field: double vmaf = 2;
+   */
+  vmaf = 0;
+
+  /**
+   * Bitrate of the encoded sample in kilobits per second. Two probes' bitrates
+   * compare directly because every sample is the same cut of the source; the
+   * ratio between the seed_crf probe and the crf_chosen probe is the size
+   * change per-title made on that sample. Absent when the encoder did not
+   * report the sample's size.
+   *
+   * The sample is encoded VIDEO-ONLY — the search's cuts drop audio, subtitles
+   * and data streams — so this is the sample's video bitrate, not the rate of a
+   * muxed file. Comparing it against a delivered file's bitrate, which includes
+   * every stream that file carries, compares two different things.
+   *
+   * @generated from field: optional double bitrate_kbps = 3;
+   */
+  bitrateKbps?: number;
+
+  constructor(data?: PartialMessage<OutputReportContentAwareProbe>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.OutputReportContentAwareProbe";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "crf", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "vmaf", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 3, name: "bitrate_kbps", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): OutputReportContentAwareProbe {
+    return new OutputReportContentAwareProbe().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): OutputReportContentAwareProbe {
+    return new OutputReportContentAwareProbe().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): OutputReportContentAwareProbe {
+    return new OutputReportContentAwareProbe().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: OutputReportContentAwareProbe | PlainMessage<OutputReportContentAwareProbe> | undefined, b: OutputReportContentAwareProbe | PlainMessage<OutputReportContentAwareProbe> | undefined): boolean {
+    return proto3.util.equals(OutputReportContentAwareProbe, a, b);
   }
 }
 

@@ -109,6 +109,7 @@ export {
   type OutputReportVerdict,
   type OutputReportMismatch,
   type OutputReportContentAware,
+  type OutputReportContentAwareProbe,
   type PricingSnapshot,
   type VariantPricingSnapshot,
   type JobFee,
