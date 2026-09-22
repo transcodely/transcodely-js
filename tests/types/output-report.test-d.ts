@@ -18,6 +18,7 @@ import type {
   OutputReportAudio,
   OutputReportColor,
   OutputReportContentAware,
+  OutputReportContentAwareProbe,
   OutputReportMismatch,
   OutputReportVerdict,
   OutputReportVideo,
@@ -36,6 +37,7 @@ expectType<Equal<OutputReportAudio, gen.OutputReportAudio>>();
 expectType<Equal<OutputReportVerdict, gen.OutputReportVerdict>>();
 expectType<Equal<OutputReportMismatch, gen.OutputReportMismatch>>();
 expectType<Equal<OutputReportContentAware, gen.OutputReportContentAware>>();
+expectType<Equal<OutputReportContentAwareProbe, gen.OutputReportContentAwareProbe>>();
 
 // (2) The report hangs off a job output, and is optional there — "not
 //     measured" stays distinguishable from "measured, nothing wrong".
@@ -73,5 +75,16 @@ if (output.report) {
     expectType<Equal<typeof output.report.contentAware.vmafTarget, number | undefined>>();
     expectType<Equal<typeof output.report.contentAware.vmafAchieved, number | undefined>>();
     expectType<Equal<typeof output.report.contentAware.crfChosen, number | undefined>>();
+    expectType<Equal<typeof output.report.contentAware.seedCrf, number | undefined>>();
+    expectType<Equal<typeof output.report.contentAware.metTarget, boolean | undefined>>();
+    expectType<
+      Equal<typeof output.report.contentAware.probes, OutputReportContentAwareProbe[]>
+    >();
+    const probe = output.report.contentAware.probes[0];
+    if (probe) {
+      expectType<Equal<typeof probe.crf, number>>();
+      expectType<Equal<typeof probe.vmaf, number>>();
+      expectType<Equal<typeof probe.bitrateKbps, number | undefined>>();
+    }
   }
 }

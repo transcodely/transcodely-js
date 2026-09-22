@@ -175,6 +175,19 @@ on its samples, and the CRF it chose. It describes the SEARCH, not the delivered
 file — `vmafAchieved` scores short samples taken before the real encode, which is
 never scored itself. It is `undefined` on every ordinary output.
 
+It also carries the whole curve the search measured: `seedCrf` (the CRF the
+rung would have used without per-title — compare it with `crfChosen` to see
+what changed), `metTarget` (whether the search reached `vmafTarget`; `false`
+means `crfChosen` is only the best-scoring point it measured), and `probes[]`
+(`OutputReportContentAwareProbe[]`, one entry per sample the search measured,
+in order — each with `crf`, `vmaf`, and `bitrateKbps`). Two probes' bitrates
+compare directly since every sample is the same cut of the source, so the
+ratio between the `seedCrf` probe and the `crfChosen` probe is the honest
+per-title saving on that sample. `bitrateKbps` is the sample's VIDEO-ONLY
+bitrate — the search's cuts drop audio, subtitles and data — so don't compare
+it to a delivered output's muxed `averageBitrateKbps`. All three fields are
+`undefined`/empty on reports from workers older than 1.29.0.
+
 ## AI captions
 
 Add auto-generated captions to any output with a `generate` subtitle track.

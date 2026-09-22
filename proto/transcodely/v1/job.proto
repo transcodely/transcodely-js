@@ -820,6 +820,44 @@ message OutputReportContentAware {
   // For a multi-rendition output this is the highest-resolution rendition's
   // value; the lower rungs derive from it by the ladder's fixed offsets.
   optional int32 crf_chosen = 4;
+
+  // Constant-rate-factor the rung would have used WITHOUT the search: the
+  // quality tier's static value, and the first point the search measured.
+  // Compare it with crf_chosen to see what per-title changed. Absent when the
+  // search did not report where it started.
+  optional int32 seed_crf = 5;
+
+  // Whether the search found a setting that reached vmaf_target. When false,
+  // crf_chosen is the best-scoring setting it measured, and vmaf_achieved is
+  // below the target.
+  optional bool met_target = 6;
+
+  // Every sample the search measured, in the order it measured them. Each is
+  // a short cut of the source encoded at one CRF with this rung's delivery
+  // settings and scored against the original. Empty when the analysis did not
+  // report its probes (workers before 1.29.0).
+  repeated OutputReportContentAwareProbe probes = 7;
+}
+
+// One measured point on the search's VMAF/CRF curve.
+message OutputReportContentAwareProbe {
+  // CRF the sample was encoded at.
+  int32 crf = 1;
+
+  // VMAF the sample scored, 0-100.
+  double vmaf = 2;
+
+  // Bitrate of the encoded sample in kilobits per second. Two probes' bitrates
+  // compare directly because every sample is the same cut of the source; the
+  // ratio between the seed_crf probe and the crf_chosen probe is the size
+  // change per-title made on that sample. Absent when the encoder did not
+  // report the sample's size.
+  //
+  // The sample is encoded VIDEO-ONLY — the search's cuts drop audio, subtitles
+  // and data streams — so this is the sample's video bitrate, not the rate of a
+  // muxed file. Comparing it against a delivered file's bitrate, which includes
+  // every stream that file carries, compares two different things.
+  optional double bitrate_kbps = 3;
 }
 
 // Measured properties of a produced video stream.
