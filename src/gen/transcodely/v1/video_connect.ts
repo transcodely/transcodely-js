@@ -202,7 +202,9 @@ export const VideoService = {
      * Get ready-to-paste SEO markup for showing a video on your own page:
      * schema.org VideoObject JSON-LD (with chapter key moments when the video
      * has insights), a video sitemap entry, and a server-renderable HTML
-     * fragment with the summary, chapters and full transcript.
+     * fragment with the summary, chapters and full transcript. The video must be
+     * ready and public or unlisted; other videos are refused with
+     * failed_precondition.
      *
      * @generated from rpc transcodely.v1.VideoService.GetSeoMarkup
      */

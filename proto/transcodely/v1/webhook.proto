@@ -85,7 +85,8 @@ message WebhookEndpoint {
   // Event types this endpoint subscribes to.
   // Use "*" to subscribe to all event types.
   // Possible values: "job.created", "job.succeeded", "job.failed",
-  // "job.canceled", "job.progress", "output.created", "output.ready",
+  // "job.canceled", "job.progress", "job.insights.ready",
+  // "job.insights.failed", "output.created", "output.ready",
   // "output.failed", "output.progress", "video.uploaded", "video.ready",
   // "video.failed", "video.deleted", "video.source_scheduled_for_deletion",
   // "app.created", "app.updated", "app.spend_limit_warning",

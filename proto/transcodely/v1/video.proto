@@ -74,7 +74,9 @@ service VideoService {
   // Get ready-to-paste SEO markup for showing a video on your own page:
   // schema.org VideoObject JSON-LD (with chapter key moments when the video
   // has insights), a video sitemap entry, and a server-renderable HTML
-  // fragment with the summary, chapters and full transcript.
+  // fragment with the summary, chapters and full transcript. The video must be
+  // ready and public or unlisted; other videos are refused with
+  // failed_precondition.
   rpc GetSeoMarkup(GetSeoMarkupRequest) returns (GetSeoMarkupResponse);
 }
 
@@ -1140,7 +1142,9 @@ message GetSeoMarkupResponse {
   // `<script type="application/ld+json">`. Includes name, description,
   // thumbnailUrl, uploadDate, duration (ISO 8601), embedUrl and, when the
   // video has ready insights, hasPart Clip key moments from its chapters,
-  // each linking to watch_url at the chapter start.
+  // each linking to watch_url at the chapter start. thumbnailUrl and embedUrl
+  // are stable player URLs that never expire (the thumbnail redirects to the
+  // current poster), so the markup can be stored as-is.
   string json_ld = 1;
 
   // A `<url>` entry for a video sitemap (namespace
