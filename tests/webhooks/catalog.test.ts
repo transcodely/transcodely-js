@@ -19,7 +19,7 @@ import {
 } from "../../src/webhooks/types.js";
 
 /**
- * The 18 concrete event types from `domain.WebhookEventTypes()`. The "*"
+ * The 20 concrete event types from `domain.WebhookEventTypes()`. The "*"
  * wildcard is intentionally NOT in this list: per the API contract it is only
  * valid as an `enabled_events` subscription value, never as the `type` of an
  * actually-emitted event.
@@ -30,6 +30,8 @@ const EXPECTED_CATALOG = [
   "job.failed",
   "job.canceled",
   "job.progress",
+  "job.insights.ready",
+  "job.insights.failed",
   "output.created",
   "output.ready",
   "output.failed",

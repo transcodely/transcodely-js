@@ -6,7 +6,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
+import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -196,6 +196,20 @@ export const VideoService = {
       name: "ListTopVideos",
       I: ListTopVideosRequest,
       O: ListTopVideosResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Get ready-to-paste SEO markup for showing a video on your own page:
+     * schema.org VideoObject JSON-LD (with chapter key moments when the video
+     * has insights), a video sitemap entry, and a server-renderable HTML
+     * fragment with the summary, chapters and full transcript.
+     *
+     * @generated from rpc transcodely.v1.VideoService.GetSeoMarkup
+     */
+    getSeoMarkup: {
+      name: "GetSeoMarkup",
+      I: GetSeoMarkupRequest,
+      O: GetSeoMarkupResponse,
       kind: MethodKind.Unary,
     },
   }

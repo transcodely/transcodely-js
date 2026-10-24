@@ -1252,9 +1252,8 @@ message Job {
   // input_origin_id. Server-set; read-only.
   string input_video_id = 34;
 
-  // Auto-generated chapter tracks, one per output whose generated caption track
-  // had chapters enabled (SubtitleTrack.generate_chapters). Populated once the
-  // auto-chapters pass ships; empty until then.
+  // Never populated; superseded by insights, whose chapters section (and
+  // chapters.vtt file) replaces it.
   repeated ChapterResult chapter_results = 35;
 
   // Clip range this job encodes (echoed from request). Absent when the job
@@ -1274,6 +1273,13 @@ message Job {
   // alone do not add up to the bill, because fees are charged on top of them.
   // Always present. Server-set; read-only.
   JobCostBreakdown cost_breakdown = 38;
+
+  // AI insights, one per generate subtitle track that requested them
+  // (SubtitleTrack.insights). Listed with status "pending" from creation;
+  // they are produced after the job completes and move to "ready" or
+  // "failed" (webhooks job.insights.ready / job.insights.failed). Signed URLs
+  // follow the same rules as SubtitleResult.signed_url. Server-set; read-only.
+  repeated TranscriptInsights insights = 39;
 }
 
 // A single fee line item on a job (see Job.fees), charged once per job per

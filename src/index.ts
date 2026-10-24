@@ -174,6 +174,8 @@ export {
   type ListTopVideosRequest,
   type ListTopVideosResponse,
   type TopVideo,
+  type GetSeoMarkupRequest,
+  type GetSeoMarkupResponse,
   VideoStatus,
   VideoVisibility,
 } from "./gen/transcodely/v1/video_pb.js";
@@ -564,6 +566,24 @@ export {
 export {
   type ChapterPoint,
   type ChapterResult,
+} from "./gen/transcodely/v1/subtitles_pb.js";
+
+// Transcripts and insights. Every `generate` subtitle track writes transcript
+// renditions (json, txt, md) reported as TranscriptRendition on
+// SubtitleResult.transcriptRenditions and VideoTextTrack.transcriptRenditions.
+// The opt-in insights pass (InsightsOptions on the track) is reported as
+// TranscriptInsights on Job.insights and Video.insights.
+export {
+  type TranscriptOptions,
+  type InsightsOptions,
+  type TranscriptRendition,
+  type TranscriptInsights,
+  type InsightsQuestion,
+  type InsightsTerm,
+  type InsightsHighlight,
+  TranscriptStyle,
+  TranscriptFormat,
+  InsightsStatus,
 } from "./gen/transcodely/v1/subtitles_pb.js";
 
 export {

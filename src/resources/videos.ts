@@ -9,6 +9,8 @@ import {
   CreateMultipartUploadRequest,
   CreateUploadRequest,
   DeleteVideoRequest,
+  GetSeoMarkupRequest,
+  type GetSeoMarkupResponse,
   GetStatsRequest,
   type GetStatsResponse,
   GetUploadPartUrlsRequest,
@@ -209,6 +211,26 @@ export class Videos {
       VideoService,
       VideoService.methods.listTopVideos,
       new ListTopVideosRequest(req),
+      opts,
+    );
+  }
+
+  /**
+   * Ready-to-paste SEO markup for a hosted video, built for YOUR watch page
+   * (`watchUrl`, absolute https): schema.org VideoObject JSON-LD (with chapter
+   * Clip key moments when insights are ready), a video-sitemap `<url>` entry,
+   * and a server-renderable HTML fragment with the summary, key points,
+   * chapter links and the full transcript. Every string is escaped for its
+   * context; paste it as-is.
+   */
+  async getSeoMarkup(
+    req: PartialMessage<GetSeoMarkupRequest>,
+    opts?: CallOptions,
+  ): Promise<GetSeoMarkupResponse> {
+    return this.transport.unary(
+      VideoService,
+      VideoService.methods.getSeoMarkup,
+      new GetSeoMarkupRequest(req),
       opts,
     );
   }

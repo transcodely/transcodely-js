@@ -227,6 +227,56 @@ for (const fee of job.fees) {
 }
 ```
 
+## Transcripts and insights
+
+Every `generate` track also writes the transcript as `json`, `txt` and `md`.
+Ask for the opt-in insights pass (summary, key points, chapters, questions,
+terms, highlights) on the same track:
+
+```ts
+import { SubtitleOperation, TranscriptStyle, TranscriptFormat, InsightsStatus } from "@transcodely/sdk";
+
+await client.jobs.create({
+  inputVideoId: "vid_a1b2c3d4e5f6g7",
+  outputs: [{
+    subtitleTracks: [{
+      operation: SubtitleOperation.GENERATE,
+      transcript: { style: TranscriptStyle.CLEAN }, // default; LITERAL keeps fillers
+      insights: { enabled: true, hint: "conference talk for developers" },
+    }],
+  }],
+});
+
+// On a hosted video each rendition carries a short-lived signedUrl, re-issued
+// on every read, so fetch the video right before downloading.
+const video = await client.videos.get("vid_a1b2c3d4e5f6g7");
+const txt = video.textTracks
+  .flatMap((t) => t.transcriptRenditions)
+  .find((r) => r.format === TranscriptFormat.TXT);
+if (txt?.signedUrl) {
+  const transcript = await (await fetch(txt.signedUrl)).text();
+  console.log(transcript);
+}
+
+for (const ins of video.insights) {
+  if (ins.status === InsightsStatus.READY) {
+    console.log(ins.summary, ins.keyPoints);
+    for (const ch of ins.chapters) console.log(ch.startSeconds, ch.title);
+  }
+}
+
+// Ready-to-paste JSON-LD, video-sitemap entry and HTML fragment for your own page.
+const kit = await client.videos.getSeoMarkup({
+  videoId: "vid_a1b2c3d4e5f6g7",
+  watchUrl: "https://example.com/watch/42",
+});
+console.log(kit.jsonLd, kit.sitemapEntry, kit.htmlFragment);
+```
+
+Jobs carry the same data on `job.subtitleResults[i].transcriptRenditions` and
+`job.insights`. The `job.insights.ready` and `job.insights.failed` webhook events
+tell you when an insights pass finishes.
+
 ## Authentication
 
 Pass your API key in the constructor:
@@ -240,7 +290,7 @@ const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 ```ts
 client.jobs            // create / get / list / cancel / confirm / watch
 client.uploads         // putFile — the whole create / PUT / complete upload, for a path, Blob or stream
-client.videos          // upload RPCs, multipart, createFromUrl, get / list / update / delete / watch / getStats / listTopVideos
+client.videos          // upload RPCs, multipart, createFromUrl, get / list / update / delete / watch / getStats / listTopVideos / getSeoMarkup
 client.presets         // create / get / getBySlug / list / update / duplicate / archive
 client.origins         // create / get / list / update / validate / archive
 client.ingestRules     // create / get / list / update / delete / listEvents / test / replayEvent

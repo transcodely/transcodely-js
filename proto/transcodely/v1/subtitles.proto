@@ -4,6 +4,7 @@ syntax = "proto3";
 package transcodely.v1;
 
 import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
 
 // Subtitle processing operation.
 enum SubtitleOperation {
@@ -135,15 +136,103 @@ message SubtitleTrack {
   // Styling options for burn-in operation.
   optional BurnInStyle burn_in_style = 11;
 
-  // Generate an AI chapters track from the transcript this track produces.
+  // Deprecated: use insights.enabled. Chapters are one section of the
+  // insights pack, so setting this to true behaves exactly like
+  // insights.enabled = true (and is billed the same way). Only valid with the
+  // `generate` operation. Kept so existing integrations keep working.
+  optional bool generate_chapters = 12 [deprecated = true];
+
+  // Transcript renditions written next to the caption file. Only valid with
+  // the `generate` operation. Every generate track produces a transcript in
+  // three renditions (json, txt and md) whether or not this is set; this only
+  // chooses how the txt and md renditions are written. Included in the
+  // captions fee; no extra charge.
+  TranscriptOptions transcript = 13;
+
+  // AI insights over the generated transcript: title suggestions, a summary,
+  // key points, chapters, questions the content answers, key terms, quotable
+  // highlights and topics. Only valid with the `generate` operation. Opt-in
+  // and billed as the `insights` fee per source minute with a per-job minimum
+  // (see Job.fees); a job whose insights fail is not charged for them.
   //
-  // Only meaningful together with the `generate` subtitle operation: when
-  // enabled, an AI pass over the generated transcript produces a chapters
-  // track delivered as WebVTT plus JSON. Free — no pricing impact. The
-  // transcript text is processed via the Anthropic API (an external
-  // subprocessor). Caption generation is available; the auto-chapters pass is
-  // not yet, so setting this is still rejected at job creation.
-  optional bool generate_chapters = 12;
+  // Insights run after the job completes, so they arrive slightly later than
+  // the captions: watch Job.insights (status pending → ready | failed) or
+  // subscribe to the job.insights.ready / job.insights.failed webhooks.
+  //
+  // Privacy: the transcript TEXT (never the audio or video) is sent to
+  // Anthropic, our AI subprocessor, to produce the insights. It is not used to
+  // train models. Deployments without the feature reject this option with
+  // `parameter_unsupported`.
+  InsightsOptions insights = 14;
+}
+
+// How the txt and md transcript renditions are written. The json rendition
+// always carries every word verbatim, with the filler words flagged.
+enum TranscriptStyle {
+  TRANSCRIPT_STYLE_UNSPECIFIED = 0;
+
+  // Readable text: filler words ("um", "uh"), stutters and immediately
+  // repeated words are removed. No word is ever changed, reordered or added.
+  // The default.
+  TRANSCRIPT_STYLE_CLEAN = 1;
+
+  // True verbatim: every recognized word, fillers included.
+  TRANSCRIPT_STYLE_LITERAL = 2;
+}
+
+// A transcript rendition's file format.
+enum TranscriptFormat {
+  TRANSCRIPT_FORMAT_UNSPECIFIED = 0;
+
+  // Machine-readable transcript: paragraphs, sentences and words with
+  // millisecond timings and per-word confidence.
+  TRANSCRIPT_FORMAT_JSON = 1;
+
+  // Plain text: paragraphs separated by a blank line, no timestamps.
+  TRANSCRIPT_FORMAT_TXT = 2;
+
+  // Markdown: YAML front matter, a "# Transcript" heading, and one paragraph
+  // per block, each prefixed with a timestamp link ("**[01:35](#t=95)**").
+  TRANSCRIPT_FORMAT_MD = 3;
+}
+
+// Options for the transcript renditions of a `generate` subtitle track.
+message TranscriptOptions {
+  // Style of the txt and md renditions. Default: clean.
+  optional TranscriptStyle style = 1 [(buf.validate.field).enum.defined_only = true];
+}
+
+// Options for the AI insights pass over a `generate` subtitle track's
+// transcript. See SubtitleTrack.insights.
+message InsightsOptions {
+  // Run the insights pass. Billed as the `insights` fee.
+  bool enabled = 1;
+
+  // Optional free-text guidance about the content, its audience or the tone
+  // you want, at most 300 characters (e.g. "Beginner cooking class; friendly
+  // tone" or "Quarterly earnings call for investors"). It steers the writing;
+  // it cannot change what the insights contain or their format.
+  optional string hint = 2 [(buf.validate.field).string.max_len = 300];
+}
+
+// One rendition of a generated transcript.
+message TranscriptRendition {
+  // File format: json | txt | md.
+  TranscriptFormat format = 1;
+
+  // Storage key of the file in the output destination
+  // (e.g. "job_xxx/subtitles/out_yyy_eng.transcript.md").
+  string storage_key = 2;
+
+  // Fully-qualified storage URL of the file, the same kind of URL as
+  // SubtitleResult.url.
+  string url = 3;
+
+  // Ready-to-fetch HTTPS URL for the file, signed and time-limited. Same rules
+  // and lifetime as SubtitleResult.signed_url: present only for
+  // Transcodely-managed storage, emitted on single-resource reads, re-issued on
+  // every read and never stored.
+  optional string signed_url = 4;
 }
 
 // ChapterPoint is one chapter marker. Times are seconds from the start of the
@@ -159,13 +248,11 @@ message ChapterPoint {
   string title = 3;
 }
 
-// ChapterResult reports an auto-generated chapters track (read-only on Job
-// responses). It is produced by the opt-in auto-chapters pass over generated
-// captions (SubtitleTrack.generate_chapters).
+// ChapterResult was the planned shape for an auto-generated chapters track.
 //
-// Not yet populated: the auto-chapters pass has not shipped yet. Fields are
-// documented here so consumers can code against the shape ahead of the
-// rollout.
+// Superseded by TranscriptInsights.chapters (Job.insights / Video.insights)
+// and never populated: chapters are produced by the insights pass. Kept so
+// existing generated code keeps compiling.
 message ChapterResult {
   // The out_… output the generate track was configured on.
   string output_id = 1;
@@ -219,11 +306,13 @@ message SubtitleResult {
   // echoed on the Job response, exactly like JobOutput.output_url.
   string url = 8;
 
-  // Segment-level transcript JSON storage key. Set only for generate
-  // tracks (the machine-readable transcript consumed by auto-chapters).
+  // Storage key of the json transcript rendition. Set only for generate
+  // tracks. The same file is listed in transcript_renditions, which also
+  // carries the txt and md renditions.
   string transcript_storage_key = 9;
 
-  // Fully-qualified transcript URL. Set only for generate tracks.
+  // Fully-qualified URL of the json transcript rendition. Set only for
+  // generate tracks.
   string transcript_url = 10;
 
   // Ready-to-fetch HTTPS URL for the caption file, signed and time-limited.
@@ -239,8 +328,157 @@ message SubtitleResult {
   // storing it.
   optional string signed_url = 11;
 
-  // Ready-to-fetch HTTPS URL for the segment transcript, signed and
+  // Ready-to-fetch HTTPS URL for the json transcript rendition, signed and
   // time-limited. Same rules and lifetime as signed_url; set only for generate
   // tracks, which are the only ones carrying a transcript.
   optional string transcript_signed_url = 12;
+
+  // Every transcript rendition this generate track produced, one per format
+  // (json, txt, md). Empty for other operations, and for jobs that completed
+  // before renditions existed (those carry only the json transcript above).
+  repeated TranscriptRendition transcript_renditions = 13;
+
+  // Style the txt and md renditions were written in: clean | literal. Unset
+  // when the track produced no renditions.
+  TranscriptStyle transcript_style = 14;
+}
+
+// Processing state of a transcript's insights.
+enum InsightsStatus {
+  INSIGHTS_STATUS_UNSPECIFIED = 0;
+
+  // Requested and not produced yet. Insights run after the job completes.
+  INSIGHTS_STATUS_PENDING = 1;
+
+  // Produced; every section and artifact is available.
+  INSIGHTS_STATUS_READY = 2;
+
+  // Could not be produced; error_code says why. No insights fee is charged.
+  INSIGHTS_STATUS_FAILED = 3;
+}
+
+// A question the content answers, with a short answer grounded in the
+// transcript.
+message InsightsQuestion {
+  // The question, phrased the way a viewer would ask it.
+  string question = 1;
+
+  // The answer as the content gives it, at most two sentences.
+  string answer = 2;
+
+  // Where the answer starts, in seconds from the start of the video.
+  double start_seconds = 3;
+}
+
+// A key term used in the content, with the definition the content gives.
+message InsightsTerm {
+  // The term as it is used in the content.
+  string term = 1;
+
+  // A one-sentence definition, as the content explains it.
+  string definition = 2;
+
+  // Where the term is introduced, in seconds from the start of the video.
+  double start_seconds = 3;
+}
+
+// A quotable moment: verbatim words from the transcript with their timing.
+message InsightsHighlight {
+  // The quote, exactly as it appears in the transcript (never paraphrased).
+  string text = 1;
+
+  // Start of the paragraph the quote comes from, in seconds from the start of
+  // the video.
+  double start_seconds = 2;
+
+  // End of that paragraph, in seconds from the start of the video.
+  double end_seconds = 3;
+}
+
+// AI insights produced from one generated transcript (read-only). Requested
+// with SubtitleTrack.insights; one per generate track that requested them.
+//
+// The sections are written in the transcript's language (unless your hint
+// asks otherwise) and are present only once status is "ready". Every timing
+// refers to the transcript, and every highlight is a verbatim quote from it.
+//
+// The artifact files (insights.json, insights.md and chapters.vtt) are
+// written next to the caption file in the job's output destination.
+message TranscriptInsights {
+  // The out_… output the generate track was configured on.
+  string output_id = 1;
+
+  // ISO 639-2 language code of the transcript.
+  string language = 2;
+
+  // pending | ready | failed.
+  InsightsStatus status = 3;
+
+  // Why the insights failed, when status is "failed":
+  // insights_invalid (no usable result could be produced),
+  // insights_unsupported_origin (the output destination cannot be written to
+  // by the API, e.g. an http origin), insights_too_long (transcript over the
+  // size limit), insights_transcript_unavailable (the transcript could not be
+  // read), insights_refused (the content was declined) or insights_unavailable
+  // (the service was unavailable). Empty otherwise.
+  string error_code = 4;
+
+  // One to three suggested titles for the video.
+  repeated string title_suggestions = 5;
+
+  // A summary of the content, at most four sentences.
+  string summary = 6;
+
+  // Three to seven key points.
+  repeated string key_points = 7;
+
+  // Chapters, ordered by start time and covering the whole video. Also
+  // delivered as a WebVTT chapters file (chapters_url).
+  repeated ChapterPoint chapters = 8;
+
+  // Up to six questions the content answers.
+  repeated InsightsQuestion questions = 9;
+
+  // Up to ten key terms with definitions.
+  repeated InsightsTerm terms = 10;
+
+  // Quotable moments, each a verbatim quote from the transcript.
+  repeated InsightsHighlight highlights = 11;
+
+  // Up to ten short topic labels.
+  repeated string topics = 12;
+
+  // Storage key of insights.json (every section above, machine-readable).
+  string storage_key = 13;
+
+  // Fully-qualified storage URL of insights.json.
+  string url = 14;
+
+  // Signed, time-limited HTTPS URL for insights.json. Same rules and lifetime
+  // as SubtitleResult.signed_url.
+  optional string signed_url = 15;
+
+  // Storage key of chapters.vtt (WebVTT chapters track).
+  string chapters_storage_key = 16;
+
+  // Fully-qualified storage URL of chapters.vtt.
+  string chapters_url = 17;
+
+  // Signed, time-limited HTTPS URL for chapters.vtt. Same rules as signed_url.
+  optional string chapters_signed_url = 18;
+
+  // Storage key of insights.md (every section as a Markdown document).
+  string markdown_storage_key = 19;
+
+  // Fully-qualified storage URL of insights.md.
+  string markdown_url = 20;
+
+  // Signed, time-limited HTTPS URL for insights.md. Same rules as signed_url.
+  optional string markdown_signed_url = 21;
+
+  // When the insights became ready. Absent until then.
+  google.protobuf.Timestamp generated_at = 22;
+
+  // The hint the insights were requested with (echoed). Empty when none.
+  string hint = 23;
 }

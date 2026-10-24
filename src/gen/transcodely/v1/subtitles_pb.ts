@@ -6,7 +6,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3 } from "@bufbuild/protobuf";
+import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * Subtitle processing operation.
@@ -103,6 +103,123 @@ proto3.util.setEnumType(SubtitleFormat, "transcodely.v1.SubtitleFormat", [
   { no: 2, name: "SUBTITLE_FORMAT_WEBVTT" },
   { no: 3, name: "SUBTITLE_FORMAT_TTML" },
   { no: 4, name: "SUBTITLE_FORMAT_ASS" },
+]);
+
+/**
+ * How the txt and md transcript renditions are written. The json rendition
+ * always carries every word verbatim, with the filler words flagged.
+ *
+ * @generated from enum transcodely.v1.TranscriptStyle
+ */
+export enum TranscriptStyle {
+  /**
+   * @generated from enum value: TRANSCRIPT_STYLE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Readable text: filler words ("um", "uh"), stutters and immediately
+   * repeated words are removed. No word is ever changed, reordered or added.
+   * The default.
+   *
+   * @generated from enum value: TRANSCRIPT_STYLE_CLEAN = 1;
+   */
+  CLEAN = 1,
+
+  /**
+   * True verbatim: every recognized word, fillers included.
+   *
+   * @generated from enum value: TRANSCRIPT_STYLE_LITERAL = 2;
+   */
+  LITERAL = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(TranscriptStyle)
+proto3.util.setEnumType(TranscriptStyle, "transcodely.v1.TranscriptStyle", [
+  { no: 0, name: "TRANSCRIPT_STYLE_UNSPECIFIED" },
+  { no: 1, name: "TRANSCRIPT_STYLE_CLEAN" },
+  { no: 2, name: "TRANSCRIPT_STYLE_LITERAL" },
+]);
+
+/**
+ * A transcript rendition's file format.
+ *
+ * @generated from enum transcodely.v1.TranscriptFormat
+ */
+export enum TranscriptFormat {
+  /**
+   * @generated from enum value: TRANSCRIPT_FORMAT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Machine-readable transcript: paragraphs, sentences and words with
+   * millisecond timings and per-word confidence.
+   *
+   * @generated from enum value: TRANSCRIPT_FORMAT_JSON = 1;
+   */
+  JSON = 1,
+
+  /**
+   * Plain text: paragraphs separated by a blank line, no timestamps.
+   *
+   * @generated from enum value: TRANSCRIPT_FORMAT_TXT = 2;
+   */
+  TXT = 2,
+
+  /**
+   * Markdown: YAML front matter, a "# Transcript" heading, and one paragraph
+   * per block, each prefixed with a timestamp link ("**[01:35](#t=95)**").
+   *
+   * @generated from enum value: TRANSCRIPT_FORMAT_MD = 3;
+   */
+  MD = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(TranscriptFormat)
+proto3.util.setEnumType(TranscriptFormat, "transcodely.v1.TranscriptFormat", [
+  { no: 0, name: "TRANSCRIPT_FORMAT_UNSPECIFIED" },
+  { no: 1, name: "TRANSCRIPT_FORMAT_JSON" },
+  { no: 2, name: "TRANSCRIPT_FORMAT_TXT" },
+  { no: 3, name: "TRANSCRIPT_FORMAT_MD" },
+]);
+
+/**
+ * Processing state of a transcript's insights.
+ *
+ * @generated from enum transcodely.v1.InsightsStatus
+ */
+export enum InsightsStatus {
+  /**
+   * @generated from enum value: INSIGHTS_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Requested and not produced yet. Insights run after the job completes.
+   *
+   * @generated from enum value: INSIGHTS_STATUS_PENDING = 1;
+   */
+  PENDING = 1,
+
+  /**
+   * Produced; every section and artifact is available.
+   *
+   * @generated from enum value: INSIGHTS_STATUS_READY = 2;
+   */
+  READY = 2,
+
+  /**
+   * Could not be produced; error_code says why. No insights fee is charged.
+   *
+   * @generated from enum value: INSIGHTS_STATUS_FAILED = 3;
+   */
+  FAILED = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(InsightsStatus)
+proto3.util.setEnumType(InsightsStatus, "transcodely.v1.InsightsStatus", [
+  { no: 0, name: "INSIGHTS_STATUS_UNSPECIFIED" },
+  { no: 1, name: "INSIGHTS_STATUS_PENDING" },
+  { no: 2, name: "INSIGHTS_STATUS_READY" },
+  { no: 3, name: "INSIGHTS_STATUS_FAILED" },
 ]);
 
 /**
@@ -282,18 +399,46 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
   burnInStyle?: BurnInStyle;
 
   /**
-   * Generate an AI chapters track from the transcript this track produces.
+   * Deprecated: use insights.enabled. Chapters are one section of the
+   * insights pack, so setting this to true behaves exactly like
+   * insights.enabled = true (and is billed the same way). Only valid with the
+   * `generate` operation. Kept so existing integrations keep working.
    *
-   * Only meaningful together with the `generate` subtitle operation: when
-   * enabled, an AI pass over the generated transcript produces a chapters
-   * track delivered as WebVTT plus JSON. Free — no pricing impact. The
-   * transcript text is processed via the Anthropic API (an external
-   * subprocessor). Caption generation is available; the auto-chapters pass is
-   * not yet, so setting this is still rejected at job creation.
-   *
-   * @generated from field: optional bool generate_chapters = 12;
+   * @generated from field: optional bool generate_chapters = 12 [deprecated = true];
+   * @deprecated
    */
   generateChapters?: boolean;
+
+  /**
+   * Transcript renditions written next to the caption file. Only valid with
+   * the `generate` operation. Every generate track produces a transcript in
+   * three renditions (json, txt and md) whether or not this is set; this only
+   * chooses how the txt and md renditions are written. Included in the
+   * captions fee; no extra charge.
+   *
+   * @generated from field: transcodely.v1.TranscriptOptions transcript = 13;
+   */
+  transcript?: TranscriptOptions;
+
+  /**
+   * AI insights over the generated transcript: title suggestions, a summary,
+   * key points, chapters, questions the content answers, key terms, quotable
+   * highlights and topics. Only valid with the `generate` operation. Opt-in
+   * and billed as the `insights` fee per source minute with a per-job minimum
+   * (see Job.fees); a job whose insights fail is not charged for them.
+   *
+   * Insights run after the job completes, so they arrive slightly later than
+   * the captions: watch Job.insights (status pending → ready | failed) or
+   * subscribe to the job.insights.ready / job.insights.failed webhooks.
+   *
+   * Privacy: the transcript TEXT (never the audio or video) is sent to
+   * Anthropic, our AI subprocessor, to produce the insights. It is not used to
+   * train models. Deployments without the feature reject this option with
+   * `parameter_unsupported`.
+   *
+   * @generated from field: transcodely.v1.InsightsOptions insights = 14;
+   */
+  insights?: InsightsOptions;
 
   constructor(data?: PartialMessage<SubtitleTrack>) {
     super();
@@ -315,6 +460,8 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
     { no: 10, name: "forced", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 11, name: "burn_in_style", kind: "message", T: BurnInStyle, opt: true },
     { no: 12, name: "generate_chapters", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 13, name: "transcript", kind: "message", T: TranscriptOptions },
+    { no: 14, name: "insights", kind: "message", T: InsightsOptions },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubtitleTrack {
@@ -331,6 +478,170 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
 
   static equals(a: SubtitleTrack | PlainMessage<SubtitleTrack> | undefined, b: SubtitleTrack | PlainMessage<SubtitleTrack> | undefined): boolean {
     return proto3.util.equals(SubtitleTrack, a, b);
+  }
+}
+
+/**
+ * Options for the transcript renditions of a `generate` subtitle track.
+ *
+ * @generated from message transcodely.v1.TranscriptOptions
+ */
+export class TranscriptOptions extends Message<TranscriptOptions> {
+  /**
+   * Style of the txt and md renditions. Default: clean.
+   *
+   * @generated from field: optional transcodely.v1.TranscriptStyle style = 1;
+   */
+  style?: TranscriptStyle;
+
+  constructor(data?: PartialMessage<TranscriptOptions>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.TranscriptOptions";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "style", kind: "enum", T: proto3.getEnumType(TranscriptStyle), opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TranscriptOptions {
+    return new TranscriptOptions().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): TranscriptOptions {
+    return new TranscriptOptions().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): TranscriptOptions {
+    return new TranscriptOptions().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: TranscriptOptions | PlainMessage<TranscriptOptions> | undefined, b: TranscriptOptions | PlainMessage<TranscriptOptions> | undefined): boolean {
+    return proto3.util.equals(TranscriptOptions, a, b);
+  }
+}
+
+/**
+ * Options for the AI insights pass over a `generate` subtitle track's
+ * transcript. See SubtitleTrack.insights.
+ *
+ * @generated from message transcodely.v1.InsightsOptions
+ */
+export class InsightsOptions extends Message<InsightsOptions> {
+  /**
+   * Run the insights pass. Billed as the `insights` fee.
+   *
+   * @generated from field: bool enabled = 1;
+   */
+  enabled = false;
+
+  /**
+   * Optional free-text guidance about the content, its audience or the tone
+   * you want, at most 300 characters (e.g. "Beginner cooking class; friendly
+   * tone" or "Quarterly earnings call for investors"). It steers the writing;
+   * it cannot change what the insights contain or their format.
+   *
+   * @generated from field: optional string hint = 2;
+   */
+  hint?: string;
+
+  constructor(data?: PartialMessage<InsightsOptions>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.InsightsOptions";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "enabled", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "hint", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): InsightsOptions {
+    return new InsightsOptions().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): InsightsOptions {
+    return new InsightsOptions().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): InsightsOptions {
+    return new InsightsOptions().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: InsightsOptions | PlainMessage<InsightsOptions> | undefined, b: InsightsOptions | PlainMessage<InsightsOptions> | undefined): boolean {
+    return proto3.util.equals(InsightsOptions, a, b);
+  }
+}
+
+/**
+ * One rendition of a generated transcript.
+ *
+ * @generated from message transcodely.v1.TranscriptRendition
+ */
+export class TranscriptRendition extends Message<TranscriptRendition> {
+  /**
+   * File format: json | txt | md.
+   *
+   * @generated from field: transcodely.v1.TranscriptFormat format = 1;
+   */
+  format = TranscriptFormat.UNSPECIFIED;
+
+  /**
+   * Storage key of the file in the output destination
+   * (e.g. "job_xxx/subtitles/out_yyy_eng.transcript.md").
+   *
+   * @generated from field: string storage_key = 2;
+   */
+  storageKey = "";
+
+  /**
+   * Fully-qualified storage URL of the file, the same kind of URL as
+   * SubtitleResult.url.
+   *
+   * @generated from field: string url = 3;
+   */
+  url = "";
+
+  /**
+   * Ready-to-fetch HTTPS URL for the file, signed and time-limited. Same rules
+   * and lifetime as SubtitleResult.signed_url: present only for
+   * Transcodely-managed storage, emitted on single-resource reads, re-issued on
+   * every read and never stored.
+   *
+   * @generated from field: optional string signed_url = 4;
+   */
+  signedUrl?: string;
+
+  constructor(data?: PartialMessage<TranscriptRendition>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.TranscriptRendition";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "format", kind: "enum", T: proto3.getEnumType(TranscriptFormat) },
+    { no: 2, name: "storage_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TranscriptRendition {
+    return new TranscriptRendition().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): TranscriptRendition {
+    return new TranscriptRendition().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): TranscriptRendition {
+    return new TranscriptRendition().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: TranscriptRendition | PlainMessage<TranscriptRendition> | undefined, b: TranscriptRendition | PlainMessage<TranscriptRendition> | undefined): boolean {
+    return proto3.util.equals(TranscriptRendition, a, b);
   }
 }
 
@@ -393,13 +704,11 @@ export class ChapterPoint extends Message<ChapterPoint> {
 }
 
 /**
- * ChapterResult reports an auto-generated chapters track (read-only on Job
- * responses). It is produced by the opt-in auto-chapters pass over generated
- * captions (SubtitleTrack.generate_chapters).
+ * ChapterResult was the planned shape for an auto-generated chapters track.
  *
- * Not yet populated: the auto-chapters pass has not shipped yet. Fields are
- * documented here so consumers can code against the shape ahead of the
- * rollout.
+ * Superseded by TranscriptInsights.chapters (Job.insights / Video.insights)
+ * and never populated: chapters are produced by the insights pass. Kept so
+ * existing generated code keeps compiling.
  *
  * @generated from message transcodely.v1.ChapterResult
  */
@@ -544,15 +853,17 @@ export class SubtitleResult extends Message<SubtitleResult> {
   url = "";
 
   /**
-   * Segment-level transcript JSON storage key. Set only for generate
-   * tracks (the machine-readable transcript consumed by auto-chapters).
+   * Storage key of the json transcript rendition. Set only for generate
+   * tracks. The same file is listed in transcript_renditions, which also
+   * carries the txt and md renditions.
    *
    * @generated from field: string transcript_storage_key = 9;
    */
   transcriptStorageKey = "";
 
   /**
-   * Fully-qualified transcript URL. Set only for generate tracks.
+   * Fully-qualified URL of the json transcript rendition. Set only for
+   * generate tracks.
    *
    * @generated from field: string transcript_url = 10;
    */
@@ -576,13 +887,30 @@ export class SubtitleResult extends Message<SubtitleResult> {
   signedUrl?: string;
 
   /**
-   * Ready-to-fetch HTTPS URL for the segment transcript, signed and
+   * Ready-to-fetch HTTPS URL for the json transcript rendition, signed and
    * time-limited. Same rules and lifetime as signed_url; set only for generate
    * tracks, which are the only ones carrying a transcript.
    *
    * @generated from field: optional string transcript_signed_url = 12;
    */
   transcriptSignedUrl?: string;
+
+  /**
+   * Every transcript rendition this generate track produced, one per format
+   * (json, txt, md). Empty for other operations, and for jobs that completed
+   * before renditions existed (those carry only the json transcript above).
+   *
+   * @generated from field: repeated transcodely.v1.TranscriptRendition transcript_renditions = 13;
+   */
+  transcriptRenditions: TranscriptRendition[] = [];
+
+  /**
+   * Style the txt and md renditions were written in: clean | literal. Unset
+   * when the track produced no renditions.
+   *
+   * @generated from field: transcodely.v1.TranscriptStyle transcript_style = 14;
+   */
+  transcriptStyle = TranscriptStyle.UNSPECIFIED;
 
   constructor(data?: PartialMessage<SubtitleResult>) {
     super();
@@ -604,6 +932,8 @@ export class SubtitleResult extends Message<SubtitleResult> {
     { no: 10, name: "transcript_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 11, name: "signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 12, name: "transcript_signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 13, name: "transcript_renditions", kind: "message", T: TranscriptRendition, repeated: true },
+    { no: 14, name: "transcript_style", kind: "enum", T: proto3.getEnumType(TranscriptStyle) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubtitleResult {
@@ -620,6 +950,412 @@ export class SubtitleResult extends Message<SubtitleResult> {
 
   static equals(a: SubtitleResult | PlainMessage<SubtitleResult> | undefined, b: SubtitleResult | PlainMessage<SubtitleResult> | undefined): boolean {
     return proto3.util.equals(SubtitleResult, a, b);
+  }
+}
+
+/**
+ * A question the content answers, with a short answer grounded in the
+ * transcript.
+ *
+ * @generated from message transcodely.v1.InsightsQuestion
+ */
+export class InsightsQuestion extends Message<InsightsQuestion> {
+  /**
+   * The question, phrased the way a viewer would ask it.
+   *
+   * @generated from field: string question = 1;
+   */
+  question = "";
+
+  /**
+   * The answer as the content gives it, at most two sentences.
+   *
+   * @generated from field: string answer = 2;
+   */
+  answer = "";
+
+  /**
+   * Where the answer starts, in seconds from the start of the video.
+   *
+   * @generated from field: double start_seconds = 3;
+   */
+  startSeconds = 0;
+
+  constructor(data?: PartialMessage<InsightsQuestion>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.InsightsQuestion";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "question", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "answer", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "start_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): InsightsQuestion {
+    return new InsightsQuestion().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): InsightsQuestion {
+    return new InsightsQuestion().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): InsightsQuestion {
+    return new InsightsQuestion().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: InsightsQuestion | PlainMessage<InsightsQuestion> | undefined, b: InsightsQuestion | PlainMessage<InsightsQuestion> | undefined): boolean {
+    return proto3.util.equals(InsightsQuestion, a, b);
+  }
+}
+
+/**
+ * A key term used in the content, with the definition the content gives.
+ *
+ * @generated from message transcodely.v1.InsightsTerm
+ */
+export class InsightsTerm extends Message<InsightsTerm> {
+  /**
+   * The term as it is used in the content.
+   *
+   * @generated from field: string term = 1;
+   */
+  term = "";
+
+  /**
+   * A one-sentence definition, as the content explains it.
+   *
+   * @generated from field: string definition = 2;
+   */
+  definition = "";
+
+  /**
+   * Where the term is introduced, in seconds from the start of the video.
+   *
+   * @generated from field: double start_seconds = 3;
+   */
+  startSeconds = 0;
+
+  constructor(data?: PartialMessage<InsightsTerm>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.InsightsTerm";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "term", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "definition", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "start_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): InsightsTerm {
+    return new InsightsTerm().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): InsightsTerm {
+    return new InsightsTerm().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): InsightsTerm {
+    return new InsightsTerm().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: InsightsTerm | PlainMessage<InsightsTerm> | undefined, b: InsightsTerm | PlainMessage<InsightsTerm> | undefined): boolean {
+    return proto3.util.equals(InsightsTerm, a, b);
+  }
+}
+
+/**
+ * A quotable moment: verbatim words from the transcript with their timing.
+ *
+ * @generated from message transcodely.v1.InsightsHighlight
+ */
+export class InsightsHighlight extends Message<InsightsHighlight> {
+  /**
+   * The quote, exactly as it appears in the transcript (never paraphrased).
+   *
+   * @generated from field: string text = 1;
+   */
+  text = "";
+
+  /**
+   * Start of the paragraph the quote comes from, in seconds from the start of
+   * the video.
+   *
+   * @generated from field: double start_seconds = 2;
+   */
+  startSeconds = 0;
+
+  /**
+   * End of that paragraph, in seconds from the start of the video.
+   *
+   * @generated from field: double end_seconds = 3;
+   */
+  endSeconds = 0;
+
+  constructor(data?: PartialMessage<InsightsHighlight>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.InsightsHighlight";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "text", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "start_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 3, name: "end_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): InsightsHighlight {
+    return new InsightsHighlight().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): InsightsHighlight {
+    return new InsightsHighlight().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): InsightsHighlight {
+    return new InsightsHighlight().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: InsightsHighlight | PlainMessage<InsightsHighlight> | undefined, b: InsightsHighlight | PlainMessage<InsightsHighlight> | undefined): boolean {
+    return proto3.util.equals(InsightsHighlight, a, b);
+  }
+}
+
+/**
+ * AI insights produced from one generated transcript (read-only). Requested
+ * with SubtitleTrack.insights; one per generate track that requested them.
+ *
+ * The sections are written in the transcript's language (unless your hint
+ * asks otherwise) and are present only once status is "ready". Every timing
+ * refers to the transcript, and every highlight is a verbatim quote from it.
+ *
+ * The artifact files (insights.json, insights.md and chapters.vtt) are
+ * written next to the caption file in the job's output destination.
+ *
+ * @generated from message transcodely.v1.TranscriptInsights
+ */
+export class TranscriptInsights extends Message<TranscriptInsights> {
+  /**
+   * The out_… output the generate track was configured on.
+   *
+   * @generated from field: string output_id = 1;
+   */
+  outputId = "";
+
+  /**
+   * ISO 639-2 language code of the transcript.
+   *
+   * @generated from field: string language = 2;
+   */
+  language = "";
+
+  /**
+   * pending | ready | failed.
+   *
+   * @generated from field: transcodely.v1.InsightsStatus status = 3;
+   */
+  status = InsightsStatus.UNSPECIFIED;
+
+  /**
+   * Why the insights failed, when status is "failed":
+   * insights_invalid (no usable result could be produced),
+   * insights_unsupported_origin (the output destination cannot be written to
+   * by the API, e.g. an http origin), insights_too_long (transcript over the
+   * size limit), insights_transcript_unavailable (the transcript could not be
+   * read), insights_refused (the content was declined) or insights_unavailable
+   * (the service was unavailable). Empty otherwise.
+   *
+   * @generated from field: string error_code = 4;
+   */
+  errorCode = "";
+
+  /**
+   * One to three suggested titles for the video.
+   *
+   * @generated from field: repeated string title_suggestions = 5;
+   */
+  titleSuggestions: string[] = [];
+
+  /**
+   * A summary of the content, at most four sentences.
+   *
+   * @generated from field: string summary = 6;
+   */
+  summary = "";
+
+  /**
+   * Three to seven key points.
+   *
+   * @generated from field: repeated string key_points = 7;
+   */
+  keyPoints: string[] = [];
+
+  /**
+   * Chapters, ordered by start time and covering the whole video. Also
+   * delivered as a WebVTT chapters file (chapters_url).
+   *
+   * @generated from field: repeated transcodely.v1.ChapterPoint chapters = 8;
+   */
+  chapters: ChapterPoint[] = [];
+
+  /**
+   * Up to six questions the content answers.
+   *
+   * @generated from field: repeated transcodely.v1.InsightsQuestion questions = 9;
+   */
+  questions: InsightsQuestion[] = [];
+
+  /**
+   * Up to ten key terms with definitions.
+   *
+   * @generated from field: repeated transcodely.v1.InsightsTerm terms = 10;
+   */
+  terms: InsightsTerm[] = [];
+
+  /**
+   * Quotable moments, each a verbatim quote from the transcript.
+   *
+   * @generated from field: repeated transcodely.v1.InsightsHighlight highlights = 11;
+   */
+  highlights: InsightsHighlight[] = [];
+
+  /**
+   * Up to ten short topic labels.
+   *
+   * @generated from field: repeated string topics = 12;
+   */
+  topics: string[] = [];
+
+  /**
+   * Storage key of insights.json (every section above, machine-readable).
+   *
+   * @generated from field: string storage_key = 13;
+   */
+  storageKey = "";
+
+  /**
+   * Fully-qualified storage URL of insights.json.
+   *
+   * @generated from field: string url = 14;
+   */
+  url = "";
+
+  /**
+   * Signed, time-limited HTTPS URL for insights.json. Same rules and lifetime
+   * as SubtitleResult.signed_url.
+   *
+   * @generated from field: optional string signed_url = 15;
+   */
+  signedUrl?: string;
+
+  /**
+   * Storage key of chapters.vtt (WebVTT chapters track).
+   *
+   * @generated from field: string chapters_storage_key = 16;
+   */
+  chaptersStorageKey = "";
+
+  /**
+   * Fully-qualified storage URL of chapters.vtt.
+   *
+   * @generated from field: string chapters_url = 17;
+   */
+  chaptersUrl = "";
+
+  /**
+   * Signed, time-limited HTTPS URL for chapters.vtt. Same rules as signed_url.
+   *
+   * @generated from field: optional string chapters_signed_url = 18;
+   */
+  chaptersSignedUrl?: string;
+
+  /**
+   * Storage key of insights.md (every section as a Markdown document).
+   *
+   * @generated from field: string markdown_storage_key = 19;
+   */
+  markdownStorageKey = "";
+
+  /**
+   * Fully-qualified storage URL of insights.md.
+   *
+   * @generated from field: string markdown_url = 20;
+   */
+  markdownUrl = "";
+
+  /**
+   * Signed, time-limited HTTPS URL for insights.md. Same rules as signed_url.
+   *
+   * @generated from field: optional string markdown_signed_url = 21;
+   */
+  markdownSignedUrl?: string;
+
+  /**
+   * When the insights became ready. Absent until then.
+   *
+   * @generated from field: google.protobuf.Timestamp generated_at = 22;
+   */
+  generatedAt?: Timestamp;
+
+  /**
+   * The hint the insights were requested with (echoed). Empty when none.
+   *
+   * @generated from field: string hint = 23;
+   */
+  hint = "";
+
+  constructor(data?: PartialMessage<TranscriptInsights>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.TranscriptInsights";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "output_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "status", kind: "enum", T: proto3.getEnumType(InsightsStatus) },
+    { no: 4, name: "error_code", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "title_suggestions", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 6, name: "summary", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "key_points", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 8, name: "chapters", kind: "message", T: ChapterPoint, repeated: true },
+    { no: 9, name: "questions", kind: "message", T: InsightsQuestion, repeated: true },
+    { no: 10, name: "terms", kind: "message", T: InsightsTerm, repeated: true },
+    { no: 11, name: "highlights", kind: "message", T: InsightsHighlight, repeated: true },
+    { no: 12, name: "topics", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 13, name: "storage_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 14, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 15, name: "signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 16, name: "chapters_storage_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 17, name: "chapters_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 18, name: "chapters_signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 19, name: "markdown_storage_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 20, name: "markdown_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 21, name: "markdown_signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 22, name: "generated_at", kind: "message", T: Timestamp },
+    { no: 23, name: "hint", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TranscriptInsights {
+    return new TranscriptInsights().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): TranscriptInsights {
+    return new TranscriptInsights().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): TranscriptInsights {
+    return new TranscriptInsights().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: TranscriptInsights | PlainMessage<TranscriptInsights> | undefined, b: TranscriptInsights | PlainMessage<TranscriptInsights> | undefined): boolean {
+    return proto3.util.equals(TranscriptInsights, a, b);
   }
 }
 

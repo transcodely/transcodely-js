@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { VideoService } from "../../src/gen/transcodely/v1/video_connect.js";
 import {
   CreateFromUrlResponse,
+  GetSeoMarkupResponse,
   GetStatsResponse,
   ListTopVideosResponse,
   TopVideo,
@@ -126,5 +127,35 @@ describe("Videos facade", () => {
     const req = spy.mock.calls[0][2] as { appId?: string; limit?: number };
     expect(req.appId).toBeUndefined();
     expect(req.limit).toBeUndefined();
+  });
+
+  it("getSeoMarkup dispatches GetSeoMarkup and returns the full response", async () => {
+    const transport = makeTransport();
+    const res = new GetSeoMarkupResponse({
+      jsonLd: '{"@type":"VideoObject"}',
+      sitemapEntry: "<url><loc>https://example.com/watch/42</loc></url>",
+      htmlFragment: '<section class="tx-insights"></section>',
+    });
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(res);
+    const out = await new Videos(transport).getSeoMarkup({
+      videoId: "vid_a1b2c3d4e5f6g7",
+      watchUrl: "https://example.com/watch/42",
+      deepLinkParam: "start",
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toBe(VideoService.methods.getSeoMarkup);
+    const req = spy.mock.calls[0][2] as {
+      videoId: string;
+      watchUrl: string;
+      deepLinkParam?: string;
+      language?: string;
+    };
+    expect(req.videoId).toBe("vid_a1b2c3d4e5f6g7");
+    expect(req.watchUrl).toBe("https://example.com/watch/42");
+    expect(req.deepLinkParam).toBe("start");
+    expect(req.language).toBeUndefined();
+    expect(out).toBeInstanceOf(GetSeoMarkupResponse);
+    expect(out.jsonLd).toBe('{"@type":"VideoObject"}');
+    expect(out.htmlFragment).toContain("tx-insights");
   });
 });
