@@ -14,7 +14,7 @@ import { VP9Options } from "./codec_vp9_pb.js";
 import { AV1Options } from "./codec_av1_pb.js";
 import { HDRConfig } from "./hdr_pb.js";
 import { GOPAlignmentMode, HLSPlaylistType, HLSSegmentFormat } from "./streaming_pb.js";
-import { ChapterResult, SubtitleResult, SubtitleTrack } from "./subtitles_pb.js";
+import { ChapterResult, SubtitleResult, SubtitleTrack, TranscriptInsights } from "./subtitles_pb.js";
 import { DRMConfig } from "./drm_pb.js";
 import { ContentAwareConfig } from "./content_aware_pb.js";
 import { WatermarkConfig } from "./watermark_pb.js";
@@ -2857,9 +2857,8 @@ export class Job extends Message<Job> {
   inputVideoId = "";
 
   /**
-   * Auto-generated chapter tracks, one per output whose generated caption track
-   * had chapters enabled (SubtitleTrack.generate_chapters). Populated once the
-   * auto-chapters pass ships; empty until then.
+   * Never populated; superseded by insights, whose chapters section (and
+   * chapters.vtt file) replaces it.
    *
    * @generated from field: repeated transcodely.v1.ChapterResult chapter_results = 35;
    */
@@ -2894,6 +2893,17 @@ export class Job extends Message<Job> {
    * @generated from field: transcodely.v1.JobCostBreakdown cost_breakdown = 38;
    */
   costBreakdown?: JobCostBreakdown;
+
+  /**
+   * AI insights, one per generate subtitle track that requested them
+   * (SubtitleTrack.insights). Listed with status "pending" from creation;
+   * they are produced after the job completes and move to "ready" or
+   * "failed" (webhooks job.insights.ready / job.insights.failed). Signed URLs
+   * follow the same rules as SubtitleResult.signed_url. Server-set; read-only.
+   *
+   * @generated from field: repeated transcodely.v1.TranscriptInsights insights = 39;
+   */
+  insights: TranscriptInsights[] = [];
 
   constructor(data?: PartialMessage<Job>) {
     super();
@@ -2941,6 +2951,7 @@ export class Job extends Message<Job> {
     { no: 36, name: "clip", kind: "message", T: ClipConfig, opt: true },
     { no: 37, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 38, name: "cost_breakdown", kind: "message", T: JobCostBreakdown },
+    { no: 39, name: "insights", kind: "message", T: TranscriptInsights, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Job {
@@ -2990,8 +3001,13 @@ export class Job extends Message<Job> {
 export class JobFee extends Message<JobFee> {
   /**
    * Fee discriminator:
-   *   "processing" — the flat per-job processing fee (see Job.fees).
-   *   "captions"   — AI caption generation.
+   *   "processing"   — the flat per-job processing fee (see Job.fees).
+   *   "captions"     — AI caption generation (transcript renditions included).
+   *   "insights"     — AI insights, the per-source-minute part (EUR 0.005/min).
+   *   "insights_job" — AI insights, the per-video part (EUR 0.02).
+   * The two insights fees stay estimated until the insights are ready (after
+   * the job completes), then are confirmed together, or voided together when
+   * the insights fail.
    *
    * @generated from field: string fee_type = 1;
    */

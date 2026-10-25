@@ -38,6 +38,9 @@ if (isKnownEvent(event)) {
     case "job.failed":
     case "job.canceled":
     case "job.progress":
+    // Insights events carry a job snapshot like the other job.* events.
+    case "job.insights.ready":
+    case "job.insights.failed":
       expectType<Equal<typeof event.data, Job>>();
       break;
     case "output.created":

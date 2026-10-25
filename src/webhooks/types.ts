@@ -50,6 +50,8 @@ export type KnownWebhookEvent =
   | (EventBase & { type: "job.failed";      data: Job })
   | (EventBase & { type: "job.canceled";    data: Job })
   | (EventBase & { type: "job.progress";    data: Job })
+  | (EventBase & { type: "job.insights.ready";  data: Job })
+  | (EventBase & { type: "job.insights.failed"; data: Job })
   | (EventBase & { type: "output.created";  data: JobOutput })
   | (EventBase & { type: "output.ready";    data: JobOutput })
   | (EventBase & { type: "output.failed";   data: JobOutput })
@@ -114,7 +116,7 @@ export interface SpendLimitNotification {
 }
 
 /**
- * The 18 concrete webhook event types the API can emit. Mirrors the source of
+ * The 20 concrete webhook event types the API can emit. Mirrors the source of
  * truth in `domain.WebhookEventTypes()` (api/internal/domain/webhook.go). The
  * `"*"` wildcard is a subscription-only value and is intentionally absent.
  *
@@ -128,6 +130,8 @@ export const WEBHOOK_EVENT_TYPES = [
   "job.failed",
   "job.canceled",
   "job.progress",
+  "job.insights.ready",
+  "job.insights.failed",
   "output.created",
   "output.ready",
   "output.failed",
