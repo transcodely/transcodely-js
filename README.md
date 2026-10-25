@@ -64,6 +64,11 @@ comes back already `processing`. Follow it with `client.videos.watch(video.id)`
 until it reaches `ready` (or `error`, or `deleted`), or subscribe to the
 `video.ready` webhook.
 
+Pass `autoCaptions: true` to generate captions inline with the transcode, and
+add `autoInsights: true` to also run AI insights over those captions (requires
+`autoCaptions`; EUR 0.02 per video + EUR 0.005 per source minute on top of
+captions).
+
 **The app does not need managed hosting turned on first.** An app that has never
 hosted anything is provisioned by the create call itself — bucket, managed
 origin and CDN pull zone — which is why a first upload takes a few seconds

@@ -100,6 +100,8 @@ export interface PutFileOptions {
   preset?: string;
   hoverPreviews?: boolean;
   autoCaptions?: boolean;
+  /** Also run AI insights over the inline captions (requires autoCaptions). EUR 0.02 per video + EUR 0.005 per source minute on top of captions. */
+  autoInsights?: boolean;
 
   /** Bytes per part. Clamped up to 5 MiB, and raised further if 10,000 parts would not cover the file. */
   partSize?: number;
@@ -547,6 +549,7 @@ export interface UploadRpcClient {
     preset?: string;
     hoverPreviews?: boolean;
     autoCaptions?: boolean;
+    autoInsights?: boolean;
   }): Promise<{ video?: Video; uploadUrl: string }>;
   completeUpload(req: { id: string }): Promise<{ video?: Video }>;
   createMultipartUpload(req: {
@@ -563,6 +566,7 @@ export interface UploadRpcClient {
     preset?: string;
     hoverPreviews?: boolean;
     autoCaptions?: boolean;
+    autoInsights?: boolean;
   }): Promise<{ video?: Video; uploadId: string; parts: UploadPart[] }>;
   getUploadPartUrls(req: {
     id: string;
@@ -645,6 +649,7 @@ export class UploadEngine {
       ...(opts.preset !== undefined ? { preset: opts.preset } : {}),
       ...(opts.hoverPreviews !== undefined ? { hoverPreviews: opts.hoverPreviews } : {}),
       ...(opts.autoCaptions !== undefined ? { autoCaptions: opts.autoCaptions } : {}),
+      ...(opts.autoInsights !== undefined ? { autoInsights: opts.autoInsights } : {}),
     };
 
     return totalParts === 1
