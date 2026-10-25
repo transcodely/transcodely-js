@@ -70,7 +70,8 @@
       ],
       "extra-files": [
         "src/version.ts"
-      ]
+      ],
+      "component": "sdk"
     },
     "packages/cli": {
       "release-type": "node",
@@ -152,5 +153,6 @@
         "src/version.ts"
       ]
     }
-  }
+  },
+  "separate-pull-requests": true
 }
