@@ -451,6 +451,19 @@ message CreateUploadRequest {
   // track surfaces as Video.text_tracks once ready. Unset or false = no
   // captions.
   optional bool auto_captions = 11;
+
+  // When true, also run AI insights over the inline captions: title
+  // suggestions, a summary, key points, chapters, questions the content
+  // answers, key terms, quotable highlights and topics (the generate track
+  // carries insights.enabled = true; see SubtitleTrack.insights). Requires
+  // auto_captions = true; rejected otherwise with `invalid_argument`, error
+  // code `parameter_incompatible` on auto_insights. Billed as the
+  // `insights_job` (EUR 0.02 per video) and `insights` (EUR 0.005 per source
+  // minute) fees on the transcode job, on top of the captions fee; not
+  // charged when the insights fail. The insights surface as Video.insights.
+  // Deployments without the feature reject it with `invalid_argument`, error
+  // code `parameter_unsupported`. Unset or false = no insights.
+  optional bool auto_insights = 12;
 }
 
 // Response from creating an upload.
@@ -558,6 +571,19 @@ message CreateFromUrlRequest {
   // track surfaces as Video.text_tracks once ready. Unset or false = no
   // captions.
   optional bool auto_captions = 9;
+
+  // When true, also run AI insights over the inline captions: title
+  // suggestions, a summary, key points, chapters, questions the content
+  // answers, key terms, quotable highlights and topics (the generate track
+  // carries insights.enabled = true; see SubtitleTrack.insights). Requires
+  // auto_captions = true; rejected otherwise with `invalid_argument`, error
+  // code `parameter_incompatible` on auto_insights. Billed as the
+  // `insights_job` (EUR 0.02 per video) and `insights` (EUR 0.005 per source
+  // minute) fees on the transcode job, on top of the captions fee; not
+  // charged when the insights fail. The insights surface as Video.insights.
+  // Deployments without the feature reject it with `invalid_argument`, error
+  // code `parameter_unsupported`. Unset or false = no insights.
+  optional bool auto_insights = 10;
 }
 
 // Response from creating a video from a URL.
@@ -686,6 +712,19 @@ message CreateMultipartUploadRequest {
   // track surfaces as Video.text_tracks once ready. Unset or false = no
   // captions.
   optional bool auto_captions = 16;
+
+  // When true, also run AI insights over the inline captions: title
+  // suggestions, a summary, key points, chapters, questions the content
+  // answers, key terms, quotable highlights and topics (the generate track
+  // carries insights.enabled = true; see SubtitleTrack.insights). Requires
+  // auto_captions = true; rejected otherwise with `invalid_argument`, error
+  // code `parameter_incompatible` on auto_insights. Billed as the
+  // `insights_job` (EUR 0.02 per video) and `insights` (EUR 0.005 per source
+  // minute) fees on the transcode job, on top of the captions fee; not
+  // charged when the insights fail. The insights surface as Video.insights.
+  // Deployments without the feature reject it with `invalid_argument`, error
+  // code `parameter_unsupported`. Unset or false = no insights.
+  optional bool auto_insights = 17;
 }
 
 // Response from creating a multipart upload.

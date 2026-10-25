@@ -813,6 +813,23 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
    */
   autoCaptions?: boolean;
 
+  /**
+   * When true, also run AI insights over the inline captions: title
+   * suggestions, a summary, key points, chapters, questions the content
+   * answers, key terms, quotable highlights and topics (the generate track
+   * carries insights.enabled = true; see SubtitleTrack.insights). Requires
+   * auto_captions = true; rejected otherwise with `invalid_argument`, error
+   * code `parameter_incompatible` on auto_insights. Billed as the
+   * `insights_job` (EUR 0.02 per video) and `insights` (EUR 0.005 per source
+   * minute) fees on the transcode job, on top of the captions fee; not
+   * charged when the insights fail. The insights surface as Video.insights.
+   * Deployments without the feature reject it with `invalid_argument`, error
+   * code `parameter_unsupported`. Unset or false = no insights.
+   *
+   * @generated from field: optional bool auto_insights = 12;
+   */
+  autoInsights?: boolean;
+
   constructor(data?: PartialMessage<CreateUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -832,6 +849,7 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
     { no: 9, name: "preset", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 10, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 11, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 12, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateUploadRequest {
@@ -1093,6 +1111,23 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
    */
   autoCaptions?: boolean;
 
+  /**
+   * When true, also run AI insights over the inline captions: title
+   * suggestions, a summary, key points, chapters, questions the content
+   * answers, key terms, quotable highlights and topics (the generate track
+   * carries insights.enabled = true; see SubtitleTrack.insights). Requires
+   * auto_captions = true; rejected otherwise with `invalid_argument`, error
+   * code `parameter_incompatible` on auto_insights. Billed as the
+   * `insights_job` (EUR 0.02 per video) and `insights` (EUR 0.005 per source
+   * minute) fees on the transcode job, on top of the captions fee; not
+   * charged when the insights fail. The insights surface as Video.insights.
+   * Deployments without the feature reject it with `invalid_argument`, error
+   * code `parameter_unsupported`. Unset or false = no insights.
+   *
+   * @generated from field: optional bool auto_insights = 10;
+   */
+  autoInsights?: boolean;
+
   constructor(data?: PartialMessage<CreateFromUrlRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1110,6 +1145,7 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
     { no: 7, name: "preset", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 8, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 9, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 10, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateFromUrlRequest {
@@ -1396,6 +1432,23 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
    */
   autoCaptions?: boolean;
 
+  /**
+   * When true, also run AI insights over the inline captions: title
+   * suggestions, a summary, key points, chapters, questions the content
+   * answers, key terms, quotable highlights and topics (the generate track
+   * carries insights.enabled = true; see SubtitleTrack.insights). Requires
+   * auto_captions = true; rejected otherwise with `invalid_argument`, error
+   * code `parameter_incompatible` on auto_insights. Billed as the
+   * `insights_job` (EUR 0.02 per video) and `insights` (EUR 0.005 per source
+   * minute) fees on the transcode job, on top of the captions fee; not
+   * charged when the insights fail. The insights surface as Video.insights.
+   * Deployments without the feature reject it with `invalid_argument`, error
+   * code `parameter_unsupported`. Unset or false = no insights.
+   *
+   * @generated from field: optional bool auto_insights = 17;
+   */
+  autoInsights?: boolean;
+
   constructor(data?: PartialMessage<CreateMultipartUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1417,6 +1470,7 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
     { no: 14, name: "preset", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 15, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 16, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 17, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateMultipartUploadRequest {

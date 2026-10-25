@@ -194,6 +194,28 @@ describe("putFile — single PUT (one part)", () => {
     expect(create.filename).toBe("clip.mp4");
   });
 
+  it("forwards autoCaptions and autoInsights to CreateUpload", async () => {
+    const c = await client();
+    const { path } = await fixture("clip.mp4", 1024 * 64);
+
+    await c.uploads.putFile(path, { appId: "app_k1l2m3n4o5", autoCaptions: true, autoInsights: true });
+
+    const create = server!.calls.find((c2) => c2.method === "CreateUpload")!.body;
+    expect(create.auto_captions).toBe(true);
+    expect(create.auto_insights).toBe(true);
+  });
+
+  it("leaves auto_insights off the wire when the caller does not set it", async () => {
+    const c = await client();
+    const { path } = await fixture("clip.mp4", 1024 * 64);
+
+    await c.uploads.putFile(path, { appId: "app_k1l2m3n4o5", autoCaptions: true });
+
+    const create = server!.calls.find((c2) => c2.method === "CreateUpload")!.body;
+    expect(create.auto_captions).toBe(true);
+    expect("auto_insights" in create).toBe(false);
+  });
+
   it("never opens a multipart upload for a file that fits in one part", async () => {
     const c = await client();
     const { path } = await fixture("tiny.mov", 4096);
@@ -235,6 +257,22 @@ describe("putFile — multipart", () => {
     for (const p of complete.parts) {
       expect(p.etag).toMatch(/^[0-9a-f]{32}$/);
     }
+  });
+
+  it("forwards autoCaptions and autoInsights to CreateMultipartUpload", async () => {
+    const c = await client();
+    const { path } = await fixture("big.mp4", PART * 2 + 1);
+
+    await c.uploads.putFile(path, {
+      appId: "app_k1l2m3n4o5",
+      partSize: PART,
+      autoCaptions: true,
+      autoInsights: true,
+    });
+
+    const create = server!.calls.find((c2) => c2.method === "CreateMultipartUpload")!.body;
+    expect(create.auto_captions).toBe(true);
+    expect(create.auto_insights).toBe(true);
   });
 
   it("uploads exactly `concurrency` parts at once — no more, and no fewer", async () => {
