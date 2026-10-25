@@ -9,6 +9,7 @@ import type { JsonValue } from "@bufbuild/protobuf";
 import { fromJson } from "../codec/json.js";
 import { App } from "../gen/transcodely/v1/app_pb.js";
 import { Job, JobOutput } from "../gen/transcodely/v1/job_pb.js";
+import { TranscriptInsights } from "../gen/transcodely/v1/subtitles_pb.js";
 import { Video } from "../gen/transcodely/v1/video_pb.js";
 
 /** Fields common to every webhook event, regardless of `type`. */
@@ -61,6 +62,8 @@ export type KnownWebhookEvent =
   | (EventBase & { type: "video.failed";    data: Video })
   | (EventBase & { type: "video.deleted";   data: Video })
   | (EventBase & { type: "video.source_scheduled_for_deletion"; data: Video })
+  | (EventBase & { type: "video.insights.ready";  data: TranscriptInsights })
+  | (EventBase & { type: "video.insights.failed"; data: TranscriptInsights })
   | (EventBase & { type: "app.created";     data: App })
   | (EventBase & { type: "app.updated";     data: App })
   | (EventBase & { type: "app.spend_limit_warning";  data: SpendLimitNotification })
@@ -116,7 +119,7 @@ export interface SpendLimitNotification {
 }
 
 /**
- * The 20 concrete webhook event types the API can emit. Mirrors the source of
+ * The 22 concrete webhook event types the API can emit. Mirrors the source of
  * truth in `domain.WebhookEventTypes()` (api/internal/domain/webhook.go). The
  * `"*"` wildcard is a subscription-only value and is intentionally absent.
  *
@@ -141,6 +144,8 @@ export const WEBHOOK_EVENT_TYPES = [
   "video.failed",
   "video.deleted",
   "video.source_scheduled_for_deletion",
+  "video.insights.ready",
+  "video.insights.failed",
   "app.created",
   "app.updated",
   "app.spend_limit_warning",
@@ -199,7 +204,7 @@ export function isEventType<T extends WebhookEventType>(
 /** A resource decoder for a given event-type prefix. */
 interface DecoderEntry {
   prefix: string;
-  decode: (json: unknown) => Job | JobOutput | Video | App;
+  decode: (json: unknown) => Job | JobOutput | Video | App | TranscriptInsights;
 }
 
 /**
@@ -234,11 +239,24 @@ const NOTIFICATION_EVENT_TYPES: ReadonlySet<string> = new Set([
   "app.spend_limit_exceeded",
 ]);
 
+/**
+ * Event types that share a resource prefix but carry a different resource:
+ * `video.insights.ready` / `video.insights.failed` deliver the
+ * TranscriptInsights entry requested with `videos.generateInsights`, not a
+ * Video snapshot. Checked before the prefix table.
+ */
+const EXACT_TYPE_DECODERS: ReadonlyMap<string, DecoderEntry["decode"]> = new Map([
+  ["video.insights.ready", (json: unknown) => fromJson(json as JsonValue, TranscriptInsights)],
+  ["video.insights.failed", (json: unknown) => fromJson(json as JsonValue, TranscriptInsights)],
+]);
+
 /** Look up a decoder by event type, or `undefined` if the type is unknown. */
 export function decoderForType(type: string): DecoderEntry["decode"] | undefined {
   // Spend-limit events share the "app." prefix but are notification payloads,
   // not App snapshots — leave their `data` as the raw JSON object.
   if (NOTIFICATION_EVENT_TYPES.has(type)) return undefined;
+  const exact = EXACT_TYPE_DECODERS.get(type);
+  if (exact) return exact;
   for (const entry of RESOURCE_DECODERS) {
     if (type.startsWith(entry.prefix)) return entry.decode;
   }

@@ -176,6 +176,8 @@ export {
   type TopVideo,
   type GetSeoMarkupRequest,
   type GetSeoMarkupResponse,
+  type GenerateInsightsRequest,
+  type GenerateInsightsResponse,
   VideoStatus,
   VideoVisibility,
 } from "./gen/transcodely/v1/video_pb.js";
@@ -572,7 +574,8 @@ export {
 // renditions (json, txt, md) reported as TranscriptRendition on
 // SubtitleResult.transcriptRenditions and VideoTextTrack.transcriptRenditions.
 // The opt-in insights pass (InsightsOptions on the track) is reported as
-// TranscriptInsights on Job.insights and Video.insights.
+// TranscriptInsights on Job.insights and Video.insights. videos.generateInsights
+// runs the same pass over a hosted video's existing captions (source "video").
 export {
   type TranscriptOptions,
   type InsightsOptions,
@@ -584,6 +587,7 @@ export {
   TranscriptStyle,
   TranscriptFormat,
   InsightsStatus,
+  InsightsSource,
 } from "./gen/transcodely/v1/subtitles_pb.js";
 
 export {

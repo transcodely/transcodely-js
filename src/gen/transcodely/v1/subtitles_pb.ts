@@ -187,6 +187,40 @@ proto3.util.setEnumType(TranscriptFormat, "transcodely.v1.TranscriptFormat", [
 ]);
 
 /**
+ * Where an insights entry came from.
+ *
+ * @generated from enum transcodely.v1.InsightsSource
+ */
+export enum InsightsSource {
+  /**
+   * @generated from enum value: INSIGHTS_SOURCE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Requested on a captions job (SubtitleTrack.insights or the auto_insights
+   * upload flag). Its fees are on the job (Job.fees).
+   *
+   * @generated from enum value: INSIGHTS_SOURCE_JOB = 1;
+   */
+  JOB = 1,
+
+  /**
+   * Requested on a hosted video's existing captions
+   * (VideoService.GenerateInsights). Its price is fee_eur.
+   *
+   * @generated from enum value: INSIGHTS_SOURCE_VIDEO = 2;
+   */
+  VIDEO = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(InsightsSource)
+proto3.util.setEnumType(InsightsSource, "transcodely.v1.InsightsSource", [
+  { no: 0, name: "INSIGHTS_SOURCE_UNSPECIFIED" },
+  { no: 1, name: "INSIGHTS_SOURCE_JOB" },
+  { no: 2, name: "INSIGHTS_SOURCE_VIDEO" },
+]);
+
+/**
  * Processing state of a transcript's insights.
  *
  * @generated from enum transcodely.v1.InsightsStatus
@@ -1133,20 +1167,23 @@ export class InsightsHighlight extends Message<InsightsHighlight> {
 
 /**
  * AI insights produced from one generated transcript (read-only). Requested
- * with SubtitleTrack.insights; one per generate track that requested them.
+ * with SubtitleTrack.insights (one per generate track that requested them),
+ * or on a hosted video's existing captions with VideoService.GenerateInsights.
  *
  * The sections are written in the transcript's language (unless your hint
  * asks otherwise) and are present only once status is "ready". Every timing
  * refers to the transcript, and every highlight is a verbatim quote from it.
  *
  * The artifact files (insights.json, insights.md and chapters.vtt) are
- * written next to the caption file in the job's output destination.
+ * written next to the caption file: in the job's output destination, or in
+ * the video's managed storage for source "video".
  *
  * @generated from message transcodely.v1.TranscriptInsights
  */
 export class TranscriptInsights extends Message<TranscriptInsights> {
   /**
-   * The out_… output the generate track was configured on.
+   * The out_… output the generate track was configured on. Empty for source
+   * "video".
    *
    * @generated from field: string output_id = 1;
    */
@@ -1314,6 +1351,42 @@ export class TranscriptInsights extends Message<TranscriptInsights> {
    */
   hint = "";
 
+  /**
+   * Unique identifier of this insights entry (ins_…).
+   *
+   * @generated from field: string id = 24;
+   */
+  id = "";
+
+  /**
+   * job | video: requested on a captions job, or on a hosted video's existing
+   * captions with VideoService.GenerateInsights.
+   *
+   * @generated from field: transcodely.v1.InsightsSource source = 25;
+   */
+  source = InsightsSource.UNSPECIFIED;
+
+  /**
+   * The hosted video (vid_…) the insights belong to, for source "video".
+   * Empty for source "job" (see Video.insights for a hosted video's
+   * job-sourced insights).
+   *
+   * @generated from field: string video_id = 26;
+   */
+  videoId = "";
+
+  /**
+   * Price of this entry in EUR, for source "video": EUR 0.02 per video plus
+   * EUR 0.005 per minute of source, fixed when the entry was created. Charged
+   * only when status becomes "ready"; nothing is charged when it fails. An
+   * entry that becomes "ready" after a newer entry for the same language was
+   * already shown on the video is not charged either, and shows 0.
+   * Absent for source "job", whose insights fees are listed on Job.fees.
+   *
+   * @generated from field: optional double fee_eur = 27;
+   */
+  feeEur?: number;
+
   constructor(data?: PartialMessage<TranscriptInsights>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1345,6 +1418,10 @@ export class TranscriptInsights extends Message<TranscriptInsights> {
     { no: 21, name: "markdown_signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 22, name: "generated_at", kind: "message", T: Timestamp },
     { no: 23, name: "hint", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 24, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 25, name: "source", kind: "enum", T: proto3.getEnumType(InsightsSource) },
+    { no: 26, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 27, name: "fee_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TranscriptInsights {

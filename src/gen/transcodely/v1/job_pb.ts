@@ -3522,7 +3522,8 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
    * Optional target app. API-key callers may omit it (their key's app is used)
    * or pass their own app; a different app is rejected with PermissionDenied.
    * Portal/JWT callers pass it to create in a specific app in their org;
-   * omitted selects the org's first active app.
+   * omitted selects the org's first active app, or, when input_video_id
+   * names a video in the org, that video's app.
    *
    * @generated from field: optional string app_id = 21;
    */

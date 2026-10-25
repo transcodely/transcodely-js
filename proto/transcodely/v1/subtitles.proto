@@ -348,6 +348,19 @@ message SubtitleResult {
   TranscriptStyle transcript_style = 14;
 }
 
+// Where an insights entry came from.
+enum InsightsSource {
+  INSIGHTS_SOURCE_UNSPECIFIED = 0;
+
+  // Requested on a captions job (SubtitleTrack.insights or the auto_insights
+  // upload flag). Its fees are on the job (Job.fees).
+  INSIGHTS_SOURCE_JOB = 1;
+
+  // Requested on a hosted video's existing captions
+  // (VideoService.GenerateInsights). Its price is fee_eur.
+  INSIGHTS_SOURCE_VIDEO = 2;
+}
+
 // Processing state of a transcript's insights.
 enum InsightsStatus {
   INSIGHTS_STATUS_UNSPECIFIED = 0;
@@ -401,16 +414,19 @@ message InsightsHighlight {
 }
 
 // AI insights produced from one generated transcript (read-only). Requested
-// with SubtitleTrack.insights; one per generate track that requested them.
+// with SubtitleTrack.insights (one per generate track that requested them),
+// or on a hosted video's existing captions with VideoService.GenerateInsights.
 //
 // The sections are written in the transcript's language (unless your hint
 // asks otherwise) and are present only once status is "ready". Every timing
 // refers to the transcript, and every highlight is a verbatim quote from it.
 //
 // The artifact files (insights.json, insights.md and chapters.vtt) are
-// written next to the caption file in the job's output destination.
+// written next to the caption file: in the job's output destination, or in
+// the video's managed storage for source "video".
 message TranscriptInsights {
-  // The out_… output the generate track was configured on.
+  // The out_… output the generate track was configured on. Empty for source
+  // "video".
   string output_id = 1;
 
   // ISO 639-2 language code of the transcript.
@@ -486,4 +502,24 @@ message TranscriptInsights {
 
   // The hint the insights were requested with (echoed). Empty when none.
   string hint = 23;
+
+  // Unique identifier of this insights entry (ins_…).
+  string id = 24;
+
+  // job | video: requested on a captions job, or on a hosted video's existing
+  // captions with VideoService.GenerateInsights.
+  InsightsSource source = 25;
+
+  // The hosted video (vid_…) the insights belong to, for source "video".
+  // Empty for source "job" (see Video.insights for a hosted video's
+  // job-sourced insights).
+  string video_id = 26;
+
+  // Price of this entry in EUR, for source "video": EUR 0.02 per video plus
+  // EUR 0.005 per minute of source, fixed when the entry was created. Charged
+  // only when status becomes "ready"; nothing is charged when it fails. An
+  // entry that becomes "ready" after a newer entry for the same language was
+  // already shown on the video is not charged either, and shows 0.
+  // Absent for source "job", whose insights fees are listed on Job.fees.
+  optional double fee_eur = 27;
 }
