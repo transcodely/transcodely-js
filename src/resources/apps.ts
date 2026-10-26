@@ -7,6 +7,8 @@ import {
   CreateAppRequest,
   EnableHostingRequest,
   GetAppRequest,
+  GetPricingRequest,
+  type GetPricingResponse,
   type GetSpendResponse,
   GetSpendRequest,
   ListAppsRequest,
@@ -146,6 +148,22 @@ export class Apps {
       AppService,
       AppService.methods.getSpend,
       new GetSpendRequest({ appId: id }),
+      opts,
+    );
+  }
+
+  /**
+   * Get the prices an app pays: every chargeable item with its effective EUR
+   * rate, whether the account has a custom rate for it (`custom`), and the
+   * public list price. Omit `id` to price the API key's own app (dashboard
+   * callers: the organization's first app). Prices are fixed when a job is
+   * created, so a price change applies to jobs created after it.
+   */
+  getPricing(id?: string, opts?: CallOptions): Promise<GetPricingResponse> {
+    return this.transport.unary(
+      AppService,
+      AppService.methods.getPricing,
+      new GetPricingRequest(id ? { appId: id } : {}),
       opts,
     );
   }

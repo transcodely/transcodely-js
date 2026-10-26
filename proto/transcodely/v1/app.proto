@@ -48,6 +48,10 @@ service AppService {
 
   // Get an app's current-period transcoding spend against its limit.
   rpc GetSpend(GetSpendRequest) returns (GetSpendResponse);
+
+  // Get the prices an app pays: every chargeable item with its effective rate,
+  // whether the account has a custom rate for it, and the public list price.
+  rpc GetPricing(GetPricingRequest) returns (GetPricingResponse);
 }
 
 // App status.
@@ -477,4 +481,69 @@ message GetSpendResponse {
   // True once the breach event (`app.spend_limit_exceeded`) has fired this
   // period. Fire-once per period; not re-armed by a mid-period limit change.
   bool limit_reached = 7;
+}
+
+// Request to read the prices an app pays.
+message GetPricingRequest {
+  // App ID. API-key callers may omit it or pass their own app; a different app
+  // is rejected with PermissionDenied. Dashboard callers pass it to pick an app
+  // in their organization; omitted selects the organization's first app.
+  optional string app_id = 1 [(buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"];
+}
+
+// The effective price of one chargeable item for an app.
+//
+// A charge has a per-unit price, a multiplier, or both. Encoding cost per
+// output is the codec's base_price x output minutes x the codec, resolution,
+// quality, feature and frame-rate multipliers; fees, storage and delivery are
+// their base_price x quantity.
+message PricingEntry {
+  // Charge class: codec, resolution, quality, feature, fee, storage, egress.
+  // Other values may appear as new charges are introduced.
+  string rule_type = 1;
+
+  // Charge within its class, e.g. h264, 1080p, captions, processing_m.
+  string rule_key = 2;
+
+  // Human label, e.g. "H.264".
+  string label = 3;
+
+  // Human label of the class, e.g. "Encoding".
+  string group_label = 4;
+
+  // What base_price is per: eur_per_output_minute, eur_per_source_minute,
+  // eur_per_video, eur_per_job, eur_per_gb_month, eur_per_gb. Empty for a
+  // charge that has only a multiplier.
+  string unit = 5;
+
+  // The price per unit, in EUR, this app pays. Absent for a charge that has
+  // only a multiplier.
+  optional double base_price = 6;
+
+  // The multiplier this app pays. Absent for a charge that has only a per-unit
+  // price.
+  optional double multiplier = 7;
+
+  // True when this account has a custom rate for this charge, so base_price or
+  // multiplier differs from the list price.
+  bool custom = 8;
+
+  // The public list price per unit, in EUR. Absent when base_price is.
+  optional double list_base_price = 9;
+
+  // The public list multiplier. Absent when multiplier is.
+  optional double list_multiplier = 10;
+}
+
+// The prices an app pays. Prices are fixed when work is quoted (a job when it
+// is created), so a price change applies to work created after it.
+message GetPricingResponse {
+  // The app these prices are for.
+  string app_id = 1;
+
+  // Currency of every price. Always "EUR".
+  string currency = 2;
+
+  // Every chargeable item, grouped by class in display order.
+  repeated PricingEntry entries = 3;
 }

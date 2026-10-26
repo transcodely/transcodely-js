@@ -1467,3 +1467,228 @@ export class GetSpendResponse extends Message<GetSpendResponse> {
   }
 }
 
+/**
+ * Request to read the prices an app pays.
+ *
+ * @generated from message transcodely.v1.GetPricingRequest
+ */
+export class GetPricingRequest extends Message<GetPricingRequest> {
+  /**
+   * App ID. API-key callers may omit it or pass their own app; a different app
+   * is rejected with PermissionDenied. Dashboard callers pass it to pick an app
+   * in their organization; omitted selects the organization's first app.
+   *
+   * @generated from field: optional string app_id = 1;
+   */
+  appId?: string;
+
+  constructor(data?: PartialMessage<GetPricingRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetPricingRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPricingRequest {
+    return new GetPricingRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPricingRequest {
+    return new GetPricingRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPricingRequest {
+    return new GetPricingRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPricingRequest | PlainMessage<GetPricingRequest> | undefined, b: GetPricingRequest | PlainMessage<GetPricingRequest> | undefined): boolean {
+    return proto3.util.equals(GetPricingRequest, a, b);
+  }
+}
+
+/**
+ * The effective price of one chargeable item for an app.
+ *
+ * A charge has a per-unit price, a multiplier, or both. Encoding cost per
+ * output is the codec's base_price x output minutes x the codec, resolution,
+ * quality, feature and frame-rate multipliers; fees, storage and delivery are
+ * their base_price x quantity.
+ *
+ * @generated from message transcodely.v1.PricingEntry
+ */
+export class PricingEntry extends Message<PricingEntry> {
+  /**
+   * Charge class: codec, resolution, quality, feature, fee, storage, egress.
+   * Other values may appear as new charges are introduced.
+   *
+   * @generated from field: string rule_type = 1;
+   */
+  ruleType = "";
+
+  /**
+   * Charge within its class, e.g. h264, 1080p, captions, processing_m.
+   *
+   * @generated from field: string rule_key = 2;
+   */
+  ruleKey = "";
+
+  /**
+   * Human label, e.g. "H.264".
+   *
+   * @generated from field: string label = 3;
+   */
+  label = "";
+
+  /**
+   * Human label of the class, e.g. "Encoding".
+   *
+   * @generated from field: string group_label = 4;
+   */
+  groupLabel = "";
+
+  /**
+   * What base_price is per: eur_per_output_minute, eur_per_source_minute,
+   * eur_per_video, eur_per_job, eur_per_gb_month, eur_per_gb. Empty for a
+   * charge that has only a multiplier.
+   *
+   * @generated from field: string unit = 5;
+   */
+  unit = "";
+
+  /**
+   * The price per unit, in EUR, this app pays. Absent for a charge that has
+   * only a multiplier.
+   *
+   * @generated from field: optional double base_price = 6;
+   */
+  basePrice?: number;
+
+  /**
+   * The multiplier this app pays. Absent for a charge that has only a per-unit
+   * price.
+   *
+   * @generated from field: optional double multiplier = 7;
+   */
+  multiplier?: number;
+
+  /**
+   * True when this account has a custom rate for this charge, so base_price or
+   * multiplier differs from the list price.
+   *
+   * @generated from field: bool custom = 8;
+   */
+  custom = false;
+
+  /**
+   * The public list price per unit, in EUR. Absent when base_price is.
+   *
+   * @generated from field: optional double list_base_price = 9;
+   */
+  listBasePrice?: number;
+
+  /**
+   * The public list multiplier. Absent when multiplier is.
+   *
+   * @generated from field: optional double list_multiplier = 10;
+   */
+  listMultiplier?: number;
+
+  constructor(data?: PartialMessage<PricingEntry>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.PricingEntry";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "rule_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "rule_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "group_label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "unit", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "base_price", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 7, name: "multiplier", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 8, name: "custom", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 9, name: "list_base_price", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 10, name: "list_multiplier", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PricingEntry {
+    return new PricingEntry().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PricingEntry {
+    return new PricingEntry().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PricingEntry {
+    return new PricingEntry().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PricingEntry | PlainMessage<PricingEntry> | undefined, b: PricingEntry | PlainMessage<PricingEntry> | undefined): boolean {
+    return proto3.util.equals(PricingEntry, a, b);
+  }
+}
+
+/**
+ * The prices an app pays. Prices are fixed when work is quoted (a job when it
+ * is created), so a price change applies to work created after it.
+ *
+ * @generated from message transcodely.v1.GetPricingResponse
+ */
+export class GetPricingResponse extends Message<GetPricingResponse> {
+  /**
+   * The app these prices are for.
+   *
+   * @generated from field: string app_id = 1;
+   */
+  appId = "";
+
+  /**
+   * Currency of every price. Always "EUR".
+   *
+   * @generated from field: string currency = 2;
+   */
+  currency = "";
+
+  /**
+   * Every chargeable item, grouped by class in display order.
+   *
+   * @generated from field: repeated transcodely.v1.PricingEntry entries = 3;
+   */
+  entries: PricingEntry[] = [];
+
+  constructor(data?: PartialMessage<GetPricingResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetPricingResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "entries", kind: "message", T: PricingEntry, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPricingResponse {
+    return new GetPricingResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPricingResponse {
+    return new GetPricingResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPricingResponse {
+    return new GetPricingResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPricingResponse | PlainMessage<GetPricingResponse> | undefined, b: GetPricingResponse | PlainMessage<GetPricingResponse> | undefined): boolean {
+    return proto3.util.equals(GetPricingResponse, a, b);
+  }
+}
+

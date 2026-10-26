@@ -284,6 +284,9 @@ export {
   type UpdateSpendLimitResponse,
   type GetSpendRequest,
   type GetSpendResponse,
+  type GetPricingRequest,
+  type GetPricingResponse,
+  type PricingEntry,
   AppStatus,
 } from "./gen/transcodely/v1/app_pb.js";
 
