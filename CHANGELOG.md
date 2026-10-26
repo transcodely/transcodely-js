@@ -4,6 +4,13 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.13](https://github.com/transcodely/transcodely-js/compare/v0.3.12...v0.3.13) (2026-10-26)
+
+
+### Features
+
+* generate_insights from existing captions (api 5.26.0) ([#82](https://github.com/transcodely/transcodely-js/issues/82)) ([a3b4a8d](https://github.com/transcodely/transcodely-js/commit/a3b4a8da9db11748db6f9b9dd34900fb18b5e2be))
+
 ## [0.3.12](https://github.com/transcodely/transcodely-js/compare/v0.3.11...v0.3.12) (2026-10-25)
 
 
