@@ -6,7 +6,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
+import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -212,6 +212,31 @@ export const VideoService = {
       name: "GetSeoMarkup",
       I: GetSeoMarkupRequest,
       O: GetSeoMarkupResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Generate AI insights (title suggestions, summary, key points, chapters,
+     * questions, key terms, highlights, topics) from a hosted video's existing
+     * AI captions, without transcribing again. Billed EUR 0.02 per video plus
+     * EUR 0.005 per minute of source, charged only when the insights become
+     * ready. Returns the entry in "pending"; it also appears on Video.insights,
+     * and video.insights.ready or video.insights.failed fires when it finishes.
+     *
+     * While an entry for the same video and language is pending, the call
+     * returns that entry and bills nothing new. Once it is ready or failed, a
+     * new call generates (and bills) a new entry; it replaces the ready one
+     * only when it becomes ready itself.
+     *
+     * Refused with failed_precondition and code captions_required when the
+     * video has no AI captions, and insights_transcript_unavailable when the
+     * caption track has no transcript.
+     *
+     * @generated from rpc transcodely.v1.VideoService.GenerateInsights
+     */
+    generateInsights: {
+      name: "GenerateInsights",
+      I: GenerateInsightsRequest,
+      O: GenerateInsightsResponse,
       kind: MethodKind.Unary,
     },
   }

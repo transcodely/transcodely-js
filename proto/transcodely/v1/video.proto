@@ -78,6 +78,23 @@ service VideoService {
   // ready and public or unlisted; other videos are refused with
   // failed_precondition.
   rpc GetSeoMarkup(GetSeoMarkupRequest) returns (GetSeoMarkupResponse);
+
+  // Generate AI insights (title suggestions, summary, key points, chapters,
+  // questions, key terms, highlights, topics) from a hosted video's existing
+  // AI captions, without transcribing again. Billed EUR 0.02 per video plus
+  // EUR 0.005 per minute of source, charged only when the insights become
+  // ready. Returns the entry in "pending"; it also appears on Video.insights,
+  // and video.insights.ready or video.insights.failed fires when it finishes.
+  //
+  // While an entry for the same video and language is pending, the call
+  // returns that entry and bills nothing new. Once it is ready or failed, a
+  // new call generates (and bills) a new entry; it replaces the ready one
+  // only when it becomes ready itself.
+  //
+  // Refused with failed_precondition and code captions_required when the
+  // video has no AI captions, and insights_transcript_unavailable when the
+  // caption track has no transcript.
+  rpc GenerateInsights(GenerateInsightsRequest) returns (GenerateInsightsResponse);
 }
 
 // =============================================================================
@@ -207,9 +224,14 @@ message Video {
   repeated VideoTextTrack text_tracks = 49;
 
   // AI insights for this video, one per transcript language, from the
-  // captions job that requested them (SubtitleTrack.insights). Each moves
-  // from "pending" to "ready" or "failed". Signed URLs are computed per
-  // request under the same rules as text track URLs and are never stored.
+  // captions job that requested them (SubtitleTrack.insights) or from
+  // GenerateInsights. Each moves from "pending" to "ready" or "failed". A
+  // GenerateInsights entry still pending for a language that already has
+  // ready insights is listed first, ahead of the ready entry it will replace.
+  // If that entry fails, the ready insights stay and the failed entry is no
+  // longer listed; video.insights.failed reports it.
+  // Signed URLs are computed per request under the same rules as text track
+  // URLs and are never stored.
   repeated TranscriptInsights insights = 53;
 
   // Storage and cost transparency.
@@ -237,12 +259,13 @@ message Video {
   optional double captions_cost = 50;
   // Everything this video has cost, in EUR: the sum of the settled totals of
   // every job billed for it — the transcode that produced it plus any later
-  // job that took it as input (retro captions, for example).
+  // job that took it as input (retro captions, for example) — plus the fee of
+  // every ready GenerateInsights entry (TranscriptInsights.fee_eur).
   //
   // This is the authoritative per-video figure and the one to display. It is
-  // built from the same job totals the billing ledger is written from, so it
+  // built from the same amounts the billing ledger is written from, so it
   // reconciles with the invoice; captions_cost is a breakdown inside it.
-  // Absent while no linked job has settled yet.
+  // Absent while nothing linked to the video has been billed yet.
   optional double total_cost = 52;
 
   // Why this video failed, in one sentence a customer can act on. Present only
@@ -1197,4 +1220,45 @@ message GetSeoMarkupResponse {
   // `<details><summary>Transcript</summary>…</details>`. Empty sections are
   // omitted.
   string html_fragment = 3;
+}
+
+// =============================================================================
+// Insights from existing captions
+// =============================================================================
+
+// Request to generate AI insights from a hosted video's existing captions.
+message GenerateInsightsRequest {
+  // Video ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // ISO 639-2 language of the AI caption track to use (e.g. "eng"). Optional
+  // when the video has exactly one AI caption track; required when it has
+  // several (refused with code parameter_required, listing the available
+  // languages).
+  optional string language = 2 [
+    (buf.validate.field).string.pattern = "^[a-z]{3}$"
+  ];
+
+  // Optional free-text guidance about the content, its audience or the tone
+  // you want, at most 300 characters. Same meaning as InsightsOptions.hint.
+  optional string hint = 3 [(buf.validate.field).string.max_len = 300];
+
+  // Optional app the video belongs to. API-key callers may omit it (their
+  // key's app is used) or pass their own app; a different app is rejected
+  // with PermissionDenied. Portal/JWT callers may pass it; omitted, the app
+  // is resolved from the video.
+  optional string app_id = 4 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from GenerateInsights.
+message GenerateInsightsResponse {
+  // The insights entry: newly created, or the one already pending for this
+  // video and language. Status is "pending"; poll VideoService.Get (or
+  // Watch) or subscribe to video.insights.ready / video.insights.failed.
+  TranscriptInsights insights = 1;
 }

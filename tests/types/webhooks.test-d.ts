@@ -11,6 +11,7 @@
  */
 import { App } from "../../src/gen/transcodely/v1/app_pb.js";
 import { Job, JobOutput } from "../../src/gen/transcodely/v1/job_pb.js";
+import { TranscriptInsights } from "../../src/gen/transcodely/v1/subtitles_pb.js";
 import { Video } from "../../src/gen/transcodely/v1/video_pb.js";
 import {
   isEventType,
@@ -56,6 +57,12 @@ if (isKnownEvent(event)) {
     case "video.source_scheduled_for_deletion":
       expectType<Equal<typeof event.data, Video>>();
       break;
+    // video.insights.* share the "video." prefix but carry the insights entry
+    // requested with videos.generateInsights, not a Video snapshot.
+    case "video.insights.ready":
+    case "video.insights.failed":
+      expectType<Equal<typeof event.data, TranscriptInsights>>();
+      break;
     case "app.created":
     case "app.updated":
       expectType<Equal<typeof event.data, App>>();
@@ -85,6 +92,9 @@ if (isKnownEvent(event)) {
 // `isEventType` narrows straight to a single arm's resource type.
 if (isEventType(event, "output.ready")) {
   expectType<Equal<typeof event.data, JobOutput>>();
+}
+if (isEventType(event, "video.insights.ready")) {
+  expectType<Equal<typeof event.data, TranscriptInsights>>();
 }
 
 // (3) Forward-compat: an event `type` this SDK release does not know is still

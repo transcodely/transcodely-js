@@ -290,9 +290,14 @@ export class Video extends Message<Video> {
 
   /**
    * AI insights for this video, one per transcript language, from the
-   * captions job that requested them (SubtitleTrack.insights). Each moves
-   * from "pending" to "ready" or "failed". Signed URLs are computed per
-   * request under the same rules as text track URLs and are never stored.
+   * captions job that requested them (SubtitleTrack.insights) or from
+   * GenerateInsights. Each moves from "pending" to "ready" or "failed". A
+   * GenerateInsights entry still pending for a language that already has
+   * ready insights is listed first, ahead of the ready entry it will replace.
+   * If that entry fails, the ready insights stay and the failed entry is no
+   * longer listed; video.insights.failed reports it.
+   * Signed URLs are computed per request under the same rules as text track
+   * URLs and are never stored.
    *
    * @generated from field: repeated transcodely.v1.TranscriptInsights insights = 53;
    */
@@ -339,12 +344,13 @@ export class Video extends Message<Video> {
   /**
    * Everything this video has cost, in EUR: the sum of the settled totals of
    * every job billed for it — the transcode that produced it plus any later
-   * job that took it as input (retro captions, for example).
+   * job that took it as input (retro captions, for example) — plus the fee of
+   * every ready GenerateInsights entry (TranscriptInsights.fee_eur).
    *
    * This is the authoritative per-video figure and the one to display. It is
-   * built from the same job totals the billing ledger is written from, so it
+   * built from the same amounts the billing ledger is written from, so it
    * reconciles with the invoice; captions_cost is a breakdown inside it.
-   * Absent while no linked job has settled yet.
+   * Absent while nothing linked to the video has been billed yet.
    *
    * @generated from field: optional double total_cost = 52;
    */
@@ -3206,6 +3212,121 @@ export class GetSeoMarkupResponse extends Message<GetSeoMarkupResponse> {
 
   static equals(a: GetSeoMarkupResponse | PlainMessage<GetSeoMarkupResponse> | undefined, b: GetSeoMarkupResponse | PlainMessage<GetSeoMarkupResponse> | undefined): boolean {
     return proto3.util.equals(GetSeoMarkupResponse, a, b);
+  }
+}
+
+/**
+ * Request to generate AI insights from a hosted video's existing captions.
+ *
+ * @generated from message transcodely.v1.GenerateInsightsRequest
+ */
+export class GenerateInsightsRequest extends Message<GenerateInsightsRequest> {
+  /**
+   * Video ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * ISO 639-2 language of the AI caption track to use (e.g. "eng"). Optional
+   * when the video has exactly one AI caption track; required when it has
+   * several (refused with code parameter_required, listing the available
+   * languages).
+   *
+   * @generated from field: optional string language = 2;
+   */
+  language?: string;
+
+  /**
+   * Optional free-text guidance about the content, its audience or the tone
+   * you want, at most 300 characters. Same meaning as InsightsOptions.hint.
+   *
+   * @generated from field: optional string hint = 3;
+   */
+  hint?: string;
+
+  /**
+   * Optional app the video belongs to. API-key callers may omit it (their
+   * key's app is used) or pass their own app; a different app is rejected
+   * with PermissionDenied. Portal/JWT callers may pass it; omitted, the app
+   * is resolved from the video.
+   *
+   * @generated from field: optional string app_id = 4;
+   */
+  appId?: string;
+
+  constructor(data?: PartialMessage<GenerateInsightsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GenerateInsightsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "hint", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GenerateInsightsRequest {
+    return new GenerateInsightsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GenerateInsightsRequest {
+    return new GenerateInsightsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GenerateInsightsRequest {
+    return new GenerateInsightsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GenerateInsightsRequest | PlainMessage<GenerateInsightsRequest> | undefined, b: GenerateInsightsRequest | PlainMessage<GenerateInsightsRequest> | undefined): boolean {
+    return proto3.util.equals(GenerateInsightsRequest, a, b);
+  }
+}
+
+/**
+ * Response from GenerateInsights.
+ *
+ * @generated from message transcodely.v1.GenerateInsightsResponse
+ */
+export class GenerateInsightsResponse extends Message<GenerateInsightsResponse> {
+  /**
+   * The insights entry: newly created, or the one already pending for this
+   * video and language. Status is "pending"; poll VideoService.Get (or
+   * Watch) or subscribe to video.insights.ready / video.insights.failed.
+   *
+   * @generated from field: transcodely.v1.TranscriptInsights insights = 1;
+   */
+  insights?: TranscriptInsights;
+
+  constructor(data?: PartialMessage<GenerateInsightsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GenerateInsightsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "insights", kind: "message", T: TranscriptInsights },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GenerateInsightsResponse {
+    return new GenerateInsightsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GenerateInsightsResponse {
+    return new GenerateInsightsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GenerateInsightsResponse {
+    return new GenerateInsightsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GenerateInsightsResponse | PlainMessage<GenerateInsightsResponse> | undefined, b: GenerateInsightsResponse | PlainMessage<GenerateInsightsResponse> | undefined): boolean {
+    return proto3.util.equals(GenerateInsightsResponse, a, b);
   }
 }
 

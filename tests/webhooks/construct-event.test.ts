@@ -9,6 +9,11 @@ import {
 } from "../../src/errors.js";
 import { App, AppStatus } from "../../src/gen/transcodely/v1/app_pb.js";
 import { Job, JobOutput, JobStatus, OutputStatus } from "../../src/gen/transcodely/v1/job_pb.js";
+import {
+  InsightsSource,
+  InsightsStatus,
+  TranscriptInsights,
+} from "../../src/gen/transcodely/v1/subtitles_pb.js";
 import { Video } from "../../src/gen/transcodely/v1/video_pb.js";
 import { constructEvent } from "../../src/webhooks/construct-event.js";
 
@@ -112,6 +117,42 @@ describe("constructEvent — happy paths", () => {
     expect((event.data as App).id).toBe("app_abc");
     expect((event.data as App).name).toBe("My App");
     expect((event.data as App).status).toBe(AppStatus.ACTIVE);
+  });
+
+  it("decodes video.insights.* events as TranscriptInsights (not a mis-decoded Video)", () => {
+    const body = envelope({
+      type: "video.insights.ready",
+      data: {
+        id: "ins_abc123",
+        source: "video",
+        video_id: "vid_abc",
+        language: "eng",
+        status: "ready",
+        summary: "A talk.",
+        fee_eur: 0.07,
+      },
+    });
+    const event = constructEvent(body, header(body), SECRET, { now: NOW });
+    expect(event.type).toBe("video.insights.ready");
+    expect(event.data).toBeInstanceOf(TranscriptInsights);
+    expect(event.data).not.toBeInstanceOf(Video);
+    const ins = event.data as TranscriptInsights;
+    expect(ins.id).toBe("ins_abc123");
+    expect(ins.source).toBe(InsightsSource.VIDEO);
+    expect(ins.videoId).toBe("vid_abc");
+    expect(ins.language).toBe("eng");
+    expect(ins.status).toBe(InsightsStatus.READY);
+    expect(ins.summary).toBe("A talk.");
+    expect(ins.feeEur).toBe(0.07);
+
+    const failedBody = envelope({
+      type: "video.insights.failed",
+      data: { id: "ins_def456", source: "video", video_id: "vid_abc", status: "failed", error_code: "insights_failed" },
+    });
+    const failed = constructEvent(failedBody, header(failedBody), SECRET, { now: NOW });
+    expect(failed.data).toBeInstanceOf(TranscriptInsights);
+    expect((failed.data as TranscriptInsights).status).toBe(InsightsStatus.FAILED);
+    expect((failed.data as TranscriptInsights).errorCode).toBe("insights_failed");
   });
 
   it("leaves a spend-limit event's data as the raw notification (not a mis-decoded App)", () => {

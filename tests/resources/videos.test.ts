@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { VideoService } from "../../src/gen/transcodely/v1/video_connect.js";
 import {
   CreateFromUrlResponse,
+  GenerateInsightsRequest,
+  GenerateInsightsResponse,
   GetSeoMarkupResponse,
   GetStatsResponse,
   ListTopVideosResponse,
@@ -11,6 +13,12 @@ import {
   VideoStatsDay,
   VideoStatsTotals,
 } from "../../src/gen/transcodely/v1/video_pb.js";
+import {
+  InsightsSource,
+  InsightsStatus,
+  TranscriptInsights,
+} from "../../src/gen/transcodely/v1/subtitles_pb.js";
+import { toWireJson } from "../../src/codec/json.js";
 import { Videos } from "../../src/resources/videos.js";
 import { Transport } from "../../src/transport/transport.js";
 
@@ -157,5 +165,51 @@ describe("Videos facade", () => {
     expect(out).toBeInstanceOf(GetSeoMarkupResponse);
     expect(out.jsonLd).toBe('{"@type":"VideoObject"}');
     expect(out.htmlFragment).toContain("tx-insights");
+  });
+
+  it("generateInsights dispatches GenerateInsights and returns the insights entry", async () => {
+    const transport = makeTransport();
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(
+      new GenerateInsightsResponse({
+        insights: new TranscriptInsights({
+          id: "ins_abc123",
+          source: InsightsSource.VIDEO,
+          videoId: "vid_a1b2c3d4e5f6g7",
+          language: "eng",
+          status: InsightsStatus.PENDING,
+        }),
+      }),
+    );
+    const out = await new Videos(transport).generateInsights({
+      id: "vid_a1b2c3d4e5f6g7",
+      language: "eng",
+      hint: "A cooking show for beginners",
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toBe(VideoService.methods.generateInsights);
+    const req = spy.mock.calls[0][2] as {
+      id: string;
+      language?: string;
+      hint?: string;
+      appId?: string;
+    };
+    expect(req.id).toBe("vid_a1b2c3d4e5f6g7");
+    expect(req.language).toBe("eng");
+    expect(req.hint).toBe("A cooking show for beginners");
+    expect(req.appId).toBeUndefined();
+    expect(out).toBeInstanceOf(TranscriptInsights);
+    expect(out.id).toBe("ins_abc123");
+    expect(out.source).toBe(InsightsSource.VIDEO);
+    expect(out.status).toBe(InsightsStatus.PENDING);
+  });
+
+  it("generateInsights sends snake_case fields on the wire", async () => {
+    const transport = makeTransport();
+    const spy = vi
+      .spyOn(transport, "unary")
+      .mockResolvedValue(new GenerateInsightsResponse({ insights: new TranscriptInsights() }));
+    await new Videos(transport).generateInsights({ id: "vid_a1b2c3d4e5f6g7", appId: "app_xyz" });
+    const wire = toWireJson(spy.mock.calls[0][2] as GenerateInsightsRequest) as Record<string, unknown>;
+    expect(wire).toEqual({ id: "vid_a1b2c3d4e5f6g7", app_id: "app_xyz" });
   });
 });

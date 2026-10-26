@@ -282,6 +282,20 @@ Jobs carry the same data on `job.subtitleResults[i].transcriptRenditions` and
 `job.insights`. The `job.insights.ready` and `job.insights.failed` webhook events
 tell you when an insights pass finishes.
 
+A hosted video that already has AI captions can get insights without
+transcribing again (EUR 0.02 per video + EUR 0.005 per source minute, charged
+only when ready):
+
+```ts
+// `language` is needed only when the video has several AI caption tracks.
+const ins = await client.videos.generateInsights({ id: "vid_a1b2c3d4e5f6g7" });
+console.log(ins.id, ins.status); // ins_..., InsightsStatus.PENDING
+```
+
+The entry also appears on `video.insights`. The `video.insights.ready` and
+`video.insights.failed` webhook events carry the entry itself as a
+`TranscriptInsights` in `event.data`.
+
 ## Authentication
 
 Pass your API key in the constructor:

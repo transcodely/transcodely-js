@@ -9,6 +9,7 @@ import {
   CreateMultipartUploadRequest,
   CreateUploadRequest,
   DeleteVideoRequest,
+  GenerateInsightsRequest,
   GetSeoMarkupRequest,
   type GetSeoMarkupResponse,
   GetStatsRequest,
@@ -24,6 +25,7 @@ import {
   WatchVideoRequest,
   type WatchVideoResponse,
 } from "../gen/transcodely/v1/video_pb.js";
+import type { TranscriptInsights } from "../gen/transcodely/v1/subtitles_pb.js";
 
 import { Page } from "../pagination.js";
 import { watch } from "../streaming.js";
@@ -233,5 +235,32 @@ export class Videos {
       new GetSeoMarkupRequest(req),
       opts,
     );
+  }
+
+  /**
+   * Generate AI insights (title suggestions, summary, key points, chapters,
+   * questions, key terms, highlights, topics) from a hosted video's existing
+   * AI captions, without transcribing again. Returns the TranscriptInsights
+   * entry in "pending"; it also appears on `video.insights`, and
+   * `video.insights.ready` or `video.insights.failed` fires when it finishes.
+   * Billed EUR 0.02 per video plus EUR 0.005 per minute of source, charged
+   * only when the insights become ready.
+   *
+   * While an entry for the same video and language is pending, the call
+   * returns that entry and bills nothing new. Pass `language` when the video
+   * has several AI caption tracks. A video without AI captions is refused with
+   * failed_precondition (code captions_required).
+   */
+  async generateInsights(
+    req: PartialMessage<GenerateInsightsRequest>,
+    opts?: CallOptions,
+  ): Promise<TranscriptInsights> {
+    const res = await this.transport.unary(
+      VideoService,
+      VideoService.methods.generateInsights,
+      new GenerateInsightsRequest(req),
+      opts,
+    );
+    return res.insights!;
   }
 }
