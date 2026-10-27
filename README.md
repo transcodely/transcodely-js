@@ -313,7 +313,7 @@ client.videos          // upload RPCs, multipart, createFromUrl, get / list / up
 client.presets         // create / get / getBySlug / list / update / duplicate / archive
 client.origins         // create / get / list / update / validate / archive
 client.ingestRules     // create / get / list / update / delete / listEvents / test / replayEvent
-client.apps            // create / get / list / update / archive / enableHosting
+client.apps            // create / get / list / update / archive / enableHosting / getSpend / getPricing
 client.apiKeys         // create / get / list / revoke
 client.organizations   // create / get / list / update / checkSlug
 client.memberships     // list / get / updateRole / remove
@@ -334,6 +334,26 @@ for (const component of health.components) {
   }
 }
 ```
+
+## Your prices
+
+`client.apps.getPricing()` lists every chargeable item with the EUR rate your app
+pays, whether your account has a custom rate for it, and the public list price.
+Omit the app id to price the API key's own app.
+
+```ts
+const pricing = await client.apps.getPricing();
+for (const entry of pricing.entries) {
+  if (entry.basePrice !== undefined) {
+    console.log(`${entry.groupLabel} / ${entry.label}: ${entry.basePrice} ${pricing.currency} (${entry.unit})`, entry.custom ? "custom" : "");
+  }
+  if (entry.multiplier !== undefined) {
+    console.log(`${entry.groupLabel} / ${entry.label}: x${entry.multiplier}`, entry.custom ? "custom" : "");
+  }
+}
+```
+
+Prices are fixed when a job is created, so a price change applies to jobs created after it.
 
 ## Origins
 

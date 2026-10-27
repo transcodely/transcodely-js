@@ -5,7 +5,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ArchiveAppRequest, ArchiveAppResponse, CreateAppRequest, CreateAppResponse, EnableHostingRequest, EnableHostingResponse, GetAppRequest, GetAppResponse, GetSpendRequest, GetSpendResponse, ListAppsRequest, ListAppsResponse, UpdateAppRequest, UpdateAppResponse, UpdateHostingConfigRequest, UpdateHostingConfigResponse, UpdatePlayerConfigRequest, UpdatePlayerConfigResponse, UpdateSpendLimitRequest, UpdateSpendLimitResponse } from "./app_pb.js";
+import { ArchiveAppRequest, ArchiveAppResponse, CreateAppRequest, CreateAppResponse, EnableHostingRequest, EnableHostingResponse, GetAppRequest, GetAppResponse, GetPricingRequest, GetPricingResponse, GetSpendRequest, GetSpendResponse, ListAppsRequest, ListAppsResponse, UpdateAppRequest, UpdateAppResponse, UpdateHostingConfigRequest, UpdateHostingConfigResponse, UpdatePlayerConfigRequest, UpdatePlayerConfigResponse, UpdateSpendLimitRequest, UpdateSpendLimitResponse } from "./app_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -134,6 +134,18 @@ export const AppService = {
       name: "GetSpend",
       I: GetSpendRequest,
       O: GetSpendResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Get the prices an app pays: every chargeable item with its effective rate,
+     * whether the account has a custom rate for it, and the public list price.
+     *
+     * @generated from rpc transcodely.v1.AppService.GetPricing
+     */
+    getPricing: {
+      name: "GetPricing",
+      I: GetPricingRequest,
+      O: GetPricingResponse,
       kind: MethodKind.Unary,
     },
   }
