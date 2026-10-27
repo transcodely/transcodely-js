@@ -156,7 +156,7 @@ export class Apps {
    * Get the prices an app pays: every chargeable item with its effective EUR
    * rate, whether the account has a custom rate for it (`custom`), and the
    * public list price. Omit `id` to price the API key's own app (dashboard
-   * callers: the organization's first app). Prices are fixed when a job is
+   * callers: the organization's first active app). Prices are fixed when a job is
    * created, so a price change applies to jobs created after it.
    */
   getPricing(id?: string, opts?: CallOptions): Promise<GetPricingResponse> {

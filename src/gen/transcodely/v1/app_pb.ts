@@ -1476,7 +1476,8 @@ export class GetPricingRequest extends Message<GetPricingRequest> {
   /**
    * App ID. API-key callers may omit it or pass their own app; a different app
    * is rejected with PermissionDenied. Dashboard callers pass it to pick an app
-   * in their organization; omitted selects the organization's first app.
+   * in their organization; omitted selects the organization's first active
+   * app in list order (the same default every app-scoped read uses).
    *
    * @generated from field: optional string app_id = 1;
    */
@@ -1552,8 +1553,9 @@ export class PricingEntry extends Message<PricingEntry> {
 
   /**
    * What base_price is per: eur_per_output_minute, eur_per_source_minute,
-   * eur_per_video, eur_per_job, eur_per_gb_month, eur_per_gb. Empty for a
-   * charge that has only a multiplier.
+   * eur_per_video, eur_per_job, eur_per_gb_month, eur_per_gb, or eur_per_unit
+   * for a charge whose unit is not known yet. Empty for a charge that has only
+   * a multiplier.
    *
    * @generated from field: string unit = 5;
    */
