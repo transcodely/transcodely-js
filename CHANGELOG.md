@@ -4,6 +4,14 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.14](https://github.com/transcodely/transcodely-js/compare/v0.3.13...v0.3.14) (2026-10-27)
+
+
+### Features
+
+* rate cards — GetPricing (your effective prices) and resynced protos ([b9554f3](https://github.com/transcodely/transcodely-js/commit/b9554f31612b8080e51de75f055c061fa1f661ac))
+* sync protos for rate cards; add getPricing ([e7d5591](https://github.com/transcodely/transcodely-js/commit/e7d5591eff446ccb70c3f32207f17a74ca3f2ac0))
+
 ## [0.3.13](https://github.com/transcodely/transcodely-js/compare/v0.3.12...v0.3.13) (2026-10-26)
 
 
