@@ -807,6 +807,8 @@ export class OutputSpec extends Message<OutputSpec> {
    * Encoding mode: "fixed" (default, static CRF) or "auto" (input-aware constrained CRF).
    * In "auto" mode, the worker caps each variant's bitrate based on the input's bitrate
    * and resolution ratio, preventing output from exceeding the input's quality ceiling.
+   * "auto" also skips any ABR rung larger than the source instead of upscaling it.
+   * A skipped rung is reported with status "skipped" and is not billed.
    *
    * @generated from field: optional string encoding_mode = 14;
    */
@@ -1127,7 +1129,10 @@ export class VariantPricingSnapshot extends Message<VariantPricingSnapshot> {
   actualCost?: number;
 
   /**
-   * Variant encoding status: "pending", "processing", "completed", "failed".
+   * Variant encoding status: "pending", "processing", "completed", "failed",
+   * "canceled", or "skipped". A rung is "skipped" when `encoding_mode: auto`
+   * left it unencoded because it would have upscaled the source. A skipped
+   * rung has actual_cost 0 and is not billed.
    *
    * @generated from field: string status = 20;
    */

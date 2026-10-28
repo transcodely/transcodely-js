@@ -41,14 +41,18 @@ export enum HDRFormat {
   HDR_FORMAT_HLG = 3,
 
   /**
-   * Dolby Vision Profile 5 (single-layer, cross-compatible).
+   * Dolby Vision Profile 5 (single-layer, no HDR10 or SDR compatibility
+   * layer). Not available: refused at create with `parameter_unsupported` on
+   * `hdr.format` until the worker produces Dolby Vision output.
    *
    * @generated from enum value: HDR_FORMAT_DOLBY_VISION_5 = 4;
    */
   HDR_FORMAT_DOLBY_VISION_5 = 4,
 
   /**
-   * Dolby Vision Profile 8 (MEL, backward-compatible with HDR10).
+   * Dolby Vision Profile 8.1 (single-layer, HDR10-compatible base layer). Not
+   * available: refused at create with `parameter_unsupported` on `hdr.format`
+   * until the worker produces Dolby Vision output.
    *
    * @generated from enum value: HDR_FORMAT_DOLBY_VISION_8 = 5;
    */
@@ -164,6 +168,9 @@ proto3.util.setEnumType(ToneMapping, "transcodely.v1.ToneMapping", [
 export class HDRConfig extends Message<HDRConfig> {
   /**
    * Target HDR format (required for passthrough and force modes).
+   * `dolby_vision_5` and `dolby_vision_8` are refused at create until the
+   * worker produces Dolby Vision output; a refused request creates no job and
+   * is neither quoted nor billed.
    *
    * @generated from field: transcodely.v1.HDRFormat format = 1;
    */
@@ -208,7 +215,9 @@ export class HDRConfig extends Message<HDRConfig> {
   contentLightLevel?: string;
 
   /**
-   * Dolby Vision RPU file URL (for DV metadata injection).
+   * Dolby Vision RPU file URL. Only accepted with a `dolby_vision_*` format,
+   * which is refused at create until the worker produces Dolby Vision output,
+   * so this field is currently unreachable.
    *
    * @generated from field: optional string rpu_url = 7;
    */

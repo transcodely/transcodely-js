@@ -2476,6 +2476,13 @@ export class UsageSummary extends Message<UsageSummary> {
   storageGbAvg = 0;
 
   /**
+   * Storage cost of the period so far, as your invoice will carry it. Each
+   * day is one GB-day: the day's stored bytes at the day's monthly price
+   * divided by the days in that month. Days already billed are reported at
+   * the rate they were billed at, so a later price or rate-card change never
+   * re-prices them; the remaining days (see hosting_estimated_from) are
+   * estimated the same way at your current rate.
+   *
    * @generated from field: double storage_cost = 11;
    */
   storageCost = 0;
@@ -2493,6 +2500,10 @@ export class UsageSummary extends Message<UsageSummary> {
   egressGb = 0;
 
   /**
+   * Delivery cost of the period so far, as your invoice will carry it:
+   * billed delivery at the rate it was billed at, delivery not billed yet
+   * estimated at your current rate.
+   *
    * @generated from field: double egress_cost = 21;
    */
   egressCost = 0;
@@ -2515,6 +2526,19 @@ export class UsageSummary extends Message<UsageSummary> {
    * @generated from field: string currency = 31;
    */
   currency = "";
+
+  /**
+   * First day (YYYY-MM-DD, UTC) whose storage or delivery cost is an
+   * estimate rather than billed usage. Hosting is billed daily, through the
+   * previous day, so while you store or deliver video the current period has
+   * an estimated tail, and the estimate turns into the billed amount as each
+   * day is billed. Empty when no day with hosting usage in the period is
+   * still unbilled, which is when storage_cost and egress_cost match your
+   * invoice (to within the sub-cent remainder carried to the next charge).
+   *
+   * @generated from field: string hosting_estimated_from = 32;
+   */
+  hostingEstimatedFrom = "";
 
   /**
    * Per-day usage breakdown for the billing period identified by
@@ -2550,6 +2574,7 @@ export class UsageSummary extends Message<UsageSummary> {
     { no: 22, name: "total_requests", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 30, name: "total_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 31, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 32, name: "hosting_estimated_from", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 40, name: "daily", kind: "message", T: DailyUsage, repeated: true },
   ]);
 
