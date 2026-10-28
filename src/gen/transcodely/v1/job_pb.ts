@@ -809,6 +809,8 @@ export class OutputSpec extends Message<OutputSpec> {
    * and resolution ratio, preventing output from exceeding the input's quality ceiling.
    * "auto" also skips any ABR rung larger than the source instead of upscaling it.
    * A skipped rung is reported with status "skipped" and is not billed.
+   * Outputs created since 2026-10-27 echo the resolved mode on responses (unset
+   * resolves to "fixed"). Outputs created before then omit it: their mode was not stored.
    *
    * @generated from field: optional string encoding_mode = 14;
    */
