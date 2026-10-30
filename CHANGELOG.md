@@ -4,6 +4,13 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.15](https://github.com/transcodely/transcodely-js/compare/v0.3.14...v0.3.15) (2026-10-30)
+
+
+### Features
+
+* resync protos to api master — usage hosting_estimated_from, encoding_mode echo ([f1f6bee](https://github.com/transcodely/transcodely-js/commit/f1f6bee811da5c86e3a74021ba42fcab8bffb6a8))
+
 ## [0.3.14](https://github.com/transcodely/transcodely-js/compare/v0.3.13...v0.3.14) (2026-10-27)
 
 
