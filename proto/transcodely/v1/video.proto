@@ -1002,11 +1002,20 @@ message UsageSummary {
 
   // Storage metrics.
   double storage_gb_avg = 10;
+  // Storage cost of the period so far, as your invoice will carry it. Each
+  // day is one GB-day: the day's stored bytes at the day's monthly price
+  // divided by the days in that month. Days already billed are reported at
+  // the rate they were billed at, so a later price or rate-card change never
+  // re-prices them; the remaining days (see hosting_estimated_from) are
+  // estimated the same way at your current rate.
   double storage_cost = 11;
   int32 videos_hosted = 12;
 
   // Egress metrics.
   double egress_gb = 20;
+  // Delivery cost of the period so far, as your invoice will carry it:
+  // billed delivery at the rate it was billed at, delivery not billed yet
+  // estimated at your current rate.
   double egress_cost = 21;
   int64 total_requests = 22;
 
@@ -1015,6 +1024,15 @@ message UsageSummary {
 
   // ISO 4217 currency code for all monetary fields in this summary (e.g. "EUR").
   string currency = 31;
+
+  // First day (YYYY-MM-DD, UTC) whose storage or delivery cost is an
+  // estimate rather than billed usage. Hosting is billed daily, through the
+  // previous day, so while you store or deliver video the current period has
+  // an estimated tail, and the estimate turns into the billed amount as each
+  // day is billed. Empty when no day with hosting usage in the period is
+  // still unbilled, which is when storage_cost and egress_cost match your
+  // invoice (to within the sub-cent remainder carried to the next charge).
+  string hosting_estimated_from = 32;
 
   // Per-day usage breakdown for the billing period identified by
   // billing_month, oldest day first. With a billing anchor day other than 1,

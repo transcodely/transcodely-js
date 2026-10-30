@@ -1107,9 +1107,10 @@ export class AutoProfileDefaults extends Message<AutoProfileDefaults> {
   qualityTier?: string;
 
   /**
-   * Encoding mode: "fixed" (default, static CRF) or "auto" (input-aware constrained CRF).
+   * Encoding mode: "auto" (default, input-aware constrained CRF) or "fixed" (static CRF).
    * In "auto" mode, the worker caps each variant's bitrate based on the input's bitrate
-   * and resolution ratio, preventing output from exceeding the input's quality ceiling.
+   * and resolution ratio, preventing output from exceeding the input's quality ceiling,
+   * and skips any ladder rung larger than the source instead of upscaling it.
    *
    * @generated from field: optional string encoding_mode = 5;
    */

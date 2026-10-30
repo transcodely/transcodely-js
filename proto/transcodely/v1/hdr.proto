@@ -18,10 +18,14 @@ enum HDRFormat {
   // Hybrid Log-Gamma (backwards-compatible with SDR).
   HDR_FORMAT_HLG = 3;
 
-  // Dolby Vision Profile 5 (single-layer, cross-compatible).
+  // Dolby Vision Profile 5 (single-layer, no HDR10 or SDR compatibility
+  // layer). Not available: refused at create with `parameter_unsupported` on
+  // `hdr.format` until the worker produces Dolby Vision output.
   HDR_FORMAT_DOLBY_VISION_5 = 4;
 
-  // Dolby Vision Profile 8 (MEL, backward-compatible with HDR10).
+  // Dolby Vision Profile 8.1 (single-layer, HDR10-compatible base layer). Not
+  // available: refused at create with `parameter_unsupported` on `hdr.format`
+  // until the worker produces Dolby Vision output.
   HDR_FORMAT_DOLBY_VISION_8 = 5;
 }
 
@@ -63,6 +67,9 @@ enum ToneMapping {
 // HDR configuration for a video variant.
 message HDRConfig {
   // Target HDR format (required for passthrough and force modes).
+  // `dolby_vision_5` and `dolby_vision_8` are refused at create until the
+  // worker produces Dolby Vision output; a refused request creates no job and
+  // is neither quoted nor billed.
   HDRFormat format = 1 [
     (buf.validate.field).enum.defined_only = true
   ];
@@ -97,7 +104,9 @@ message HDRConfig {
     (buf.validate.field).string.max_len = 64
   ];
 
-  // Dolby Vision RPU file URL (for DV metadata injection).
+  // Dolby Vision RPU file URL. Only accepted with a `dolby_vision_*` format,
+  // which is refused at create until the worker produces Dolby Vision output,
+  // so this field is currently unreachable.
   optional string rpu_url = 7 [
     (buf.validate.field).string.max_len = 2048
   ];
