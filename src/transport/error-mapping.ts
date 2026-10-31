@@ -11,9 +11,12 @@
  *     "type": "transcodely.v1.ErrorDetails",
  *     "value": "...",
  *     "debug": {
- *       "code": "JOB_NOT_FOUND",
+ *       "code": "validation_error",
  *       "message": "...",
- *       "field_violations": [{ "field": "id", "description": "..." }]
+ *       "fieldViolations": [{
+ *         "field": "outputs[0].video[0].crf",
+ *         "description": "[parameter_out_of_range] ..."
+ *       }]
  *     }
  *   }]
  * }
@@ -59,7 +62,7 @@ export function mapHttpError({ status, body, headers }: MapArgs): TranscodelyErr
   const requestId = headers.get("x-request-id") ?? undefined;
   const parsed = parseBody(body);
   const message = parsed.message ?? `HTTP ${status}`;
-  const detail = parsed.details?.[0]?.debug;
+  const detail = parsed.details?.find(isErrorDetails)?.debug;
   const code = detail?.code;
   const violations = detail?.field_violations ?? detail?.fieldViolations ?? [];
   const opts = {
@@ -92,6 +95,19 @@ export function connectionError(cause: unknown, message?: string): APIConnection
   const msg =
     message ?? (cause instanceof Error ? cause.message : "network request failed");
   return new APIConnectionError({ message: msg, cause });
+}
+
+const ERROR_DETAILS_TYPE = "transcodely.v1.ErrorDetails";
+
+// A detail is read as ErrorDetails when it says so. One with no type is read
+// too, for bodies that omit it; a detail of any other type is skipped, so the
+// error degrades to its message instead of taking a foreign detail's fields.
+function isErrorDetails(d: { type?: string }): boolean {
+  return (
+    d.type === undefined ||
+    d.type === ERROR_DETAILS_TYPE ||
+    d.type.endsWith(`/${ERROR_DETAILS_TYPE}`)
+  );
 }
 
 function parseBody(body: unknown): ConnectErrorBody {

@@ -532,22 +532,27 @@ export {
   ToneMapping,
 } from "./gen/transcodely/v1/hdr_pb.js";
 
-// `ContentAwareConfig` turns on per-title encoding for one output: the worker
-// finds the CRF this source needs to reach the VMAF target and encodes the
-// declared ladder at it, priced at 1.5x. The ladder is unchanged, so the price
-// quoted at create still holds, and what the search decided comes back on
+// `ContentAwareConfig` tunes one output's encode to its content, billed at 1.5x
+// when the analysis shapes the encode. Both modes are accepted at create.
+//
+// `ContentAwareMode.PER_TITLE`: the worker finds the CRF this source needs to reach the VMAF
+// target and encodes the declared ladder at it. The ladder is unchanged, so the
+// price quoted at create still holds. It needs at least one video rendition that
+// is not pinned to an explicit bitrate (`parameter_incompatible` at create) and
+// a source of at least 120 seconds (`per_title_source_too_short`, at probe).
+//
+// `ContentAwareMode.AUTO_ABR` (hls, dash or adaptive outputs only): declare one seed video
+// rendition with no resolution, width, height or bitrate, plus optional bounds in
+// `AutoABRConfig`. The API expands the seed into a ceiling of standard rungs
+// (480p up to 1080p by default, never above the source), the worker drops the
+// rungs the content does not need, and you are billed for the rungs rendered,
+// never above the estimate. On a source too short to analyse, the whole ceiling
+// renders at the quality tier's static settings and is billed at 1.0x.
+//
+// Either mode is refused with `parameter_forbidden` on an output that has an
+// `HDRMode.TONEMAP` variant, and an auto_abr block sent with per_title is
+// refused the same way. What the analysis decided comes back on
 // `report.contentAware`.
-//
-// `ContentAwareMode.PER_TITLE` is accepted. `ContentAwareMode.AUTO_ABR` is
-// still rejected at create with InvalidArgument — rule
-// `parameter_unsupported` on `outputs[i].content_aware` — because it would
-// change the number of renditions after the job was quoted per rendition.
-// `AutoABRConfig` is exported for that mode and has no effect until it ships.
-// See https://github.com/transcodely/api/issues/167.
-//
-// Per-title also needs at least one video rendition that is not pinned to an
-// explicit bitrate (`parameter_incompatible` at create) and a source of at
-// least 120 seconds (`per_title_source_too_short`, at probe).
 export {
   type ContentAwareConfig,
   type AutoABRConfig,

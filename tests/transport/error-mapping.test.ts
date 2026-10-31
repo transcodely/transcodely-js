@@ -130,6 +130,90 @@ describe("mapHttpError — payload extraction", () => {
     expect(err.errors[0]?.field).toBe("x");
   });
 
+  it("reads a protovalidate refusal exactly as the API sends it", () => {
+    // Every API validator (protovalidate schema, codec, feature) sends this one
+    // envelope: HTTP 400 invalid_argument, an ErrorDetails detail whose debug is
+    // protojson (camelCase), and violations reading "[<code>] <message>".
+    const wire = {
+      code: "invalid_argument",
+      message:
+        "validation failed: outputs[0].content_aware.auto_abr.min_variants: value must be greater than or equal to 1 and less than or equal to 20",
+      details: [
+        {
+          type: "transcodely.v1.ErrorDetails",
+          value: "CghfdmFsaWRhdGlvbl9lcnJvcg",
+          debug: {
+            code: "validation_error",
+            message: "validation failed: ...",
+            fieldViolations: [
+              {
+                field: "outputs[0].content_aware.auto_abr.min_variants",
+                description:
+                  "[parameter_out_of_range] value must be greater than or equal to 1 and less than or equal to 20",
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const err = mapHttpError({ status: 400, body: wire, headers: withReqId("req_v") });
+    expect(err).toBeInstanceOf(InvalidRequestError);
+    expect(err.type).toBe("invalid_argument");
+    expect(err.code).toBe("validation_error");
+    expect(err.requestId).toBe("req_v");
+    expect(err.errors).toEqual([
+      {
+        field: "outputs[0].content_aware.auto_abr.min_variants",
+        description:
+          "[parameter_out_of_range] value must be greater than or equal to 1 and less than or equal to 20",
+      },
+    ]);
+  });
+
+  it("reads ErrorDetails by its type, skipping a detail of another type", () => {
+    const wire = {
+      code: "invalid_argument",
+      message: "validation failed",
+      details: [
+        {
+          type: "google.rpc.RetryInfo",
+          debug: { code: "not_ours", fieldViolations: [{ field: "x", description: "y" }] },
+        },
+        {
+          type: "transcodely.v1.ErrorDetails",
+          debug: {
+            code: "validation_error",
+            fieldViolations: [{ field: "input_url", description: "[parameter_required] value is required" }],
+          },
+        },
+      ],
+    };
+    const err = mapHttpError({ status: 400, body: wire, headers: noHeaders });
+    expect(err.code).toBe("validation_error");
+    expect(err.errors).toEqual([
+      { field: "input_url", description: "[parameter_required] value is required" },
+    ]);
+  });
+
+  it("degrades cleanly when no detail is an ErrorDetails", () => {
+    const wire = {
+      code: "invalid_argument",
+      message: "validation failed",
+      details: [
+        {
+          type: "google.rpc.RetryInfo",
+          debug: { code: "not_ours", fieldViolations: [{ field: "x", description: "y" }] },
+        },
+      ],
+    };
+    const err = mapHttpError({ status: 400, body: wire, headers: noHeaders });
+    expect(err).toBeInstanceOf(InvalidRequestError);
+    expect(err.message).toBe("validation failed");
+    expect(err.type).toBe("invalid_argument");
+    expect(err.code).toBeUndefined();
+    expect(err.errors).toEqual([]);
+  });
+
   it("captures requestId from headers", () => {
     const err = mapHttpError({ status: 500, body: {}, headers: withReqId("req_abc123") });
     expect(err.requestId).toBe("req_abc123");
