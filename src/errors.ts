@@ -27,7 +27,7 @@ export interface FieldViolation {
 }
 
 export interface ErrorPayload {
-  /** Stripe-style top-level error type, e.g. "validation_error". */
+  /** Connect error code, e.g. "invalid_argument". */
   type?: string;
   /** Server-side machine-readable code, e.g. "validation_error". */
   code?: string;
@@ -52,7 +52,7 @@ export interface TranscodelyErrorOptions {
 export class TranscodelyError extends Error {
   /** Server-side error code (e.g. "validation_error"). */
   readonly code: string | undefined;
-  /** Top-level error type (e.g. "validation_error"). */
+  /** Connect error code (e.g. "invalid_argument"). */
   readonly type: string | undefined;
   /** Field-level validation violations. */
   readonly errors: FieldViolation[];

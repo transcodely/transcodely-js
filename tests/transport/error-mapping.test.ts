@@ -170,6 +170,50 @@ describe("mapHttpError — payload extraction", () => {
     ]);
   });
 
+  it("reads ErrorDetails by its type, skipping a detail of another type", () => {
+    const wire = {
+      code: "invalid_argument",
+      message: "validation failed",
+      details: [
+        {
+          type: "google.rpc.RetryInfo",
+          debug: { code: "not_ours", fieldViolations: [{ field: "x", description: "y" }] },
+        },
+        {
+          type: "transcodely.v1.ErrorDetails",
+          debug: {
+            code: "validation_error",
+            fieldViolations: [{ field: "input_url", description: "[parameter_required] value is required" }],
+          },
+        },
+      ],
+    };
+    const err = mapHttpError({ status: 400, body: wire, headers: noHeaders });
+    expect(err.code).toBe("validation_error");
+    expect(err.errors).toEqual([
+      { field: "input_url", description: "[parameter_required] value is required" },
+    ]);
+  });
+
+  it("degrades cleanly when no detail is an ErrorDetails", () => {
+    const wire = {
+      code: "invalid_argument",
+      message: "validation failed",
+      details: [
+        {
+          type: "google.rpc.RetryInfo",
+          debug: { code: "not_ours", fieldViolations: [{ field: "x", description: "y" }] },
+        },
+      ],
+    };
+    const err = mapHttpError({ status: 400, body: wire, headers: noHeaders });
+    expect(err).toBeInstanceOf(InvalidRequestError);
+    expect(err.message).toBe("validation failed");
+    expect(err.type).toBe("invalid_argument");
+    expect(err.code).toBeUndefined();
+    expect(err.errors).toEqual([]);
+  });
+
   it("captures requestId from headers", () => {
     const err = mapHttpError({ status: 500, body: {}, headers: withReqId("req_abc123") });
     expect(err.requestId).toBe("req_abc123");
