@@ -4,6 +4,24 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.16](https://github.com/transcodely/transcodely-js/compare/v0.3.15...v0.3.16) (2026-10-31)
+
+
+### Features
+
+* resync protos — auto_abr accepted, tone-mapping refusal rule, validation error envelope ([8f88507](https://github.com/transcodely/transcodely-js/commit/8f8850782adc63ef789ec852a5feac5aeebb1c12))
+* resync protos — auto_abr accepted, tone-mapping refusal rule, validation error envelope ([de3f67b](https://github.com/transcodely/transcodely-js/commit/de3f67b48ffc8c472674bc5f03850616d796d41a))
+
+
+### Bug Fixes
+
+* read the ErrorDetails detail by type, and document type as the Connect code ([f6af4e9](https://github.com/transcodely/transcodely-js/commit/f6af4e9c80398768f8fe5883d18e199ca746b386))
+
+
+### Documentation
+
+* describe the validation error envelope and pin it with a test ([1c44049](https://github.com/transcodely/transcodely-js/commit/1c4404907b4a01577960e1d832c9c25928fc5db3))
+
 ## [0.3.15](https://github.com/transcodely/transcodely-js/compare/v0.3.14...v0.3.15) (2026-10-30)
 
 
