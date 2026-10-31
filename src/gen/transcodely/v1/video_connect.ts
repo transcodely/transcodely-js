@@ -6,7 +6,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
+import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -237,6 +237,40 @@ export const VideoService = {
       name: "GenerateInsights",
       I: GenerateInsightsRequest,
       O: GenerateInsightsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Cut highlight clips from a hosted video: up to max_count short MP4s
+     * (default 5) around the verbatim quotes its ready AI insights picked
+     * (TranscriptInsights.highlights), rendered at the video's top rendition's
+     * codec and resolution. Returns the highlights in "pending"; they also
+     * appear on Video.highlights, and video.highlights.ready (or
+     * video.highlights.failed, when none could be rendered) fires once every
+     * one of them has finished.
+     *
+     * Each highlight is rendered by its own clip job on the video
+     * (input_video_id = the video, with a job-level clip), billed as its
+     * rendered (clipped) minutes at your effective encoding rate and nothing
+     * else: highlight clips carry no per-job processing fee. Those jobs count
+     * toward your concurrency and queue limits and appear in your job list.
+     *
+     * While any highlight of the video is pending, the call returns the
+     * current highlights and bills nothing new. Once all are ready or failed, a
+     * new call replaces them with a new set.
+     *
+     * Refused with failed_precondition: code highlights_require_insights when
+     * the video has no ready AI insights (in the language), and
+     * highlights_no_moments when they picked no quote inside the video; also
+     * while the video is still processing or when the app's managed hosting is
+     * off. Account refusals (spend limit, past due, suspended) are the same as
+     * CreateJob's.
+     *
+     * @generated from rpc transcodely.v1.VideoService.GenerateHighlights
+     */
+    generateHighlights: {
+      name: "GenerateHighlights",
+      I: GenerateHighlightsRequest,
+      O: GenerateHighlightsResponse,
       kind: MethodKind.Unary,
     },
   }

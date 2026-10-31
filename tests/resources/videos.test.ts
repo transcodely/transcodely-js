@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { VideoService } from "../../src/gen/transcodely/v1/video_connect.js";
 import {
   CreateFromUrlResponse,
+  GenerateHighlightsRequest,
+  GenerateHighlightsResponse,
   GenerateInsightsRequest,
   GenerateInsightsResponse,
   GetSeoMarkupResponse,
@@ -10,6 +12,8 @@ import {
   ListTopVideosResponse,
   TopVideo,
   Video,
+  VideoHighlight,
+  VideoHighlightStatus,
   VideoStatsDay,
   VideoStatsTotals,
 } from "../../src/gen/transcodely/v1/video_pb.js";
@@ -211,5 +215,41 @@ describe("Videos facade", () => {
     await new Videos(transport).generateInsights({ id: "vid_a1b2c3d4e5f6g7", appId: "app_xyz" });
     const wire = toWireJson(spy.mock.calls[0][2] as GenerateInsightsRequest) as Record<string, unknown>;
     expect(wire).toEqual({ id: "vid_a1b2c3d4e5f6g7", app_id: "app_xyz" });
+  });
+
+  it("generateHighlights dispatches GenerateHighlights and returns the highlights", async () => {
+    const transport = makeTransport();
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(
+      new GenerateHighlightsResponse({
+        highlights: [
+          new VideoHighlight({ id: "hl_a1b2c3d4e5f6g7", startSeconds: 18.5, endSeconds: 31.5, status: VideoHighlightStatus.PENDING }),
+        ],
+      }),
+    );
+    const out = await new Videos(transport).generateHighlights({ id: "vid_a1b2c3d4e5f6g7", config: { maxCount: 3 } });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toBe(VideoService.methods.generateHighlights);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toBeInstanceOf(VideoHighlight);
+    expect(out[0].id).toBe("hl_a1b2c3d4e5f6g7");
+    expect(out[0].status).toBe(VideoHighlightStatus.PENDING);
+  });
+
+  it("generateHighlights sends snake_case fields on the wire", async () => {
+    const transport = makeTransport();
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(new GenerateHighlightsResponse());
+    await new Videos(transport).generateHighlights({
+      id: "vid_a1b2c3d4e5f6g7",
+      language: "eng",
+      config: { maxCount: 3, paddingSeconds: 2 },
+    });
+    const wire = toWireJson(spy.mock.calls[0][2] as GenerateHighlightsRequest) as Record<string, unknown>;
+    // The codec emits unpopulated scalars, so `enabled` rides as false; the
+    // server ignores it on GenerateHighlights. Unset optionals stay off.
+    expect(wire).toEqual({
+      id: "vid_a1b2c3d4e5f6g7",
+      language: "eng",
+      config: { enabled: false, max_count: 3, padding_seconds: 2 },
+    });
   });
 });

@@ -123,6 +123,48 @@ proto3.util.setEnumType(VideoVisibility, "transcodely.v1.VideoVisibility", [
 ]);
 
 /**
+ * Processing state of a highlight clip.
+ *
+ * @generated from enum transcodely.v1.VideoHighlightStatus
+ */
+export enum VideoHighlightStatus {
+  /**
+   * @generated from enum value: VIDEO_HIGHLIGHT_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Its clip job is queued or rendering.
+   *
+   * @generated from enum value: VIDEO_HIGHLIGHT_STATUS_PENDING = 1;
+   */
+  PENDING = 1,
+
+  /**
+   * Rendered; playback_url and poster_url are available.
+   *
+   * @generated from enum value: VIDEO_HIGHLIGHT_STATUS_READY = 2;
+   */
+  READY = 2,
+
+  /**
+   * Could not be rendered (or was refused); error_code says why. Its clip job,
+   * if any, bills what a failed or canceled job bills; highlight clips carry
+   * no processing fee.
+   *
+   * @generated from enum value: VIDEO_HIGHLIGHT_STATUS_FAILED = 3;
+   */
+  FAILED = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(VideoHighlightStatus)
+proto3.util.setEnumType(VideoHighlightStatus, "transcodely.v1.VideoHighlightStatus", [
+  { no: 0, name: "VIDEO_HIGHLIGHT_STATUS_UNSPECIFIED" },
+  { no: 1, name: "VIDEO_HIGHLIGHT_STATUS_PENDING" },
+  { no: 2, name: "VIDEO_HIGHLIGHT_STATUS_READY" },
+  { no: 3, name: "VIDEO_HIGHLIGHT_STATUS_FAILED" },
+]);
+
+/**
  * A hosted video asset with playback, storage, and cost tracking.
  *
  * @generated from message transcodely.v1.Video
@@ -304,6 +346,19 @@ export class Video extends Message<Video> {
   insights: TranscriptInsights[] = [];
 
   /**
+   * Highlight clips of this video, in the order they occur in it: short MP4s
+   * cut around the quotes its AI insights picked, from GenerateHighlights or
+   * the create-time highlights option. Each moves from "pending" to "ready"
+   * or "failed". Empty until highlights are requested. A new
+   * GenerateHighlights call replaces the whole list. Signed URLs are
+   * computed per request under the same rules as poster_url and are never
+   * stored.
+   *
+   * @generated from field: repeated transcodely.v1.VideoHighlight highlights = 54;
+   */
+  highlights: VideoHighlight[] = [];
+
+  /**
    * Storage and cost transparency.
    *
    * @generated from field: int64 output_size_bytes = 30;
@@ -452,6 +507,7 @@ export class Video extends Message<Video> {
     { no: 25, name: "renditions", kind: "message", T: VideoRendition, repeated: true },
     { no: 49, name: "text_tracks", kind: "message", T: VideoTextTrack, repeated: true },
     { no: 53, name: "insights", kind: "message", T: TranscriptInsights, repeated: true },
+    { no: 54, name: "highlights", kind: "message", T: VideoHighlight, repeated: true },
     { no: 30, name: "output_size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 31, name: "encoding_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 50, name: "captions_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
@@ -836,6 +892,21 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
    */
   autoInsights?: boolean;
 
+  /**
+   * Highlight clips to cut automatically once this video's AI insights are
+   * ready: short MP4s around the quotes insights pick, surfaced as
+   * Video.highlights (see GenerateHighlights for how they are chosen and
+   * billed). Requires auto_insights = true; rejected otherwise with
+   * `invalid_argument`, error code `parameter_incompatible` on highlights.
+   * If the cut is refused (spend limit, past due, no usable moment, ...),
+   * Video.highlights gets one failed highlight carrying the refusal's code and
+   * video.highlights.failed fires. Omitted, or enabled = false: no automatic
+   * highlights (GenerateHighlights can still cut them later).
+   *
+   * @generated from field: optional transcodely.v1.HighlightsConfig highlights = 13;
+   */
+  highlights?: HighlightsConfig;
+
   constructor(data?: PartialMessage<CreateUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -856,6 +927,7 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
     { no: 10, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 11, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 12, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 13, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateUploadRequest {
@@ -1134,6 +1206,21 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
    */
   autoInsights?: boolean;
 
+  /**
+   * Highlight clips to cut automatically once this video's AI insights are
+   * ready: short MP4s around the quotes insights pick, surfaced as
+   * Video.highlights (see GenerateHighlights for how they are chosen and
+   * billed). Requires auto_insights = true; rejected otherwise with
+   * `invalid_argument`, error code `parameter_incompatible` on highlights.
+   * If the cut is refused (spend limit, past due, no usable moment, ...),
+   * Video.highlights gets one failed highlight carrying the refusal's code and
+   * video.highlights.failed fires. Omitted, or enabled = false: no automatic
+   * highlights (GenerateHighlights can still cut them later).
+   *
+   * @generated from field: optional transcodely.v1.HighlightsConfig highlights = 11;
+   */
+  highlights?: HighlightsConfig;
+
   constructor(data?: PartialMessage<CreateFromUrlRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1152,6 +1239,7 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
     { no: 8, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 9, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 10, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 11, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateFromUrlRequest {
@@ -1455,6 +1543,21 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
    */
   autoInsights?: boolean;
 
+  /**
+   * Highlight clips to cut automatically once this video's AI insights are
+   * ready: short MP4s around the quotes insights pick, surfaced as
+   * Video.highlights (see GenerateHighlights for how they are chosen and
+   * billed). Requires auto_insights = true; rejected otherwise with
+   * `invalid_argument`, error code `parameter_incompatible` on highlights.
+   * If the cut is refused (spend limit, past due, no usable moment, ...),
+   * Video.highlights gets one failed highlight carrying the refusal's code and
+   * video.highlights.failed fires. Omitted, or enabled = false: no automatic
+   * highlights (GenerateHighlights can still cut them later).
+   *
+   * @generated from field: optional transcodely.v1.HighlightsConfig highlights = 18;
+   */
+  highlights?: HighlightsConfig;
+
   constructor(data?: PartialMessage<CreateMultipartUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1477,6 +1580,7 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
     { no: 15, name: "hover_previews", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 16, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 17, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 18, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateMultipartUploadRequest {
@@ -3352,6 +3456,346 @@ export class GenerateInsightsResponse extends Message<GenerateInsightsResponse> 
 
   static equals(a: GenerateInsightsResponse | PlainMessage<GenerateInsightsResponse> | undefined, b: GenerateInsightsResponse | PlainMessage<GenerateInsightsResponse> | undefined): boolean {
     return proto3.util.equals(GenerateInsightsResponse, a, b);
+  }
+}
+
+/**
+ * How highlight clips are chosen from a video's AI insights.
+ *
+ * Each quote insights picked (TranscriptInsights.highlights) becomes one
+ * window: padded by padding_seconds on both sides and kept inside the video;
+ * a window shorter than min_seconds is extended forward (or, at the end of
+ * the video, backward) to min_seconds, and one longer than max_seconds is cut
+ * at max_seconds from its start. Overlapping windows are merged. If more than
+ * max_count remain, the longest are kept (ties go to the earlier one).
+ *
+ * @generated from message transcodely.v1.HighlightsConfig
+ */
+export class HighlightsConfig extends Message<HighlightsConfig> {
+  /**
+   * Create-time option only: true cuts the highlights automatically once the
+   * video's AI insights are ready. Ignored by GenerateHighlights, which always
+   * cuts them.
+   *
+   * @generated from field: bool enabled = 1;
+   */
+  enabled = false;
+
+  /**
+   * Maximum number of highlights, 1 to 10. Default 5.
+   *
+   * @generated from field: optional int32 max_count = 2;
+   */
+  maxCount?: number;
+
+  /**
+   * Shortest highlight in seconds, 1 to 300. Default 8. A video shorter than
+   * this yields one highlight of the whole video.
+   *
+   * @generated from field: optional double min_seconds = 3;
+   */
+  minSeconds?: number;
+
+  /**
+   * Longest highlight in seconds, 1 to 300, and not below min_seconds.
+   * Default 60.
+   *
+   * @generated from field: optional double max_seconds = 4;
+   */
+  maxSeconds?: number;
+
+  /**
+   * Seconds added before and after each quote so words are not cut off, 0 to
+   * 10. Default 1.5.
+   *
+   * @generated from field: optional double padding_seconds = 5;
+   */
+  paddingSeconds?: number;
+
+  constructor(data?: PartialMessage<HighlightsConfig>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.HighlightsConfig";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "enabled", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "max_count", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 3, name: "min_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 4, name: "max_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 5, name: "padding_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): HighlightsConfig {
+    return new HighlightsConfig().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): HighlightsConfig {
+    return new HighlightsConfig().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): HighlightsConfig {
+    return new HighlightsConfig().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: HighlightsConfig | PlainMessage<HighlightsConfig> | undefined, b: HighlightsConfig | PlainMessage<HighlightsConfig> | undefined): boolean {
+    return proto3.util.equals(HighlightsConfig, a, b);
+  }
+}
+
+/**
+ * One highlight clip of a hosted video (read-only).
+ *
+ * @generated from message transcodely.v1.VideoHighlight
+ */
+export class VideoHighlight extends Message<VideoHighlight> {
+  /**
+   * Highlight ID (hl_ prefix).
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * Where the clip starts and ends in the video, in seconds.
+   *
+   * @generated from field: double start_seconds = 2;
+   */
+  startSeconds = 0;
+
+  /**
+   * @generated from field: double end_seconds = 3;
+   */
+  endSeconds = 0;
+
+  /**
+   * The quote the clip was cut around, shortened to at most 120 characters.
+   *
+   * @generated from field: string title = 4;
+   */
+  title = "";
+
+  /**
+   * Processing state.
+   *
+   * @generated from field: transcodely.v1.VideoHighlightStatus status = 5;
+   */
+  status = VideoHighlightStatus.UNSPECIFIED;
+
+  /**
+   * Why the highlight failed: the clip job's own error code when it has one
+   * (for example input_not_found); highlight_render_failed when the job
+   * failed or was canceled without one; the refusal's own code (for example
+   * billing_past_due or queue_limit_exceeded) when the account refused the
+   * job; highlight_job_refused when the job was never created for another
+   * reason. Present only when status is "failed".
+   *
+   * A create-time highlights request that is refused outright is recorded as
+   * ONE failed highlight with the refusal's code and start_seconds =
+   * end_seconds = 0 (it has no window and no job).
+   *
+   * @generated from field: optional string error_code = 6;
+   */
+  errorCode?: string;
+
+  /**
+   * Signed (on token-auth apps) MP4 URL of the clip. Present only when status
+   * is "ready" and the video's URLs can be issued (the same rules as
+   * Video.poster_url).
+   *
+   * @generated from field: optional string playback_url = 7;
+   */
+  playbackUrl?: string;
+
+  /**
+   * Poster frame URL, from the first frame of the clip. Same rules as
+   * playback_url.
+   *
+   * @generated from field: optional string poster_url = 8;
+   */
+  posterUrl?: string;
+
+  /**
+   * Rendered length in seconds, as measured. Present once ready.
+   *
+   * @generated from field: optional double duration_seconds = 9;
+   */
+  durationSeconds?: number;
+
+  /**
+   * The clip job that renders it (billed like any clip job). Present once the
+   * job was created.
+   *
+   * @generated from field: optional string job_id = 10;
+   */
+  jobId?: string;
+
+  /**
+   * Language of the insights the quote came from (ISO 639-2).
+   *
+   * @generated from field: string language = 11;
+   */
+  language = "";
+
+  /**
+   * When the highlight was requested.
+   *
+   * @generated from field: google.protobuf.Timestamp created_at = 12;
+   */
+  createdAt?: Timestamp;
+
+  constructor(data?: PartialMessage<VideoHighlight>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.VideoHighlight";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "start_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 3, name: "end_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 4, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "status", kind: "enum", T: proto3.getEnumType(VideoHighlightStatus) },
+    { no: 6, name: "error_code", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 7, name: "playback_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 8, name: "poster_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 9, name: "duration_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 10, name: "job_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 11, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "created_at", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VideoHighlight {
+    return new VideoHighlight().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): VideoHighlight {
+    return new VideoHighlight().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): VideoHighlight {
+    return new VideoHighlight().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: VideoHighlight | PlainMessage<VideoHighlight> | undefined, b: VideoHighlight | PlainMessage<VideoHighlight> | undefined): boolean {
+    return proto3.util.equals(VideoHighlight, a, b);
+  }
+}
+
+/**
+ * Request to cut highlight clips from a hosted video.
+ *
+ * @generated from message transcodely.v1.GenerateHighlightsRequest
+ */
+export class GenerateHighlightsRequest extends Message<GenerateHighlightsRequest> {
+  /**
+   * Video ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * ISO 639-2 language of the AI insights to cut from (e.g. "eng"). Optional
+   * when the video has ready insights in exactly one language; required when
+   * it has several (refused with code parameter_required, listing them).
+   *
+   * @generated from field: optional string language = 2;
+   */
+  language?: string;
+
+  /**
+   * How to choose the clips. Omitted fields take their defaults; enabled is
+   * ignored here.
+   *
+   * @generated from field: optional transcodely.v1.HighlightsConfig config = 3;
+   */
+  config?: HighlightsConfig;
+
+  /**
+   * Optional app the video belongs to. API-key callers may omit it (their
+   * key's app is used) or pass their own app; a different app is rejected
+   * with PermissionDenied. Portal/JWT callers may pass it; omitted, the app
+   * is resolved from the video.
+   *
+   * @generated from field: optional string app_id = 4;
+   */
+  appId?: string;
+
+  constructor(data?: PartialMessage<GenerateHighlightsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GenerateHighlightsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "config", kind: "message", T: HighlightsConfig, opt: true },
+    { no: 4, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GenerateHighlightsRequest {
+    return new GenerateHighlightsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GenerateHighlightsRequest {
+    return new GenerateHighlightsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GenerateHighlightsRequest {
+    return new GenerateHighlightsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GenerateHighlightsRequest | PlainMessage<GenerateHighlightsRequest> | undefined, b: GenerateHighlightsRequest | PlainMessage<GenerateHighlightsRequest> | undefined): boolean {
+    return proto3.util.equals(GenerateHighlightsRequest, a, b);
+  }
+}
+
+/**
+ * Response from GenerateHighlights.
+ *
+ * @generated from message transcodely.v1.GenerateHighlightsResponse
+ */
+export class GenerateHighlightsResponse extends Message<GenerateHighlightsResponse> {
+  /**
+   * The video's highlights: the new set, each "pending" (or "failed" when an
+   * account limit refused its job), or the set already pending. Poll
+   * VideoService.Get (or Watch) or subscribe to video.highlights.ready /
+   * video.highlights.failed.
+   *
+   * @generated from field: repeated transcodely.v1.VideoHighlight highlights = 1;
+   */
+  highlights: VideoHighlight[] = [];
+
+  constructor(data?: PartialMessage<GenerateHighlightsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GenerateHighlightsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "highlights", kind: "message", T: VideoHighlight, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GenerateHighlightsResponse {
+    return new GenerateHighlightsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GenerateHighlightsResponse {
+    return new GenerateHighlightsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GenerateHighlightsResponse {
+    return new GenerateHighlightsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GenerateHighlightsResponse | PlainMessage<GenerateHighlightsResponse> | undefined, b: GenerateHighlightsResponse | PlainMessage<GenerateHighlightsResponse> | undefined): boolean {
+    return proto3.util.equals(GenerateHighlightsResponse, a, b);
   }
 }
 

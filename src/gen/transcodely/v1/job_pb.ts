@@ -2673,7 +2673,11 @@ export class Job extends Message<Job> {
   webhookUrl?: string;
 
   /**
-   * User-provided metadata (key-value pairs).
+   * User-provided metadata (key-value pairs). Keys starting with
+   * `transcodely_` are the platform's own: they appear on jobs Transcodely
+   * creates for you (for example `transcodely_kind: video_highlight` on a
+   * highlight clip job, with `transcodely_highlight_id` and
+   * `transcodely_video_id`).
    *
    * @generated from field: map<string, string> metadata = 13;
    */
@@ -3465,7 +3469,10 @@ export class CreateJobRequest extends Message<CreateJobRequest> {
   idempotencyKey?: string;
 
   /**
-   * User-provided metadata (key-value pairs, max 20 entries).
+   * User-provided metadata (key-value pairs, max 20 entries). Keys starting
+   * with `transcodely_` are reserved for the platform and refused with
+   * `invalid_argument`, error code `parameter_invalid` on
+   * `metadata.<key>`.
    *
    * @generated from field: map<string, string> metadata = 6;
    */

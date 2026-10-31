@@ -55,6 +55,9 @@ if (isKnownEvent(event)) {
     case "video.failed":
     case "video.deleted":
     case "video.source_scheduled_for_deletion":
+    // video.highlights.* carry the Video snapshot, with highlights.
+    case "video.highlights.ready":
+    case "video.highlights.failed":
       expectType<Equal<typeof event.data, Video>>();
       break;
     // video.insights.* share the "video." prefix but carry the insights entry

@@ -1146,7 +1146,11 @@ message Job {
   // URL to receive webhook notifications.
   optional string webhook_url = 12;
 
-  // User-provided metadata (key-value pairs).
+  // User-provided metadata (key-value pairs). Keys starting with
+  // `transcodely_` are the platform's own: they appear on jobs Transcodely
+  // creates for you (for example `transcodely_kind: video_highlight` on a
+  // highlight clip job, with `transcodely_highlight_id` and
+  // `transcodely_video_id`).
   map<string, string> metadata = 13;
 
   // When the job was created.
@@ -1605,7 +1609,10 @@ message CreateJobRequest {
     (buf.validate.field).string.max_len = 128
   ];
 
-  // User-provided metadata (key-value pairs, max 20 entries).
+  // User-provided metadata (key-value pairs, max 20 entries). Keys starting
+  // with `transcodely_` are reserved for the platform and refused with
+  // `invalid_argument`, error code `parameter_invalid` on
+  // `metadata.<key>`.
   map<string, string> metadata = 6 [
     (buf.validate.field).map.max_pairs = 20,
     (buf.validate.field).map.keys = { string: { min_len: 1, max_len: 64 } },
