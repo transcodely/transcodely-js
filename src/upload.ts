@@ -11,7 +11,9 @@
  * targeting the browser never pulls it in.
  */
 
-import type { UploadPart, Video } from "./gen/transcodely/v1/video_pb.js";
+import type { PartialMessage } from "@bufbuild/protobuf";
+
+import type { HighlightsConfig, UploadPart, Video } from "./gen/transcodely/v1/video_pb.js";
 import { UploadAbortedError, UploadError } from "./errors.js";
 
 /** Smallest part S3 accepts, except for the final part (5 MiB). */
@@ -102,6 +104,8 @@ export interface PutFileOptions {
   autoCaptions?: boolean;
   /** Also run AI insights over the inline captions (requires autoCaptions). EUR 0.02 per video + EUR 0.005 per source minute on top of captions. */
   autoInsights?: boolean;
+  /** Cut highlight clips once the insights are ready (requires autoInsights): `{ enabled: true }`, other fields default. Billed as the clips' rendered minutes, no processing fee. */
+  highlights?: PartialMessage<HighlightsConfig>;
 
   /** Bytes per part. Clamped up to 5 MiB, and raised further if 10,000 parts would not cover the file. */
   partSize?: number;
@@ -550,6 +554,7 @@ export interface UploadRpcClient {
     hoverPreviews?: boolean;
     autoCaptions?: boolean;
     autoInsights?: boolean;
+    highlights?: PartialMessage<HighlightsConfig>;
   }): Promise<{ video?: Video; uploadUrl: string }>;
   completeUpload(req: { id: string }): Promise<{ video?: Video }>;
   createMultipartUpload(req: {
@@ -567,6 +572,7 @@ export interface UploadRpcClient {
     hoverPreviews?: boolean;
     autoCaptions?: boolean;
     autoInsights?: boolean;
+    highlights?: PartialMessage<HighlightsConfig>;
   }): Promise<{ video?: Video; uploadId: string; parts: UploadPart[] }>;
   getUploadPartUrls(req: {
     id: string;
@@ -650,6 +656,7 @@ export class UploadEngine {
       ...(opts.hoverPreviews !== undefined ? { hoverPreviews: opts.hoverPreviews } : {}),
       ...(opts.autoCaptions !== undefined ? { autoCaptions: opts.autoCaptions } : {}),
       ...(opts.autoInsights !== undefined ? { autoInsights: opts.autoInsights } : {}),
+      ...(opts.highlights !== undefined ? { highlights: opts.highlights } : {}),
     };
 
     return totalParts === 1

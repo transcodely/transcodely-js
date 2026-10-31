@@ -9,6 +9,7 @@ import {
   CreateMultipartUploadRequest,
   CreateUploadRequest,
   DeleteVideoRequest,
+  GenerateHighlightsRequest,
   GenerateInsightsRequest,
   GetSeoMarkupRequest,
   type GetSeoMarkupResponse,
@@ -22,6 +23,7 @@ import {
   ListVideosRequest,
   UpdateVideoRequest,
   type Video,
+  type VideoHighlight,
   WatchVideoRequest,
   type WatchVideoResponse,
 } from "../gen/transcodely/v1/video_pb.js";
@@ -262,5 +264,32 @@ export class Videos {
       opts,
     );
     return res.insights!;
+  }
+
+  /**
+   * Cut highlight clips from a hosted video: up to `config.maxCount` short
+   * MP4s (default 5) around the quotes its ready AI insights picked. Returns
+   * the highlights in "pending"; they also appear on `video.highlights`, and
+   * `video.highlights.ready` (or `video.highlights.failed`, when none could be
+   * rendered) fires once every one has finished.
+   *
+   * Each clip is its own clip job on the video, billed as its rendered
+   * (clipped) minutes at your effective encoding rate, with no processing fee.
+   * While any highlight of the video is pending, the call returns the current
+   * set and bills nothing new; once all are ready or failed, a new call
+   * replaces them. A video without ready insights is refused with
+   * failed_precondition (code highlights_require_insights).
+   */
+  async generateHighlights(
+    req: PartialMessage<GenerateHighlightsRequest>,
+    opts?: CallOptions,
+  ): Promise<VideoHighlight[]> {
+    const res = await this.transport.unary(
+      VideoService,
+      VideoService.methods.generateHighlights,
+      new GenerateHighlightsRequest(req),
+      opts,
+    );
+    return res.highlights;
   }
 }

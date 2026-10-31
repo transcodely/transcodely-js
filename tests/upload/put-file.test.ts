@@ -205,6 +205,21 @@ describe("putFile — single PUT (one part)", () => {
     expect(create.auto_insights).toBe(true);
   });
 
+  it("forwards highlights to CreateUpload as snake_case", async () => {
+    const c = await client();
+    const { path } = await fixture("clip.mp4", 1024 * 64);
+
+    await c.uploads.putFile(path, {
+      appId: "app_k1l2m3n4o5",
+      autoCaptions: true,
+      autoInsights: true,
+      highlights: { enabled: true, maxCount: 3 },
+    });
+
+    const create = server!.calls.find((c2) => c2.method === "CreateUpload")!.body;
+    expect(create.highlights).toEqual({ enabled: true, max_count: 3 });
+  });
+
   it("leaves auto_insights off the wire when the caller does not set it", async () => {
     const c = await client();
     const { path } = await fixture("clip.mp4", 1024 * 64);

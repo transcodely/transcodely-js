@@ -14,7 +14,7 @@ import {
   InsightsStatus,
   TranscriptInsights,
 } from "../../src/gen/transcodely/v1/subtitles_pb.js";
-import { Video } from "../../src/gen/transcodely/v1/video_pb.js";
+import { Video, VideoHighlightStatus } from "../../src/gen/transcodely/v1/video_pb.js";
 import { constructEvent } from "../../src/webhooks/construct-event.js";
 
 const SECRET = "whsec_test_12345678901234567890abcdef";
@@ -153,6 +153,29 @@ describe("constructEvent — happy paths", () => {
     expect(failed.data).toBeInstanceOf(TranscriptInsights);
     expect((failed.data as TranscriptInsights).status).toBe(InsightsStatus.FAILED);
     expect((failed.data as TranscriptInsights).errorCode).toBe("insights_failed");
+  });
+
+  it("decodes video.highlights.* events as a Video carrying its highlights", () => {
+    const body = envelope({
+      type: "video.highlights.ready",
+      data: {
+        id: "vid_abc",
+        highlights: [
+          { id: "hl_a1b2c3d4e5f6g7", start_seconds: 18.5, end_seconds: 31.5, status: "ready", playback_url: "https://cdn.example/x.mp4", language: "eng" },
+          { id: "hl_b1b2c3d4e5f6g7", status: "failed", error_code: "queue_limit_exceeded", language: "eng" },
+        ],
+      },
+    });
+    const event = constructEvent(body, header(body), SECRET, { now: NOW });
+    expect(event.type).toBe("video.highlights.ready");
+    expect(event.data).toBeInstanceOf(Video);
+    const hl = (event.data as Video).highlights;
+    expect(hl).toHaveLength(2);
+    expect(hl[0].status).toBe(VideoHighlightStatus.READY);
+    expect(hl[0].startSeconds).toBe(18.5);
+    expect(hl[0].playbackUrl).toBe("https://cdn.example/x.mp4");
+    expect(hl[1].status).toBe(VideoHighlightStatus.FAILED);
+    expect(hl[1].errorCode).toBe("queue_limit_exceeded");
   });
 
   it("leaves a spend-limit event's data as the raw notification (not a mis-decoded App)", () => {

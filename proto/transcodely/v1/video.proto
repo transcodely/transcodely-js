@@ -95,6 +95,32 @@ service VideoService {
   // video has no AI captions, and insights_transcript_unavailable when the
   // caption track has no transcript.
   rpc GenerateInsights(GenerateInsightsRequest) returns (GenerateInsightsResponse);
+
+  // Cut highlight clips from a hosted video: up to max_count short MP4s
+  // (default 5) around the verbatim quotes its ready AI insights picked
+  // (TranscriptInsights.highlights), rendered at the video's top rendition's
+  // codec and resolution. Returns the highlights in "pending"; they also
+  // appear on Video.highlights, and video.highlights.ready (or
+  // video.highlights.failed, when none could be rendered) fires once every
+  // one of them has finished.
+  //
+  // Each highlight is rendered by its own clip job on the video
+  // (input_video_id = the video, with a job-level clip), billed as its
+  // rendered (clipped) minutes at your effective encoding rate and nothing
+  // else: highlight clips carry no per-job processing fee. Those jobs count
+  // toward your concurrency and queue limits and appear in your job list.
+  //
+  // While any highlight of the video is pending, the call returns the
+  // current highlights and bills nothing new. Once all are ready or failed, a
+  // new call replaces them with a new set.
+  //
+  // Refused with failed_precondition: code highlights_require_insights when
+  // the video has no ready AI insights (in the language), and
+  // highlights_no_moments when they picked no quote inside the video; also
+  // while the video is still processing or when the app's managed hosting is
+  // off. Account refusals (spend limit, past due, suspended) are the same as
+  // CreateJob's.
+  rpc GenerateHighlights(GenerateHighlightsRequest) returns (GenerateHighlightsResponse);
 }
 
 // =============================================================================
@@ -233,6 +259,15 @@ message Video {
   // Signed URLs are computed per request under the same rules as text track
   // URLs and are never stored.
   repeated TranscriptInsights insights = 53;
+
+  // Highlight clips of this video, in the order they occur in it: short MP4s
+  // cut around the quotes its AI insights picked, from GenerateHighlights or
+  // the create-time highlights option. Each moves from "pending" to "ready"
+  // or "failed". Empty until highlights are requested. A new
+  // GenerateHighlights call replaces the whole list. Signed URLs are
+  // computed per request under the same rules as poster_url and are never
+  // stored.
+  repeated VideoHighlight highlights = 54;
 
   // Storage and cost transparency.
   int64 output_size_bytes = 30;
@@ -487,6 +522,17 @@ message CreateUploadRequest {
   // Deployments without the feature reject it with `invalid_argument`, error
   // code `parameter_unsupported`. Unset or false = no insights.
   optional bool auto_insights = 12;
+
+  // Highlight clips to cut automatically once this video's AI insights are
+  // ready: short MP4s around the quotes insights pick, surfaced as
+  // Video.highlights (see GenerateHighlights for how they are chosen and
+  // billed). Requires auto_insights = true; rejected otherwise with
+  // `invalid_argument`, error code `parameter_incompatible` on highlights.
+  // If the cut is refused (spend limit, past due, no usable moment, ...),
+  // Video.highlights gets one failed highlight carrying the refusal's code and
+  // video.highlights.failed fires. Omitted, or enabled = false: no automatic
+  // highlights (GenerateHighlights can still cut them later).
+  optional HighlightsConfig highlights = 13;
 }
 
 // Response from creating an upload.
@@ -607,6 +653,17 @@ message CreateFromUrlRequest {
   // Deployments without the feature reject it with `invalid_argument`, error
   // code `parameter_unsupported`. Unset or false = no insights.
   optional bool auto_insights = 10;
+
+  // Highlight clips to cut automatically once this video's AI insights are
+  // ready: short MP4s around the quotes insights pick, surfaced as
+  // Video.highlights (see GenerateHighlights for how they are chosen and
+  // billed). Requires auto_insights = true; rejected otherwise with
+  // `invalid_argument`, error code `parameter_incompatible` on highlights.
+  // If the cut is refused (spend limit, past due, no usable moment, ...),
+  // Video.highlights gets one failed highlight carrying the refusal's code and
+  // video.highlights.failed fires. Omitted, or enabled = false: no automatic
+  // highlights (GenerateHighlights can still cut them later).
+  optional HighlightsConfig highlights = 11;
 }
 
 // Response from creating a video from a URL.
@@ -748,6 +805,17 @@ message CreateMultipartUploadRequest {
   // Deployments without the feature reject it with `invalid_argument`, error
   // code `parameter_unsupported`. Unset or false = no insights.
   optional bool auto_insights = 17;
+
+  // Highlight clips to cut automatically once this video's AI insights are
+  // ready: short MP4s around the quotes insights pick, surfaced as
+  // Video.highlights (see GenerateHighlights for how they are chosen and
+  // billed). Requires auto_insights = true; rejected otherwise with
+  // `invalid_argument`, error code `parameter_incompatible` on highlights.
+  // If the cut is refused (spend limit, past due, no usable moment, ...),
+  // Video.highlights gets one failed highlight carrying the refusal's code and
+  // video.highlights.failed fires. Omitted, or enabled = false: no automatic
+  // highlights (GenerateHighlights can still cut them later).
+  optional HighlightsConfig highlights = 18;
 }
 
 // Response from creating a multipart upload.
@@ -1279,4 +1347,141 @@ message GenerateInsightsResponse {
   // video and language. Status is "pending"; poll VideoService.Get (or
   // Watch) or subscribe to video.insights.ready / video.insights.failed.
   TranscriptInsights insights = 1;
+}
+
+// =============================================================================
+// Highlight clips
+// =============================================================================
+
+// How highlight clips are chosen from a video's AI insights.
+//
+// Each quote insights picked (TranscriptInsights.highlights) becomes one
+// window: padded by padding_seconds on both sides and kept inside the video;
+// a window shorter than min_seconds is extended forward (or, at the end of
+// the video, backward) to min_seconds, and one longer than max_seconds is cut
+// at max_seconds from its start. Overlapping windows are merged. If more than
+// max_count remain, the longest are kept (ties go to the earlier one).
+message HighlightsConfig {
+  // Create-time option only: true cuts the highlights automatically once the
+  // video's AI insights are ready. Ignored by GenerateHighlights, which always
+  // cuts them.
+  bool enabled = 1;
+
+  // Maximum number of highlights, 1 to 10. Default 5.
+  optional int32 max_count = 2 [(buf.validate.field).int32 = {gte: 1, lte: 10}];
+
+  // Shortest highlight in seconds, 1 to 300. Default 8. A video shorter than
+  // this yields one highlight of the whole video.
+  optional double min_seconds = 3 [(buf.validate.field).double = {gte: 1, lte: 300}];
+
+  // Longest highlight in seconds, 1 to 300, and not below min_seconds.
+  // Default 60.
+  optional double max_seconds = 4 [(buf.validate.field).double = {gte: 1, lte: 300}];
+
+  // Seconds added before and after each quote so words are not cut off, 0 to
+  // 10. Default 1.5.
+  optional double padding_seconds = 5 [(buf.validate.field).double = {gte: 0, lte: 10}];
+}
+
+// Processing state of a highlight clip.
+enum VideoHighlightStatus {
+  VIDEO_HIGHLIGHT_STATUS_UNSPECIFIED = 0;
+
+  // Its clip job is queued or rendering.
+  VIDEO_HIGHLIGHT_STATUS_PENDING = 1;
+
+  // Rendered; playback_url and poster_url are available.
+  VIDEO_HIGHLIGHT_STATUS_READY = 2;
+
+  // Could not be rendered (or was refused); error_code says why. Its clip job,
+  // if any, bills what a failed or canceled job bills; highlight clips carry
+  // no processing fee.
+  VIDEO_HIGHLIGHT_STATUS_FAILED = 3;
+}
+
+// One highlight clip of a hosted video (read-only).
+message VideoHighlight {
+  // Highlight ID (hl_ prefix).
+  string id = 1;
+
+  // Where the clip starts and ends in the video, in seconds.
+  double start_seconds = 2;
+  double end_seconds = 3;
+
+  // The quote the clip was cut around, shortened to at most 120 characters.
+  string title = 4;
+
+  // Processing state.
+  VideoHighlightStatus status = 5;
+
+  // Why the highlight failed: the clip job's own error code when it has one
+  // (for example input_not_found); highlight_render_failed when the job
+  // failed or was canceled without one; the refusal's own code (for example
+  // billing_past_due or queue_limit_exceeded) when the account refused the
+  // job; highlight_job_refused when the job was never created for another
+  // reason. Present only when status is "failed".
+  //
+  // A create-time highlights request that is refused outright is recorded as
+  // ONE failed highlight with the refusal's code and start_seconds =
+  // end_seconds = 0 (it has no window and no job).
+  optional string error_code = 6;
+
+  // Signed (on token-auth apps) MP4 URL of the clip. Present only when status
+  // is "ready" and the video's URLs can be issued (the same rules as
+  // Video.poster_url).
+  optional string playback_url = 7;
+
+  // Poster frame URL, from the first frame of the clip. Same rules as
+  // playback_url.
+  optional string poster_url = 8;
+
+  // Rendered length in seconds, as measured. Present once ready.
+  optional double duration_seconds = 9;
+
+  // The clip job that renders it (billed like any clip job). Present once the
+  // job was created.
+  optional string job_id = 10;
+
+  // Language of the insights the quote came from (ISO 639-2).
+  string language = 11;
+
+  // When the highlight was requested.
+  google.protobuf.Timestamp created_at = 12;
+}
+
+// Request to cut highlight clips from a hosted video.
+message GenerateHighlightsRequest {
+  // Video ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // ISO 639-2 language of the AI insights to cut from (e.g. "eng"). Optional
+  // when the video has ready insights in exactly one language; required when
+  // it has several (refused with code parameter_required, listing them).
+  optional string language = 2 [
+    (buf.validate.field).string.pattern = "^[a-z]{3}$"
+  ];
+
+  // How to choose the clips. Omitted fields take their defaults; enabled is
+  // ignored here.
+  optional HighlightsConfig config = 3;
+
+  // Optional app the video belongs to. API-key callers may omit it (their
+  // key's app is used) or pass their own app; a different app is rejected
+  // with PermissionDenied. Portal/JWT callers may pass it; omitted, the app
+  // is resolved from the video.
+  optional string app_id = 4 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from GenerateHighlights.
+message GenerateHighlightsResponse {
+  // The video's highlights: the new set, each "pending" (or "failed" when an
+  // account limit refused its job), or the set already pending. Poll
+  // VideoService.Get (or Watch) or subscribe to video.highlights.ready /
+  // video.highlights.failed.
+  repeated VideoHighlight highlights = 1;
 }

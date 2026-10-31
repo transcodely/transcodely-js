@@ -296,6 +296,40 @@ The entry also appears on `video.insights`. The `video.insights.ready` and
 `video.insights.failed` webhook events carry the entry itself as a
 `TranscriptInsights` in `event.data`.
 
+## Highlight clips
+
+A hosted video with ready insights can get short MP4 highlight clips cut
+around the quotes insights picked (default up to 5 clips of 8 to 60 seconds,
+padded 1.5 s each side). Each clip bills its rendered minutes at your encoding
+rate, with no processing fee:
+
+```ts
+import { VideoHighlightStatus } from "@transcodely/sdk";
+
+// `language` is needed only when the video has insights in several languages;
+// every `config` field is optional.
+const highlights = await client.videos.generateHighlights({
+  id: "vid_a1b2c3d4e5f6g7",
+  config: { maxCount: 3 },
+});
+for (const h of highlights) {
+  console.log(h.id, h.startSeconds, h.endSeconds, h.status); // hl_..., VideoHighlightStatus.PENDING
+}
+```
+
+Or ask for them at upload time with `highlights: { enabled: true }` next to
+`autoInsights: true` (on `uploads.putFile`, `videos.createUpload`,
+`videos.createFromUrl` and the multipart create). The clips appear on
+`video.highlights`; once one is `VideoHighlightStatus.READY` it carries a
+`playbackUrl` and a `posterUrl`. The `video.highlights.ready` and
+`video.highlights.failed` webhook events fire once the whole set has finished
+and carry the `Video` in `event.data`.
+
+Each clip is rendered by an ordinary clip job, tagged with `transcodely_kind`,
+`transcodely_highlight_id` and `transcodely_video_id` metadata. Metadata keys
+starting with `transcodely_` are reserved for the platform: a job or ingest
+rule that sets one is refused with `parameter_invalid` on `metadata.<key>`.
+
 ## Authentication
 
 Pass your API key in the constructor:
@@ -309,7 +343,7 @@ const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 ```ts
 client.jobs            // create / get / list / cancel / confirm / watch
 client.uploads         // putFile — the whole create / PUT / complete upload, for a path, Blob or stream
-client.videos          // upload RPCs, multipart, createFromUrl, get / list / update / delete / watch / getStats / listTopVideos / getSeoMarkup
+client.videos          // upload RPCs, multipart, createFromUrl, get / list / update / delete / watch / getStats / listTopVideos / getSeoMarkup / generateInsights / generateHighlights
 client.presets         // create / get / getBySlug / list / update / duplicate / archive
 client.origins         // create / get / list / update / validate / archive
 client.ingestRules     // create / get / list / update / delete / listEvents / test / replayEvent

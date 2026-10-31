@@ -285,7 +285,9 @@ message IngestRuleAction {
 
   // Metadata copied onto every job the rule creates. The rule also adds
   // `ingest_rule_id` and `ingest_object_key` of its own, which you can read
-  // back on the job and in webhook payloads.
+  // back on the job and in webhook payloads. Keys starting with
+  // `transcodely_` are reserved for the platform and refused when the rule is
+  // created or updated (`parameter_invalid` on `action.metadata.<key>`).
   map<string, string> metadata = 7 [
     (buf.validate.field).map.max_pairs = 18,
     (buf.validate.field).map.keys = {string: {min_len: 1, max_len: 64}},

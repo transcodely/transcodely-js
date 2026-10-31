@@ -64,6 +64,8 @@ export type KnownWebhookEvent =
   | (EventBase & { type: "video.source_scheduled_for_deletion"; data: Video })
   | (EventBase & { type: "video.insights.ready";  data: TranscriptInsights })
   | (EventBase & { type: "video.insights.failed"; data: TranscriptInsights })
+  | (EventBase & { type: "video.highlights.ready";  data: Video })
+  | (EventBase & { type: "video.highlights.failed"; data: Video })
   | (EventBase & { type: "app.created";     data: App })
   | (EventBase & { type: "app.updated";     data: App })
   | (EventBase & { type: "app.spend_limit_warning";  data: SpendLimitNotification })
@@ -146,6 +148,8 @@ export const WEBHOOK_EVENT_TYPES = [
   "video.source_scheduled_for_deletion",
   "video.insights.ready",
   "video.insights.failed",
+  "video.highlights.ready",
+  "video.highlights.failed",
   "app.created",
   "app.updated",
   "app.spend_limit_warning",

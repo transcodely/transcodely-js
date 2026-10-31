@@ -178,6 +178,13 @@ export {
   type GetSeoMarkupResponse,
   type GenerateInsightsRequest,
   type GenerateInsightsResponse,
+  // Highlight clips: videos.generateHighlights, or `highlights` on the create
+  // requests; listed on Video.highlights (status pending -> ready | failed).
+  type HighlightsConfig,
+  type VideoHighlight,
+  type GenerateHighlightsRequest,
+  type GenerateHighlightsResponse,
+  VideoHighlightStatus,
   VideoStatus,
   VideoVisibility,
 } from "./gen/transcodely/v1/video_pb.js";

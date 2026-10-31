@@ -457,7 +457,9 @@ export class IngestRuleAction extends Message<IngestRuleAction> {
   /**
    * Metadata copied onto every job the rule creates. The rule also adds
    * `ingest_rule_id` and `ingest_object_key` of its own, which you can read
-   * back on the job and in webhook payloads.
+   * back on the job and in webhook payloads. Keys starting with
+   * `transcodely_` are reserved for the platform and refused when the rule is
+   * created or updated (`parameter_invalid` on `action.metadata.<key>`).
    *
    * @generated from field: map<string, string> metadata = 7;
    */
