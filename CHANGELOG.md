@@ -4,6 +4,14 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.17](https://github.com/transcodely/transcodely-js/compare/v0.3.16...v0.3.17) (2026-10-31)
+
+
+### Features
+
+* highlight clips — videos.generateHighlights, VideoHighlight, two webhook events ([7d5ccef](https://github.com/transcodely/transcodely-js/commit/7d5ccef4d23fec40f2ca6122548e487d36b9250c))
+* resync protos for highlights (api v5.31.0) ([8119a45](https://github.com/transcodely/transcodely-js/commit/8119a45398a8f94faa2c0923cf8d7afac80254ff))
+
 ## [0.3.16](https://github.com/transcodely/transcodely-js/compare/v0.3.15...v0.3.16) (2026-10-31)
 
 
