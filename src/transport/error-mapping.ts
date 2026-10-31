@@ -11,9 +11,12 @@
  *     "type": "transcodely.v1.ErrorDetails",
  *     "value": "...",
  *     "debug": {
- *       "code": "JOB_NOT_FOUND",
+ *       "code": "validation_error",
  *       "message": "...",
- *       "field_violations": [{ "field": "id", "description": "..." }]
+ *       "fieldViolations": [{
+ *         "field": "outputs[0].video[0].crf",
+ *         "description": "[parameter_out_of_range] ..."
+ *       }]
  *     }
  *   }]
  * }

@@ -652,6 +652,12 @@ try {
 }
 ```
 
+Every validation refusal, whether the request schema, a codec check or a feature
+rule caught it, comes back as an `InvalidRequestError` listing every bad field at
+once. Each violation's `description` starts with that field's error code in
+brackets, for example `[parameter_out_of_range] value must be ...`, and `code`
+holds the error type (`validation_error`, `codec_error` or `feature_error`).
+
 The hierarchy:
 
 | Class | Status | When |
