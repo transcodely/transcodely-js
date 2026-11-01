@@ -322,20 +322,34 @@ message Video {
   optional google.protobuf.Timestamp ready_at = 42;
 
   // Source lifecycle (managed hosting only). These concern ONLY the original
-  // uploaded source file; renditions and playback are never affected.
+  // source file (an upload, or the copy stored for a URL-ingested video);
+  // renditions and playback are never affected.
   //
-  // Whether this video's source file is exempt from the app's
-  // delete_source_after_days lifecycle rule. Set via UpdateVideo.
+  // Whether this video's source file is retained. Source files are deleted
+  // when the app's retention window ends (HostingConfig.delete_source_after_days,
+  // 7 days after the video is ready by default); a pinned source is kept until
+  // it is unpinned or the video is deleted. Retained sources are billed as
+  // hosted storage at the standard storage rate and appear on the invoice as
+  // "Retained source videos". Set via UpdateVideo.
   bool source_pinned = 46;
 
-  // When the source file is scheduled to be deleted by the app's
-  // delete_source_after_days rule. Server-set, read-only; present only while a
-  // deletion is scheduled (cleared on pin, on setting change, and on delete).
+  // When the source file is scheduled to be deleted. Server-set, read-only;
+  // present only while a deletion is scheduled, which happens at least 72
+  // hours ahead and sends the video.source_scheduled_for_deletion webhook
+  // (cleared on pin, on a retention setting change, and on delete).
   optional google.protobuf.Timestamp source_scheduled_for_deletion_at = 47;
 
-  // When the source file was deleted by the lifecycle rule. Server-set,
-  // read-only. Once set, re-processing falls back to the best rendition.
+  // When the source file was deleted. Server-set, read-only. Once set,
+  // re-processing can only use a progressive (single-file) rendition, and a
+  // video with only HLS/DASH renditions needs its source uploaded again.
   optional google.protobuf.Timestamp source_deleted_at = 48;
+
+  // When the source file will be deleted, server-computed: the scheduled
+  // deletion time once one is set, otherwise ready_at plus the app's retention
+  // window, and never sooner than 72 hours from now. Absent when the source is
+  // pinned, already deleted, or not deleted by retention at all (the video is
+  // not ready, or has no stored source). Read-only.
+  optional google.protobuf.Timestamp source_expires_at = 55;
 
   // Resource type discriminator. Always "video" for this message.
   // Lets webhook consumers and polyglot SDKs identify the resource without
@@ -533,6 +547,15 @@ message CreateUploadRequest {
   // video.highlights.failed fires. Omitted, or enabled = false: no automatic
   // highlights (GenerateHighlights can still cut them later).
   optional HighlightsConfig highlights = 13;
+
+  // Retain this video's original source file from the start, exactly as
+  // setting Video.source_pinned later would. Source files are otherwise
+  // deleted when the app's retention window ends (7 days after the video is
+  // ready by default). A retained source is kept until it is unpinned or the
+  // video is deleted, and is billed as hosted storage at the standard storage
+  // rate, on the invoice line "Retained source videos". Unset or false: the
+  // source is temporary and not billed.
+  optional bool source_pinned = 14;
 }
 
 // Response from creating an upload.
@@ -664,6 +687,15 @@ message CreateFromUrlRequest {
   // video.highlights.failed fires. Omitted, or enabled = false: no automatic
   // highlights (GenerateHighlights can still cut them later).
   optional HighlightsConfig highlights = 11;
+
+  // Retain this video's original source file from the start, exactly as
+  // setting Video.source_pinned later would. Source files are otherwise
+  // deleted when the app's retention window ends (7 days after the video is
+  // ready by default). A retained source is kept until it is unpinned or the
+  // video is deleted, and is billed as hosted storage at the standard storage
+  // rate, on the invoice line "Retained source videos". Unset or false: the
+  // source is temporary and not billed.
+  optional bool source_pinned = 12;
 }
 
 // Response from creating a video from a URL.
@@ -816,6 +848,15 @@ message CreateMultipartUploadRequest {
   // video.highlights.failed fires. Omitted, or enabled = false: no automatic
   // highlights (GenerateHighlights can still cut them later).
   optional HighlightsConfig highlights = 18;
+
+  // Retain this video's original source file from the start, exactly as
+  // setting Video.source_pinned later would. Source files are otherwise
+  // deleted when the app's retention window ends (7 days after the video is
+  // ready by default). A retained source is kept until it is unpinned or the
+  // video is deleted, and is billed as hosted storage at the standard storage
+  // rate, on the invoice line "Retained source videos". Unset or false: the
+  // source is temporary and not billed.
+  optional bool source_pinned = 19;
 }
 
 // Response from creating a multipart upload.
@@ -993,10 +1034,12 @@ message UpdateVideoRequest {
   // Set to true to remove all tags. Mutually exclusive with tags.
   optional bool clear_tags = 6;
 
-  // Pin or unpin this video's source file against the app's
-  // delete_source_after_days lifecycle rule. Pinning also immediately clears any
-  // pending deletion schedule. Unpinning does NOT reschedule — the sweeper
-  // re-evaluates later with a fresh warning webhook.
+  // Retain (true) or release (false) this video's source file. Pinning keeps
+  // the source past the app's retention window and immediately clears any
+  // pending deletion schedule; a retained source is billed as hosted storage
+  // ("Retained source videos" on the invoice). Unpinning does not delete
+  // anything on the spot: the next sweep schedules the deletion with a fresh
+  // warning webhook, no sooner than 72 hours out.
   optional bool source_pinned = 7;
 }
 
@@ -1068,7 +1111,9 @@ message UsageSummary {
   double encoding_minutes = 3;
   double encoding_cost = 4;
 
-  // Storage metrics.
+  // Storage metrics: the deliverables (renditions, manifests, posters), the
+  // invoice line "Hosting — storage". Original source files are not included;
+  // retained ones are reported in retained_source_gb_avg / retained_source_cost.
   double storage_gb_avg = 10;
   // Storage cost of the period so far, as your invoice will carry it. Each
   // day is one GB-day: the day's stored bytes at the day's monthly price
@@ -1079,6 +1124,14 @@ message UsageSummary {
   double storage_cost = 11;
   int32 videos_hosted = 12;
 
+  // Average daily GB of RETAINED original source files (videos with
+  // source_pinned) over the period. Sources inside their retention window are
+  // free and not counted.
+  double retained_source_gb_avg = 13;
+  // Cost of retained original source files so far, the invoice line "Retained
+  // source videos": billed like storage_cost, at the same storage rate.
+  double retained_source_cost = 14;
+
   // Egress metrics.
   double egress_gb = 20;
   // Delivery cost of the period so far, as your invoice will carry it:
@@ -1087,7 +1140,8 @@ message UsageSummary {
   double egress_cost = 21;
   int64 total_requests = 22;
 
-  // Total cost across all categories.
+  // Total cost across all categories (encoding, storage, retained sources,
+  // egress).
   double total_cost = 30;
 
   // ISO 4217 currency code for all monetary fields in this summary (e.g. "EUR").

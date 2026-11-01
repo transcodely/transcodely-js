@@ -106,6 +106,14 @@ export interface PutFileOptions {
   autoInsights?: boolean;
   /** Cut highlight clips once the insights are ready (requires autoInsights): `{ enabled: true }`, other fields default. Billed as the clips' rendered minutes, no processing fee. */
   highlights?: PartialMessage<HighlightsConfig>;
+  /**
+   * Retain the original source file (sets `source_pinned` at creation). Source
+   * files are otherwise deleted when the app's retention window ends (7 days
+   * after the video is ready by default). A retained source is billed as
+   * hosted storage at the standard storage rate and appears on the invoice as
+   * "Retained source videos". Omit or `false`: the source is temporary and free.
+   */
+  sourcePinned?: boolean;
 
   /** Bytes per part. Clamped up to 5 MiB, and raised further if 10,000 parts would not cover the file. */
   partSize?: number;
@@ -555,6 +563,7 @@ export interface UploadRpcClient {
     autoCaptions?: boolean;
     autoInsights?: boolean;
     highlights?: PartialMessage<HighlightsConfig>;
+    sourcePinned?: boolean;
   }): Promise<{ video?: Video; uploadUrl: string }>;
   completeUpload(req: { id: string }): Promise<{ video?: Video }>;
   createMultipartUpload(req: {
@@ -573,6 +582,7 @@ export interface UploadRpcClient {
     autoCaptions?: boolean;
     autoInsights?: boolean;
     highlights?: PartialMessage<HighlightsConfig>;
+    sourcePinned?: boolean;
   }): Promise<{ video?: Video; uploadId: string; parts: UploadPart[] }>;
   getUploadPartUrls(req: {
     id: string;
@@ -657,6 +667,7 @@ export class UploadEngine {
       ...(opts.autoCaptions !== undefined ? { autoCaptions: opts.autoCaptions } : {}),
       ...(opts.autoInsights !== undefined ? { autoInsights: opts.autoInsights } : {}),
       ...(opts.highlights !== undefined ? { highlights: opts.highlights } : {}),
+      ...(opts.sourcePinned !== undefined ? { sourcePinned: opts.sourcePinned } : {}),
     };
 
     return totalParts === 1

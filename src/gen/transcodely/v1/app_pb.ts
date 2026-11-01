@@ -1028,13 +1028,19 @@ export class HostingConfig extends Message<HostingConfig> {
 
   /**
    * Days after a hosted video becomes ready before its ORIGINAL SOURCE FILE is
-   * deleted from managed storage (0 = disabled/clear). Applies ONLY to the
-   * uploaded source object; renditions and playback are NEVER affected, and BYO
-   * origins are out of scope. A warning webhook (video.source_scheduled_for_deletion)
-   * fires at least the configured warning lead ahead of deletion. Once the source
-   * is deleted, future re-processing (new codecs/renditions, retro-captions) falls
-   * back to the best available rendition. Per-video source_pinned exempts an
-   * individual video from this rule.
+   * deleted from managed storage, 1 to 3650. Unset (or 0, which clears it)
+   * means the platform default of 7 days: source files are temporary by
+   * default, and there is no "keep forever" setting. Applies ONLY to the
+   * uploaded source object (uploads and URL-ingest copies alike); renditions
+   * and playback are NEVER affected, and BYO origins are out of scope. A
+   * warning webhook (video.source_scheduled_for_deletion) fires at least 72
+   * hours before deletion. Once the source is deleted, re-processing (new
+   * codecs/renditions, retro-captions) falls back to a progressive rendition
+   * when the video has one. To keep an individual video's source, set its
+   * source_pinned: a retained source is billed as hosted storage at the
+   * standard storage rate and appears on the invoice as "Retained source
+   * videos". Sources inside their retention window are not billed. Each
+   * video's deletion date is exposed as Video.source_expires_at.
    *
    * @generated from field: optional int32 delete_source_after_days = 5;
    */

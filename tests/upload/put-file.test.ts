@@ -220,6 +220,26 @@ describe("putFile — single PUT (one part)", () => {
     expect(create.highlights).toEqual({ enabled: true, max_count: 3 });
   });
 
+  it("forwards sourcePinned to CreateUpload as source_pinned", async () => {
+    const c = await client();
+    const { path } = await fixture("clip.mp4", 1024 * 64);
+
+    await c.uploads.putFile(path, { appId: "app_k1l2m3n4o5", sourcePinned: true });
+
+    const create = server!.calls.find((c2) => c2.method === "CreateUpload")!.body;
+    expect(create.source_pinned).toBe(true);
+  });
+
+  it("leaves source_pinned off the wire when the caller does not set it", async () => {
+    const c = await client();
+    const { path } = await fixture("clip.mp4", 1024 * 64);
+
+    await c.uploads.putFile(path, { appId: "app_k1l2m3n4o5" });
+
+    const create = server!.calls.find((c2) => c2.method === "CreateUpload")!.body;
+    expect("source_pinned" in create).toBe(false);
+  });
+
   it("leaves auto_insights off the wire when the caller does not set it", async () => {
     const c = await client();
     const { path } = await fixture("clip.mp4", 1024 * 64);
@@ -288,6 +308,16 @@ describe("putFile — multipart", () => {
     const create = server!.calls.find((c2) => c2.method === "CreateMultipartUpload")!.body;
     expect(create.auto_captions).toBe(true);
     expect(create.auto_insights).toBe(true);
+  });
+
+  it("forwards sourcePinned to CreateMultipartUpload as source_pinned", async () => {
+    const c = await client();
+    const { path } = await fixture("big.mp4", PART * 2 + 1);
+
+    await c.uploads.putFile(path, { appId: "app_k1l2m3n4o5", partSize: PART, sourcePinned: true });
+
+    const create = server!.calls.find((c2) => c2.method === "CreateMultipartUpload")!.body;
+    expect(create.source_pinned).toBe(true);
   });
 
   it("uploads exactly `concurrency` parts at once — no more, and no fewer", async () => {
