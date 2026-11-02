@@ -4,6 +4,14 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.18](https://github.com/transcodely/transcodely-js/compare/v0.3.17...v0.3.18) (2026-11-02)
+
+
+### Features
+
+* resync protos for source retention (api v5.33.0) ([35041fa](https://github.com/transcodely/transcodely-js/commit/35041fa3bce70b562c74841a2c5ff3747a56e138))
+* source retention — sourcePinned at creation, Video.sourceExpiresAt, retained-source usage ([5265a2c](https://github.com/transcodely/transcodely-js/commit/5265a2c4554580343dab2478c64129dc796352f3))
+
 ## [0.3.17](https://github.com/transcodely/transcodely-js/compare/v0.3.16...v0.3.17) (2026-10-31)
 
 
