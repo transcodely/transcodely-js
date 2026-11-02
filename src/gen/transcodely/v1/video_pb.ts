@@ -442,31 +442,49 @@ export class Video extends Message<Video> {
 
   /**
    * Source lifecycle (managed hosting only). These concern ONLY the original
-   * uploaded source file; renditions and playback are never affected.
+   * source file (an upload, or the copy stored for a URL-ingested video);
+   * renditions and playback are never affected.
    *
-   * Whether this video's source file is exempt from the app's
-   * delete_source_after_days lifecycle rule. Set via UpdateVideo.
+   * Whether this video's source file is retained. Source files are deleted
+   * when the app's retention window ends (HostingConfig.delete_source_after_days,
+   * 7 days after the video is ready by default); a pinned source is kept until
+   * it is unpinned or the video is deleted. Retained sources are billed as
+   * hosted storage at the standard storage rate and appear on the invoice as
+   * "Retained source videos". Set via UpdateVideo.
    *
    * @generated from field: bool source_pinned = 46;
    */
   sourcePinned = false;
 
   /**
-   * When the source file is scheduled to be deleted by the app's
-   * delete_source_after_days rule. Server-set, read-only; present only while a
-   * deletion is scheduled (cleared on pin, on setting change, and on delete).
+   * When the source file is scheduled to be deleted. Server-set, read-only;
+   * present only while a deletion is scheduled, which happens at least 72
+   * hours ahead and sends the video.source_scheduled_for_deletion webhook
+   * (cleared on pin, on a retention setting change, and on delete).
    *
    * @generated from field: optional google.protobuf.Timestamp source_scheduled_for_deletion_at = 47;
    */
   sourceScheduledForDeletionAt?: Timestamp;
 
   /**
-   * When the source file was deleted by the lifecycle rule. Server-set,
-   * read-only. Once set, re-processing falls back to the best rendition.
+   * When the source file was deleted. Server-set, read-only. Once set,
+   * re-processing can only use a progressive (single-file) rendition, and a
+   * video with only HLS/DASH renditions needs its source uploaded again.
    *
    * @generated from field: optional google.protobuf.Timestamp source_deleted_at = 48;
    */
   sourceDeletedAt?: Timestamp;
+
+  /**
+   * When the source file will be deleted, server-computed: the scheduled
+   * deletion time once one is set, otherwise ready_at plus the app's retention
+   * window, and never sooner than 72 hours from now. Absent when the source is
+   * pinned, already deleted, or not deleted by retention at all (the video is
+   * not ready, or has no stored source). Read-only.
+   *
+   * @generated from field: optional google.protobuf.Timestamp source_expires_at = 55;
+   */
+  sourceExpiresAt?: Timestamp;
 
   /**
    * Resource type discriminator. Always "video" for this message.
@@ -519,6 +537,7 @@ export class Video extends Message<Video> {
     { no: 46, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 47, name: "source_scheduled_for_deletion_at", kind: "message", T: Timestamp, opt: true },
     { no: 48, name: "source_deleted_at", kind: "message", T: Timestamp, opt: true },
+    { no: 55, name: "source_expires_at", kind: "message", T: Timestamp, opt: true },
     { no: 43, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
@@ -907,6 +926,19 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
    */
   highlights?: HighlightsConfig;
 
+  /**
+   * Retain this video's original source file from the start, exactly as
+   * setting Video.source_pinned later would. Source files are otherwise
+   * deleted when the app's retention window ends (7 days after the video is
+   * ready by default). A retained source is kept until it is unpinned or the
+   * video is deleted, and is billed as hosted storage at the standard storage
+   * rate, on the invoice line "Retained source videos". Unset or false: the
+   * source is temporary and not billed.
+   *
+   * @generated from field: optional bool source_pinned = 14;
+   */
+  sourcePinned?: boolean;
+
   constructor(data?: PartialMessage<CreateUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -928,6 +960,7 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
     { no: 11, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 12, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 13, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
+    { no: 14, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateUploadRequest {
@@ -1221,6 +1254,19 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
    */
   highlights?: HighlightsConfig;
 
+  /**
+   * Retain this video's original source file from the start, exactly as
+   * setting Video.source_pinned later would. Source files are otherwise
+   * deleted when the app's retention window ends (7 days after the video is
+   * ready by default). A retained source is kept until it is unpinned or the
+   * video is deleted, and is billed as hosted storage at the standard storage
+   * rate, on the invoice line "Retained source videos". Unset or false: the
+   * source is temporary and not billed.
+   *
+   * @generated from field: optional bool source_pinned = 12;
+   */
+  sourcePinned?: boolean;
+
   constructor(data?: PartialMessage<CreateFromUrlRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1240,6 +1286,7 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
     { no: 9, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 10, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 11, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
+    { no: 12, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateFromUrlRequest {
@@ -1558,6 +1605,19 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
    */
   highlights?: HighlightsConfig;
 
+  /**
+   * Retain this video's original source file from the start, exactly as
+   * setting Video.source_pinned later would. Source files are otherwise
+   * deleted when the app's retention window ends (7 days after the video is
+   * ready by default). A retained source is kept until it is unpinned or the
+   * video is deleted, and is billed as hosted storage at the standard storage
+   * rate, on the invoice line "Retained source videos". Unset or false: the
+   * source is temporary and not billed.
+   *
+   * @generated from field: optional bool source_pinned = 19;
+   */
+  sourcePinned?: boolean;
+
   constructor(data?: PartialMessage<CreateMultipartUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1581,6 +1641,7 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
     { no: 16, name: "auto_captions", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 17, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 18, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
+    { no: 19, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateMultipartUploadRequest {
@@ -2210,10 +2271,12 @@ export class UpdateVideoRequest extends Message<UpdateVideoRequest> {
   clearTags?: boolean;
 
   /**
-   * Pin or unpin this video's source file against the app's
-   * delete_source_after_days lifecycle rule. Pinning also immediately clears any
-   * pending deletion schedule. Unpinning does NOT reschedule — the sweeper
-   * re-evaluates later with a fresh warning webhook.
+   * Retain (true) or release (false) this video's source file. Pinning keeps
+   * the source past the app's retention window and immediately clears any
+   * pending deletion schedule; a retained source is billed as hosted storage
+   * ("Retained source videos" on the invoice). Unpinning does not delete
+   * anything on the spot: the next sweep schedules the deletion with a fresh
+   * warning webhook, no sooner than 72 hours out.
    *
    * @generated from field: optional bool source_pinned = 7;
    */
@@ -2573,7 +2636,9 @@ export class UsageSummary extends Message<UsageSummary> {
   encodingCost = 0;
 
   /**
-   * Storage metrics.
+   * Storage metrics: the deliverables (renditions, manifests, posters), the
+   * invoice line "Hosting — storage". Original source files are not included;
+   * retained ones are reported in retained_source_gb_avg / retained_source_cost.
    *
    * @generated from field: double storage_gb_avg = 10;
    */
@@ -2597,6 +2662,23 @@ export class UsageSummary extends Message<UsageSummary> {
   videosHosted = 0;
 
   /**
+   * Average daily GB of RETAINED original source files (videos with
+   * source_pinned) over the period. Sources inside their retention window are
+   * free and not counted.
+   *
+   * @generated from field: double retained_source_gb_avg = 13;
+   */
+  retainedSourceGbAvg = 0;
+
+  /**
+   * Cost of retained original source files so far, the invoice line "Retained
+   * source videos": billed like storage_cost, at the same storage rate.
+   *
+   * @generated from field: double retained_source_cost = 14;
+   */
+  retainedSourceCost = 0;
+
+  /**
    * Egress metrics.
    *
    * @generated from field: double egress_gb = 20;
@@ -2618,7 +2700,8 @@ export class UsageSummary extends Message<UsageSummary> {
   totalRequests = protoInt64.zero;
 
   /**
-   * Total cost across all categories.
+   * Total cost across all categories (encoding, storage, retained sources,
+   * egress).
    *
    * @generated from field: double total_cost = 30;
    */
@@ -2673,6 +2756,8 @@ export class UsageSummary extends Message<UsageSummary> {
     { no: 10, name: "storage_gb_avg", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 11, name: "storage_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 12, name: "videos_hosted", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 13, name: "retained_source_gb_avg", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 14, name: "retained_source_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 20, name: "egress_gb", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 21, name: "egress_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 22, name: "total_requests", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
