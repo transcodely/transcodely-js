@@ -105,7 +105,11 @@ export class RateLimitError extends TranscodelyError {
 /** 400 / 422 — request body or parameters were invalid. */
 export class InvalidRequestError extends TranscodelyError {}
 
-/** 412 — preconditions not met (e.g. job not cancelable in current state). */
+/**
+ * Connect code `failed_precondition` (HTTP 400 on the wire) — the request is
+ * valid but the resource or account is in the wrong state, e.g. a job that is
+ * not cancelable, or a billing refusal such as `billing_past_due`.
+ */
 export class PreconditionError extends TranscodelyError {}
 
 /**

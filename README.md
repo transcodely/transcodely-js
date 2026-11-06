@@ -732,7 +732,7 @@ The hierarchy:
 | `ConflictError` | 409 | Idempotency conflict, slug taken |
 | `RateLimitError` | 429 | Carries `retryAfterMs` |
 | `InvalidRequestError` | 400 | Carries `errors` (`FieldViolation[]`) |
-| `PreconditionError` | 412 | Wrong state (e.g. job not cancelable) |
+| `PreconditionError` | 400 (`failed_precondition`) | Wrong state (e.g. job not cancelable, `billing_past_due`) |
 
 Every error carries `requestId`, `code`, `httpStatus`, and `raw` for debugging.
 

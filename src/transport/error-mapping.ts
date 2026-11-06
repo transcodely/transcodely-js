@@ -75,6 +75,10 @@ export function mapHttpError({ status, body, headers }: MapArgs): TranscodelyErr
     raw: body,
   };
 
+  // Precondition failures are classified on the Connect code in the body: the
+  // API's connect-go transport sends failed_precondition as HTTP 400, not 412.
+  // 412 stays as a fallback for bodies that carry no Connect code.
+  if (parsed.code === "failed_precondition") return new PreconditionError(opts);
   if (status === 401) return new AuthenticationError(opts);
   if (status === 403) return new PermissionError(opts);
   if (status === 404) return new NotFoundError(opts);
