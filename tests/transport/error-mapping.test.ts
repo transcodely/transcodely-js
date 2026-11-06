@@ -51,6 +51,45 @@ describe("mapHttpError — status → typed error class", () => {
     );
   });
 
+  // The API (connect-go v1.18.1) sends failed_precondition as HTTP 400, never
+  // 412. This is a recorded billing_past_due refusal as it arrives on the wire.
+  it("maps a failed_precondition body on HTTP 400 to PreconditionError", () => {
+    const body = {
+      code: "failed_precondition",
+      message: "billing past due: new jobs are paused until the overdue invoice is paid",
+      details: [
+        {
+          type: "transcodely.v1.ErrorDetails",
+          value: "",
+          debug: {
+            code: "billing_past_due",
+            message: "billing past due: new jobs are paused until the overdue invoice is paid",
+          },
+        },
+      ],
+    };
+    const err = mapHttpError({ status: 400, body, headers: withReqId("req_abc") });
+    expect(err).toBeInstanceOf(PreconditionError);
+    expect(err.httpStatus).toBe(400);
+    expect(err.type).toBe("failed_precondition");
+    expect(err.code).toBe("billing_past_due");
+    expect(err.requestId).toBe("req_abc");
+  });
+
+  it("maps a failed_precondition body sent as a JSON string to PreconditionError", () => {
+    const body = JSON.stringify({ code: "failed_precondition", message: "nothing outstanding" });
+    expect(mapHttpError({ status: 400, body, headers: noHeaders })).toBeInstanceOf(
+      PreconditionError,
+    );
+  });
+
+  it("keeps an invalid_argument body on HTTP 400 as InvalidRequestError", () => {
+    const body = { code: "invalid_argument", message: "bad crf" };
+    const err = mapHttpError({ status: 400, body, headers: noHeaders });
+    expect(err).toBeInstanceOf(InvalidRequestError);
+    expect(err).not.toBeInstanceOf(PreconditionError);
+  });
+
   it("maps 422 to InvalidRequestError", () => {
     expect(mapHttpError({ status: 422, body: {}, headers: noHeaders })).toBeInstanceOf(
       InvalidRequestError,
