@@ -323,6 +323,10 @@ export class AudioTrackConfig extends Message<AudioTrackConfig> {
    * Human-readable label for the audio track.
    * Displayed in player UI (e.g., "English", "Spanish", "日本語").
    * If not provided, defaults to the language code.
+   * At most 64 characters, in any script. Must not contain a comma (,), an
+   * equals sign (=), a double quote (") or a control character (including
+   * line breaks and tabs): the label is written into the HLS/DASH packaging
+   * instructions, where those characters are separators.
    *
    * @generated from field: optional string label = 2;
    */

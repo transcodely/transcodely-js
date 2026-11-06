@@ -148,9 +148,8 @@ export enum VideoHighlightStatus {
   READY = 2,
 
   /**
-   * Could not be rendered (or was refused); error_code says why. Its clip job,
-   * if any, bills what a failed or canceled job bills; highlight clips carry
-   * no processing fee.
+   * Could not be rendered (or was refused); error_code says why. A failed
+   * highlight bills nothing.
    *
    * @generated from enum value: VIDEO_HIGHLIGHT_STATUS_FAILED = 3;
    */
@@ -3702,15 +3701,16 @@ export class VideoHighlight extends Message<VideoHighlight> {
   posterUrl?: string;
 
   /**
-   * Rendered length in seconds, as measured. Present once ready.
+   * Rendered length in seconds, as measured (to the millisecond when the
+   * rendering worker reports it). Present once ready.
    *
    * @generated from field: optional double duration_seconds = 9;
    */
   durationSeconds?: number;
 
   /**
-   * The clip job that renders it (billed like any clip job). Present once the
-   * job was created.
+   * The clip job that renders it; its cost is this clip's share of the set's
+   * one charge. Present once the job was created.
    *
    * @generated from field: optional string job_id = 10;
    */

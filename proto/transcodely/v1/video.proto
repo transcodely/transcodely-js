@@ -105,10 +105,14 @@ service VideoService {
   // one of them has finished.
   //
   // Each highlight is rendered by its own clip job on the video
-  // (input_video_id = the video, with a job-level clip), billed as its
-  // rendered (clipped) minutes at your effective encoding rate and nothing
-  // else: highlight clips carry no per-job processing fee. Those jobs count
-  // toward your concurrency and queue limits and appear in your job list.
+  // (input_video_id = the video, with a job-level clip), priced as its
+  // rendered (clipped) length, measured to the millisecond, at your effective
+  // encoding rate and nothing else: highlight clips carry no per-job
+  // processing fee. The set is billed as one charge once every highlight in
+  // it is ready or failed: the sum of its ready clips, rounded to the cent
+  // once. A failed clip bills nothing. Those jobs count toward your
+  // concurrency and queue limits and appear in your job list, each showing
+  // its share of the set's charge.
   //
   // While any highlight of the video is pending, the call returns the
   // current highlights and bills nothing new. Once all are ready or failed, a
@@ -1447,9 +1451,8 @@ enum VideoHighlightStatus {
   // Rendered; playback_url and poster_url are available.
   VIDEO_HIGHLIGHT_STATUS_READY = 2;
 
-  // Could not be rendered (or was refused); error_code says why. Its clip job,
-  // if any, bills what a failed or canceled job bills; highlight clips carry
-  // no processing fee.
+  // Could not be rendered (or was refused); error_code says why. A failed
+  // highlight bills nothing.
   VIDEO_HIGHLIGHT_STATUS_FAILED = 3;
 }
 
@@ -1489,11 +1492,12 @@ message VideoHighlight {
   // playback_url.
   optional string poster_url = 8;
 
-  // Rendered length in seconds, as measured. Present once ready.
+  // Rendered length in seconds, as measured (to the millisecond when the
+  // rendering worker reports it). Present once ready.
   optional double duration_seconds = 9;
 
-  // The clip job that renders it (billed like any clip job). Present once the
-  // job was created.
+  // The clip job that renders it; its cost is this clip's share of the set's
+  // one charge. Present once the job was created.
   optional string job_id = 10;
 
   // Language of the insights the quote came from (ISO 639-2).

@@ -403,6 +403,10 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
 
   /**
    * Human-readable label (e.g., "English", "Spanish (CC)").
+   * At most 64 characters, in any script. Must not contain a comma (,), an
+   * equals sign (=), a double quote (") or a control character (including
+   * line breaks and tabs): the label is written into the HLS/DASH packaging
+   * instructions, where those characters are separators.
    *
    * @generated from field: optional string label = 7;
    */
@@ -474,6 +478,16 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
    * Anthropic, our AI subprocessor, to produce the insights. It is not used to
    * train models. Deployments without the feature reject this option with
    * `parameter_unsupported`.
+   *
+   * With insights enabled, the transcript text is also sent to Anthropic a
+   * second time, during the job, to correct speech-recognition errors
+   * (misspelled or misheard words and names) in the generated captions and
+   * transcript before they are delivered. Cue timing never changes. Each
+   * proposed correction is checked, and corrections that change digits,
+   * number words, negation words or prefixes, or question and exclamation
+   * marks are refused; the check limits but cannot rule out an occasional
+   * wrong correction. Any part the correction step cannot process is
+   * delivered as recognized. No extra charge.
    *
    * @generated from field: transcodely.v1.InsightsOptions insights = 14;
    */
