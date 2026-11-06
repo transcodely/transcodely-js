@@ -249,10 +249,14 @@ export const VideoService = {
      * one of them has finished.
      *
      * Each highlight is rendered by its own clip job on the video
-     * (input_video_id = the video, with a job-level clip), billed as its
-     * rendered (clipped) minutes at your effective encoding rate and nothing
-     * else: highlight clips carry no per-job processing fee. Those jobs count
-     * toward your concurrency and queue limits and appear in your job list.
+     * (input_video_id = the video, with a job-level clip), priced as its
+     * rendered (clipped) length, measured to the millisecond, at your effective
+     * encoding rate and nothing else: highlight clips carry no per-job
+     * processing fee. The set is billed as one charge once every highlight in
+     * it is ready or failed: the sum of its ready clips, rounded to the cent
+     * once. A failed clip bills nothing. Those jobs count toward your
+     * concurrency and queue limits and appear in your job list, each showing
+     * its share of the set's charge.
      *
      * While any highlight of the video is pending, the call returns the
      * current highlights and bills nothing new. Once all are ready or failed, a

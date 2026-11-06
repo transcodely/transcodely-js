@@ -58,9 +58,11 @@ export enum ContentAwareMode {
    * Billing: the output is quoted at the ceiling and billed for the rungs
    * actually rendered, at the 1.5x content-aware multiplier, so the bill is
    * never above the estimate shown once the source has been probed. When the
-   * analysis cannot run (for example a source shorter than 120 seconds), the
-   * whole ceiling is rendered at the quality tier's static CRFs and billed at
-   * 1.0x. Streaming outputs (hls, dash, adaptive) only.
+   * analysis cannot run, the whole ceiling is rendered at the quality tier's
+   * static CRFs and billed at 1.0x. A short source is not refused: the
+   * 120-second minimum (`per_title_source_too_short`) applies to `per_title`
+   * only; auto_abr measures whatever length there is. Streaming outputs
+   * (hls, dash, adaptive) only.
    *
    * This is not a convex-hull per-title ladder: rungs are not compared against
    * each other on quality, and no resolution outside the standard set is ever
@@ -191,8 +193,10 @@ export class AutoABRConfig extends Message<AutoABRConfig> {
  * (`parameter_forbidden` on `outputs[i].content_aware`): the search would score
  * the HDR source, not the tone-mapped picture that is delivered.
  *
- * A source shorter than 120 seconds is refused at probe with
- * `per_title_source_too_short` once the input has been measured.
+ * `per_title` only: a job whose encoded window (the source, or the clipped
+ * range when `clip` is set) is shorter than 120 seconds is refused at probe
+ * with `per_title_source_too_short` once the input has been measured.
+ * `auto_abr` has no minimum length.
  *
  * What the search decided is reported back on OutputReport.content_aware.
  *

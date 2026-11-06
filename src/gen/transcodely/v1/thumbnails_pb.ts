@@ -341,10 +341,12 @@ export class ThumbnailResult extends Message<ThumbnailResult> {
   mode = "";
 
   /**
-   * File format: jpeg | png | webp. The sprite mode's WebVTT sidecar uses
-   * "vtt". Animated mode yields "webp" (the animated WebP) and "mp4" (the muted
-   * MP4 loop) — "mp4" rides this free-form string; it is not a ThumbnailFormat
-   * enum value.
+   * File format as produced, a free-form lowercase string: jpeg | png | webp |
+   * mp4 | vtt. The sprite mode's WebVTT sidecar uses "vtt", which has no
+   * ThumbnailFormat member. Animated mode yields "webp" (the animated WebP)
+   * and "mp4" (the muted MP4 loop); "mp4" is also requestable as the
+   * ThumbnailFormat `mp4` on animated specs, and refused elsewhere with
+   * `parameter_forbidden`.
    *
    * @generated from field: string format = 4;
    */
