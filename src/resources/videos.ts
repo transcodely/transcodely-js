@@ -21,6 +21,8 @@ import {
   ListTopVideosRequest,
   type ListTopVideosResponse,
   ListVideosRequest,
+  TranslateCaptionsRequest,
+  type TranslateCaptionsResponse,
   UpdateVideoRequest,
   type Video,
   type VideoHighlight,
@@ -291,5 +293,34 @@ export class Videos {
       opts,
     );
     return res.highlights;
+  }
+
+  /**
+   * Translate a hosted video's existing AI captions into other languages
+   * without transcribing again. Creates one captions-only job on the video
+   * that writes, per target language, a caption track, its transcript
+   * renditions and (on HLS) a caption rendition in the manifest; with
+   * `includeInsights` (default true) the ready insights in the source
+   * language are translated too and appear as one more `video.insights` entry
+   * per language. The response names the job, the normalized source and
+   * target languages, the estimated fee, and any target already carried by
+   * an earlier, still-running job (`inFlight`; those are not requested again).
+   *
+   * Billed as the `captions_translation` fee: EUR 0.12 per source minute per
+   * language, only for languages actually delivered. Pass `sourceLanguage`
+   * when the video has several AI caption tracks. A video without AI captions
+   * is refused with failed_precondition (code captions_required); deployments
+   * without the feature refuse it with `parameter_unsupported`.
+   */
+  async translateCaptions(
+    req: PartialMessage<TranslateCaptionsRequest>,
+    opts?: CallOptions,
+  ): Promise<TranslateCaptionsResponse> {
+    return this.transport.unary(
+      VideoService,
+      VideoService.methods.translateCaptions,
+      new TranslateCaptionsRequest(req),
+      opts,
+    );
   }
 }

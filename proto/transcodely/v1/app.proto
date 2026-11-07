@@ -140,6 +140,16 @@ message App {
   // never configured (the player uses its built-in defaults). Update via
   // AppService.UpdatePlayerConfig.
   optional PlayerConfig player_config = 16;
+
+  // The app's default caption glossary: names and terms as they should be
+  // spelled, one per line, optionally with the wrong spelling to replace in
+  // parentheses (see InsightsOptions.glossary). Applied to every AI captions
+  // track that requests insights without a glossary of its own, including
+  // videos captioned by the auto_captions / auto_insights upload flags, and
+  // to GenerateInsights requests without one; the job or insights entry then
+  // shows it as the glossary used. Absent when none is set. Update via
+  // AppService.UpdateApp.
+  optional string caption_glossary = 17;
 }
 
 // Player configuration: how the hosted player and embeds present every video
@@ -277,6 +287,12 @@ message UpdateAppRequest {
   optional string description = 3 [
     (buf.validate.field).string.max_len = 500
   ];
+
+  // New default caption glossary (if provided), at most 4000 characters, one
+  // term per line; see App.caption_glossary. An empty string clears it.
+  optional string caption_glossary = 5 [
+    (buf.validate.field).string.max_len = 4000
+  ];
 }
 
 // Response from updating an app.
@@ -385,6 +401,15 @@ message HostingConfig {
   // videos". Sources inside their retention window are not billed. Each
   // video's deletion date is exposed as Video.source_expires_at.
   optional int32 delete_source_after_days = 5;
+
+  // Default for the per-video guide page (Video.guide_page_enabled): a
+  // hosted, shareable page at <player base>/v/{id}/guide with the player,
+  // the video's AI insights and its full transcript. Applies to every video
+  // in the app whose Video.guide_page is "default" (every video, until one is
+  // pinned "on" or "off" via UpdateVideo.guide_page). Unset means false. Only
+  // public and unlisted videos with ready insights or a generated transcript
+  // get a page, whatever this says.
+  optional bool guide_pages_enabled = 6;
 }
 
 // Default transcoding settings when no preset is specified on upload.

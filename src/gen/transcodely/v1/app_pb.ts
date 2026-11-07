@@ -177,6 +177,20 @@ export class App extends Message<App> {
    */
   playerConfig?: PlayerConfig;
 
+  /**
+   * The app's default caption glossary: names and terms as they should be
+   * spelled, one per line, optionally with the wrong spelling to replace in
+   * parentheses (see InsightsOptions.glossary). Applied to every AI captions
+   * track that requests insights without a glossary of its own, including
+   * videos captioned by the auto_captions / auto_insights upload flags, and
+   * to GenerateInsights requests without one; the job or insights entry then
+   * shows it as the glossary used. Absent when none is set. Update via
+   * AppService.UpdateApp.
+   *
+   * @generated from field: optional string caption_glossary = 17;
+   */
+  captionGlossary?: string;
+
   constructor(data?: PartialMessage<App>) {
     super();
     proto3.util.initPartial(data, this);
@@ -200,6 +214,7 @@ export class App extends Message<App> {
     { no: 14, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 15, name: "monthly_spend_limit_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 16, name: "player_config", kind: "message", T: PlayerConfig, opt: true },
+    { no: 17, name: "caption_glossary", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): App {
@@ -639,6 +654,14 @@ export class UpdateAppRequest extends Message<UpdateAppRequest> {
    */
   description?: string;
 
+  /**
+   * New default caption glossary (if provided), at most 4000 characters, one
+   * term per line; see App.caption_glossary. An empty string clears it.
+   *
+   * @generated from field: optional string caption_glossary = 5;
+   */
+  captionGlossary?: string;
+
   constructor(data?: PartialMessage<UpdateAppRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -650,6 +673,7 @@ export class UpdateAppRequest extends Message<UpdateAppRequest> {
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 5, name: "caption_glossary", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateAppRequest {
@@ -1046,6 +1070,19 @@ export class HostingConfig extends Message<HostingConfig> {
    */
   deleteSourceAfterDays?: number;
 
+  /**
+   * Default for the per-video guide page (Video.guide_page_enabled): a
+   * hosted, shareable page at <player base>/v/{id}/guide with the player,
+   * the video's AI insights and its full transcript. Applies to every video
+   * in the app whose Video.guide_page is "default" (every video, until one is
+   * pinned "on" or "off" via UpdateVideo.guide_page). Unset means false. Only
+   * public and unlisted videos with ready insights or a generated transcript
+   * get a page, whatever this says.
+   *
+   * @generated from field: optional bool guide_pages_enabled = 6;
+   */
+  guidePagesEnabled?: boolean;
+
   constructor(data?: PartialMessage<HostingConfig>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1059,6 +1096,7 @@ export class HostingConfig extends Message<HostingConfig> {
     { no: 3, name: "cors_allowed_origins", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 4, name: "auto_profile_defaults", kind: "message", T: AutoProfileDefaults, opt: true },
     { no: 5, name: "delete_source_after_days", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
+    { no: 6, name: "guide_pages_enabled", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): HostingConfig {

@@ -487,11 +487,42 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
    * number words, negation words or prefixes, or question and exclamation
    * marks are refused; the check limits but cannot rule out an occasional
    * wrong correction. Any part the correction step cannot process is
-   * delivered as recognized. No extra charge.
+   * delivered as recognized. No extra charge. InsightsOptions.glossary pins
+   * the spellings of names and terms for that correction.
    *
    * @generated from field: transcodely.v1.InsightsOptions insights = 14;
    */
   insights?: InsightsOptions;
+
+  /**
+   * Also translate the generated captions into these languages. Only valid
+   * with the `generate` operation. ISO 639-2 codes (e.g. "eng", "ger",
+   * "spa"), at most 10, each distinct and different from `language` (when
+   * `language` is "auto", a target equal to the detected language is
+   * skipped and not billed). Both the bibliographic and the terminologic
+   * form of a code are accepted; codes are normalized to their ISO 639-2/B
+   * form on the response ("deu" is echoed as "ger").
+   *
+   * Each target produces, next to the source track: a caption file in the
+   * same format, the json/txt/md transcript renditions, and, on streaming
+   * outputs, a caption rendition listed in the manifest. Every cue keeps the
+   * source cue's exact timing; cue count never changes. With insights
+   * enabled, the insights are translated too (same chapter timings) and
+   * appear as one more Job.insights / Video.insights entry per language.
+   *
+   * Billed as the `captions_translation` fee: EUR 0.12 per source minute per
+   * language, charged only for languages whose caption file is delivered.
+   * No extra charge for the transcript renditions or the translated insights.
+   * Deployments without the feature reject this with `parameter_unsupported`.
+   *
+   * Privacy: the caption TEXT (never the audio or video) is sent to Anthropic,
+   * our AI subprocessor, to produce the translation; it is not used to train
+   * models. Requesting a translation also enables the AI correction pass
+   * described under `insights` (same subprocessor, no extra charge).
+   *
+   * @generated from field: repeated string translations = 15;
+   */
+  translations: string[] = [];
 
   constructor(data?: PartialMessage<SubtitleTrack>) {
     super();
@@ -515,6 +546,7 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
     { no: 12, name: "generate_chapters", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 13, name: "transcript", kind: "message", T: TranscriptOptions },
     { no: 14, name: "insights", kind: "message", T: InsightsOptions },
+    { no: 15, name: "translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubtitleTrack {
@@ -599,6 +631,24 @@ export class InsightsOptions extends Message<InsightsOptions> {
    */
   hint?: string;
 
+  /**
+   * Optional glossary of names and terms as they should be spelled, one term
+   * per line, at most 4000 characters. A line may add the wrong spelling to
+   * replace in parentheses, e.g. "данъци (не данаци)", "Шарл Кулон" or
+   * "Rhizobacteria". It steers spelling only, in two places: the AI
+   * correction pass over the generated captions and transcript (recognition
+   * errors in these names and terms are fixed to the given spellings, subject
+   * to the same checks as every other correction), and the insights text
+   * itself (titles, summary, terms, chapters use these spellings). It cannot
+   * change what the insights contain or their format, and has no effect on
+   * pricing. Ignored when insights are not enabled. When absent, the app's
+   * default (App.caption_glossary) is used, and the job shows it here.
+   * Echoed as TranscriptInsights.glossary.
+   *
+   * @generated from field: optional string glossary = 3;
+   */
+  glossary?: string;
+
   constructor(data?: PartialMessage<InsightsOptions>) {
     super();
     proto3.util.initPartial(data, this);
@@ -609,6 +659,7 @@ export class InsightsOptions extends Message<InsightsOptions> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "enabled", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 2, name: "hint", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "glossary", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): InsightsOptions {
@@ -965,6 +1016,15 @@ export class SubtitleResult extends Message<SubtitleResult> {
    */
   transcriptStyle = TranscriptStyle.UNSPECIFIED;
 
+  /**
+   * ISO 639-2 language of the recognized track this one was translated from
+   * (see SubtitleTrack.translations). Set only on tracks produced by
+   * translation; empty on recognized tracks and on every other operation.
+   *
+   * @generated from field: string translated_from = 15;
+   */
+  translatedFrom = "";
+
   constructor(data?: PartialMessage<SubtitleResult>) {
     super();
     proto3.util.initPartial(data, this);
@@ -987,6 +1047,7 @@ export class SubtitleResult extends Message<SubtitleResult> {
     { no: 12, name: "transcript_signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 13, name: "transcript_renditions", kind: "message", T: TranscriptRendition, repeated: true },
     { no: 14, name: "transcript_style", kind: "enum", T: proto3.getEnumType(TranscriptStyle) },
+    { no: 15, name: "translated_from", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubtitleResult {
@@ -1366,6 +1427,14 @@ export class TranscriptInsights extends Message<TranscriptInsights> {
   hint = "";
 
   /**
+   * The glossary the insights were requested with (echoed; see
+   * InsightsOptions.glossary). Empty when none.
+   *
+   * @generated from field: string glossary = 28;
+   */
+  glossary = "";
+
+  /**
    * Unique identifier of this insights entry (ins_…).
    *
    * @generated from field: string id = 24;
@@ -1401,6 +1470,19 @@ export class TranscriptInsights extends Message<TranscriptInsights> {
    */
   feeEur?: number;
 
+  /**
+   * ISO 639-2 language of the insights these were translated from (see
+   * SubtitleTrack.translations). Empty when the insights were written in the
+   * transcript's own language. A translated entry keeps every timing of its
+   * source entry; `highlights` stay in the SOURCE language (they are verbatim
+   * quotes of the transcript and are never translated). A translated entry
+   * carries no price of its own: it is included in the `captions_translation`
+   * fee, so fee_eur shows 0 for source "video".
+   *
+   * @generated from field: string translated_from = 29;
+   */
+  translatedFrom = "";
+
   constructor(data?: PartialMessage<TranscriptInsights>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1432,10 +1514,12 @@ export class TranscriptInsights extends Message<TranscriptInsights> {
     { no: 21, name: "markdown_signed_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 22, name: "generated_at", kind: "message", T: Timestamp },
     { no: 23, name: "hint", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 28, name: "glossary", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 24, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 25, name: "source", kind: "enum", T: proto3.getEnumType(InsightsSource) },
     { no: 26, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 27, name: "fee_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 29, name: "translated_from", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TranscriptInsights {

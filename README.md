@@ -330,6 +330,54 @@ Each clip is rendered by an ordinary clip job, tagged with `transcodely_kind`,
 starting with `transcodely_` are reserved for the platform: a job or ingest
 rule that sets one is refused with `parameter_invalid` on `metadata.<key>`.
 
+## Caption translation
+
+A hosted video with AI captions can have them translated into other
+languages without transcribing again. One captions-only job writes, per
+target language, a caption track, its transcript renditions and (on HLS) a
+caption rendition in the manifest; ready insights in the source language are
+translated too unless `includeInsights` is `false`. Billed as the
+`captions_translation` fee (EUR 0.12 per source minute per language, delivered
+languages only):
+
+```ts
+// `sourceLanguage` is needed only when the video has several AI caption tracks.
+const res = await client.videos.translateCaptions({
+  id: "vid_a1b2c3d4e5f6g7",
+  targetLanguages: ["ger", "spa"], // ISO 639-2, up to 10
+});
+console.log(res.jobId, res.targetLanguages, res.estimatedFeeEur);
+for (const f of res.inFlight) {
+  console.log("already translating:", f.language, f.jobId); // not requested again
+}
+```
+
+Or ask for it at upload time with `autoTranslations: ["ger"]` next to
+`autoCaptions: true`, or on a captions job with `translations` on the
+`generate` subtitle track. Translated tracks carry `translatedFrom` (the
+source language); translated insights entries do too. Deployments without the
+feature refuse it with `parameter_unsupported`.
+
+## Guide page
+
+A public or unlisted hosted video with ready insights or a generated
+transcript can have a shareable guide page (player, insights and full
+transcript). `video.guidePage` is the video's own setting
+(`GuidePageSetting.DEFAULT` follows the app's `hostingConfig.guidePagesEnabled`;
+`ON` / `OFF` pin it), `video.guidePageEnabled` is the resulting effective
+value, and `video.guideUrl` is set only when the page would render:
+
+```ts
+import { GuidePageSetting } from "@transcodely/sdk";
+
+const video = await client.videos.update({ id: "vid_a1b2c3d4e5f6g7", guidePage: GuidePageSetting.ON });
+console.log(video.guidePageEnabled, video.guideUrl);
+```
+
+`guidePageEnabled` is absent (`undefined`) in `video.*` webhook payloads, which
+do not resolve the app default: read `guidePage` there, or fetch the video for
+the effective value and URL.
+
 ## Source retention
 
 Original source files of hosted videos are temporary. Each one is deleted when
@@ -369,7 +417,7 @@ const client = new Transcodely({ apiKey: process.env.TRANSCODELY_API_KEY! });
 ```ts
 client.jobs            // create / get / list / cancel / confirm / watch
 client.uploads         // putFile — the whole create / PUT / complete upload, for a path, Blob or stream
-client.videos          // upload RPCs, multipart, createFromUrl, get / list / update / delete / watch / getStats / listTopVideos / getSeoMarkup / generateInsights / generateHighlights
+client.videos          // upload RPCs, multipart, createFromUrl, get / list / update / delete / watch / getStats / listTopVideos / getSeoMarkup / generateInsights / generateHighlights / translateCaptions
 client.presets         // create / get / getBySlug / list / update / duplicate / archive
 client.origins         // create / get / list / update / validate / archive
 client.ingestRules     // create / get / list / update / delete / listEvents / test / replayEvent
