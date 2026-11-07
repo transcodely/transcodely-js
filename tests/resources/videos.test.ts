@@ -11,6 +11,12 @@ import {
   GetStatsResponse,
   ListTopVideosResponse,
   TopVideo,
+  TranslateCaptionsRequest,
+  TranslateCaptionsResponse,
+  TranslationInFlight,
+  GuidePageSetting,
+  UpdateVideoRequest,
+  UpdateVideoResponse,
   Video,
   VideoHighlight,
   VideoHighlightStatus,
@@ -251,5 +257,65 @@ describe("Videos facade", () => {
       language: "eng",
       config: { enabled: false, max_count: 3, padding_seconds: 2 },
     });
+  });
+
+  it("translateCaptions dispatches TranslateCaptions and returns the response", async () => {
+    const transport = makeTransport();
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(
+      new TranslateCaptionsResponse({
+        jobId: "job_a1b2c3d4e5f6",
+        videoId: "vid_a1b2c3d4e5f6g7",
+        sourceLanguage: "eng",
+        targetLanguages: ["ger"],
+        inFlight: [new TranslationInFlight({ language: "spa", jobId: "job_f6e5d4c3b2a1" })],
+        estimatedFeeEur: 0.36,
+        insightsIncluded: true,
+      }),
+    );
+    const out = await new Videos(transport).translateCaptions({
+      id: "vid_a1b2c3d4e5f6g7",
+      targetLanguages: ["deu", "spa"],
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toBe(VideoService.methods.translateCaptions);
+    expect(spy.mock.calls[0][2]).toBeInstanceOf(TranslateCaptionsRequest);
+    expect(out).toBeInstanceOf(TranslateCaptionsResponse);
+    expect(out.jobId).toBe("job_a1b2c3d4e5f6");
+    expect(out.targetLanguages).toEqual(["ger"]);
+    expect(out.inFlight).toHaveLength(1);
+    expect(out.inFlight[0].language).toBe("spa");
+    expect(out.inFlight[0].jobId).toBe("job_f6e5d4c3b2a1");
+    expect(out.estimatedFeeEur).toBe(0.36);
+    expect(out.insightsIncluded).toBe(true);
+  });
+
+  it("translateCaptions sends snake_case fields on the wire", async () => {
+    const transport = makeTransport();
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(new TranslateCaptionsResponse());
+    await new Videos(transport).translateCaptions({
+      id: "vid_a1b2c3d4e5f6g7",
+      sourceLanguage: "eng",
+      targetLanguages: ["ger", "spa"],
+      includeInsights: false,
+    });
+    const wire = toWireJson(spy.mock.calls[0][2] as TranslateCaptionsRequest) as Record<string, unknown>;
+    // Unset optionals (app_id) stay off the wire.
+    expect(wire).toEqual({
+      id: "vid_a1b2c3d4e5f6g7",
+      source_language: "eng",
+      target_languages: ["ger", "spa"],
+      include_insights: false,
+    });
+  });
+
+  it("update sends guide_page as the lowercase setting", async () => {
+    const transport = makeTransport();
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(new UpdateVideoResponse({ video: new Video() }));
+    await new Videos(transport).update({ id: "vid_a1b2c3d4e5f6g7", guidePage: GuidePageSetting.ON });
+    const wire = toWireJson(spy.mock.calls[0][2] as UpdateVideoRequest) as Record<string, unknown>;
+    // The codec emits unpopulated repeated fields (tags rides as []); the
+    // enum goes out lowercase and the reserved guide_page_enabled never does.
+    expect(wire).toMatchObject({ id: "vid_a1b2c3d4e5f6g7", guide_page: "on" });
+    expect(wire).not.toHaveProperty("guide_page_enabled");
   });
 });

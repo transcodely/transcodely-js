@@ -178,8 +178,41 @@ message SubtitleTrack {
   // number words, negation words or prefixes, or question and exclamation
   // marks are refused; the check limits but cannot rule out an occasional
   // wrong correction. Any part the correction step cannot process is
-  // delivered as recognized. No extra charge.
+  // delivered as recognized. No extra charge. InsightsOptions.glossary pins
+  // the spellings of names and terms for that correction.
   InsightsOptions insights = 14;
+
+  // Also translate the generated captions into these languages. Only valid
+  // with the `generate` operation. ISO 639-2 codes (e.g. "eng", "ger",
+  // "spa"), at most 10, each distinct and different from `language` (when
+  // `language` is "auto", a target equal to the detected language is
+  // skipped and not billed). Both the bibliographic and the terminologic
+  // form of a code are accepted; codes are normalized to their ISO 639-2/B
+  // form on the response ("deu" is echoed as "ger").
+  //
+  // Each target produces, next to the source track: a caption file in the
+  // same format, the json/txt/md transcript renditions, and, on streaming
+  // outputs, a caption rendition listed in the manifest. Every cue keeps the
+  // source cue's exact timing; cue count never changes. With insights
+  // enabled, the insights are translated too (same chapter timings) and
+  // appear as one more Job.insights / Video.insights entry per language.
+  //
+  // Billed as the `captions_translation` fee: EUR 0.12 per source minute per
+  // language, charged only for languages whose caption file is delivered.
+  // No extra charge for the transcript renditions or the translated insights.
+  // Deployments without the feature reject this with `parameter_unsupported`.
+  //
+  // Privacy: the caption TEXT (never the audio or video) is sent to Anthropic,
+  // our AI subprocessor, to produce the translation; it is not used to train
+  // models. Requesting a translation also enables the AI correction pass
+  // described under `insights` (same subprocessor, no extra charge).
+  repeated string translations = 15 [
+    (buf.validate.field).repeated = {
+      max_items: 10,
+      unique: true,
+      items: {string: {pattern: "^[a-z]{3}$"}}
+    }
+  ];
 }
 
 // How the txt and md transcript renditions are written. The json rendition
@@ -233,6 +266,20 @@ message InsightsOptions {
   // tone" or "Quarterly earnings call for investors"). It steers the writing;
   // it cannot change what the insights contain or their format.
   optional string hint = 2 [(buf.validate.field).string.max_len = 300];
+
+  // Optional glossary of names and terms as they should be spelled, one term
+  // per line, at most 4000 characters. A line may add the wrong spelling to
+  // replace in parentheses, e.g. "данъци (не данаци)", "Шарл Кулон" or
+  // "Rhizobacteria". It steers spelling only, in two places: the AI
+  // correction pass over the generated captions and transcript (recognition
+  // errors in these names and terms are fixed to the given spellings, subject
+  // to the same checks as every other correction), and the insights text
+  // itself (titles, summary, terms, chapters use these spellings). It cannot
+  // change what the insights contain or their format, and has no effect on
+  // pricing. Ignored when insights are not enabled. When absent, the app's
+  // default (App.caption_glossary) is used, and the job shows it here.
+  // Echoed as TranscriptInsights.glossary.
+  optional string glossary = 3 [(buf.validate.field).string.max_len = 4000];
 }
 
 // One rendition of a generated transcript.
@@ -361,6 +408,11 @@ message SubtitleResult {
   // Style the txt and md renditions were written in: clean | literal. Unset
   // when the track produced no renditions.
   TranscriptStyle transcript_style = 14;
+
+  // ISO 639-2 language of the recognized track this one was translated from
+  // (see SubtitleTrack.translations). Set only on tracks produced by
+  // translation; empty on recognized tracks and on every other operation.
+  string translated_from = 15;
 }
 
 // Where an insights entry came from.
@@ -518,6 +570,10 @@ message TranscriptInsights {
   // The hint the insights were requested with (echoed). Empty when none.
   string hint = 23;
 
+  // The glossary the insights were requested with (echoed; see
+  // InsightsOptions.glossary). Empty when none.
+  string glossary = 28;
+
   // Unique identifier of this insights entry (ins_…).
   string id = 24;
 
@@ -537,4 +593,14 @@ message TranscriptInsights {
   // already shown on the video is not charged either, and shows 0.
   // Absent for source "job", whose insights fees are listed on Job.fees.
   optional double fee_eur = 27;
+
+
+  // ISO 639-2 language of the insights these were translated from (see
+  // SubtitleTrack.translations). Empty when the insights were written in the
+  // transcript's own language. A translated entry keeps every timing of its
+  // source entry; `highlights` stay in the SOURCE language (they are verbatim
+  // quotes of the transcript and are never translated). A translated entry
+  // carries no price of its own: it is included in the `captions_translation`
+  // fee, so fee_eur shows 0 for source "video".
+  string translated_from = 29;
 }

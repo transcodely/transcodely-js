@@ -185,6 +185,16 @@ export {
   type GenerateHighlightsRequest,
   type GenerateHighlightsResponse,
   VideoHighlightStatus,
+  // Caption translation: videos.translateCaptions on a hosted video's
+  // existing AI captions, or `autoTranslations` on the create requests.
+  type TranslateCaptionsRequest,
+  type TranslateCaptionsResponse,
+  type TranslationInFlight,
+  // Guide page: Video.guidePage is the video's own setting (DEFAULT follows
+  // the app's HostingConfig.guidePagesEnabled; ON / OFF pin it),
+  // Video.guidePageEnabled the effective value (absent in video.* webhook
+  // payloads) and Video.guideUrl the page when it would render.
+  GuidePageSetting,
   VideoStatus,
   VideoVisibility,
 } from "./gen/transcodely/v1/video_pb.js";

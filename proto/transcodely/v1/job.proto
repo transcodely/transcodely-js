@@ -1040,9 +1040,15 @@ message ExecutionTiming {
   optional int64 boot_duration_ms = 10;      // Time to boot worker instance
   optional int64 download_duration_ms = 11;  // Time to download input file
   optional int64 probe_duration_ms = 12;     // Time to probe input (ffprobe)
-  optional int64 encode_duration_ms = 13;    // Time for encoding phase
-  optional int64 upload_duration_ms = 14;    // Time to upload outputs
-  optional int64 packaging_duration_ms = 15; // Time for HLS/DASH packaging
+  // Encoding time. Captions-only jobs report speech recognition here
+  // (audio extract, transcription, gap recovery, correction); on a job with
+  // both, it is added to the video encode time.
+  optional int64 encode_duration_ms = 13;
+  // Time to upload outputs, including caption and transcript files.
+  optional int64 upload_duration_ms = 14;
+  // HLS/DASH packaging time. Captions-only jobs report caption cue shaping
+  // and transcript rendering here, added to any packaging time.
+  optional int64 packaging_duration_ms = 15;
   optional int64 total_duration_ms = 16;     // Total job processing time
 
   // Transfer statistics

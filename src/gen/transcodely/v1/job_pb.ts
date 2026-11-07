@@ -2357,21 +2357,24 @@ export class ExecutionTiming extends Message<ExecutionTiming> {
   probeDurationMs?: bigint;
 
   /**
-   * Time for encoding phase
+   * Encoding time. Captions-only jobs report speech recognition here
+   * (audio extract, transcription, gap recovery, correction); on a job with
+   * both, it is added to the video encode time.
    *
    * @generated from field: optional int64 encode_duration_ms = 13;
    */
   encodeDurationMs?: bigint;
 
   /**
-   * Time to upload outputs
+   * Time to upload outputs, including caption and transcript files.
    *
    * @generated from field: optional int64 upload_duration_ms = 14;
    */
   uploadDurationMs?: bigint;
 
   /**
-   * Time for HLS/DASH packaging
+   * HLS/DASH packaging time. Captions-only jobs report caption cue shaping
+   * and transcript rendering here, added to any packaging time.
    *
    * @generated from field: optional int64 packaging_duration_ms = 15;
    */

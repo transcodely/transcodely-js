@@ -6,7 +6,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
+import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, TranslateCaptionsRequest, TranslateCaptionsResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -275,6 +275,49 @@ export const VideoService = {
       name: "GenerateHighlights",
       I: GenerateHighlightsRequest,
       O: GenerateHighlightsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Translate a hosted video's existing AI captions into other languages,
+     * without transcribing again. Creates one captions-only job on the video
+     * (input_video_id = the video) that reads the source track's transcript
+     * and writes, per target language: a caption track (replacing any existing
+     * auto-generated track of that language on completion), its transcript
+     * renditions and, when the video streams as HLS, a caption rendition in
+     * the manifest. With include_insights (default true) and ready insights in
+     * the source language, the insights are translated too and appear as one
+     * more Video.insights entry per language (video.insights.ready fires).
+     *
+     * Billed as the `captions_translation` fee: EUR 0.12 per source minute per
+     * language, charged only for languages actually delivered; nothing else
+     * (no captions fee, no per-job processing fee).
+     *
+     * While a translation job for this video and a target language is still
+     * running, that language is not requested again: the response lists it
+     * under in_flight with the job that carries it, and the new job (if any)
+     * covers only the other languages. Once a job is terminal, a new call
+     * translates (and bills) again and replaces the tracks.
+     *
+     * Refused with failed_precondition and code captions_required when the
+     * video has no AI captions, insights_transcript_unavailable when the
+     * source track has no transcript, and with invalid_argument
+     * (parameter_invalid) when a target equals the source language or is not a
+     * supported translation language (the violation lists the supported codes).
+     * Deployments without the feature refuse it with `parameter_unsupported`.
+     * Account refusals (spend limit, past due, suspended) are the same as
+     * CreateJob's.
+     *
+     * Privacy: the caption TEXT (never the audio or video) is sent to Anthropic,
+     * our AI subprocessor, to produce the translation; it is not used to train
+     * models. Requesting a translation also enables the AI correction pass
+     * described under SubtitleTrack.insights (same subprocessor, no charge).
+     *
+     * @generated from rpc transcodely.v1.VideoService.TranslateCaptions
+     */
+    translateCaptions: {
+      name: "TranslateCaptions",
+      I: TranslateCaptionsRequest,
+      O: TranslateCaptionsResponse,
       kind: MethodKind.Unary,
     },
   }

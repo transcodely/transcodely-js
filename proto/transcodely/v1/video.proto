@@ -125,6 +125,41 @@ service VideoService {
   // off. Account refusals (spend limit, past due, suspended) are the same as
   // CreateJob's.
   rpc GenerateHighlights(GenerateHighlightsRequest) returns (GenerateHighlightsResponse);
+
+  // Translate a hosted video's existing AI captions into other languages,
+  // without transcribing again. Creates one captions-only job on the video
+  // (input_video_id = the video) that reads the source track's transcript
+  // and writes, per target language: a caption track (replacing any existing
+  // auto-generated track of that language on completion), its transcript
+  // renditions and, when the video streams as HLS, a caption rendition in
+  // the manifest. With include_insights (default true) and ready insights in
+  // the source language, the insights are translated too and appear as one
+  // more Video.insights entry per language (video.insights.ready fires).
+  //
+  // Billed as the `captions_translation` fee: EUR 0.12 per source minute per
+  // language, charged only for languages actually delivered; nothing else
+  // (no captions fee, no per-job processing fee).
+  //
+  // While a translation job for this video and a target language is still
+  // running, that language is not requested again: the response lists it
+  // under in_flight with the job that carries it, and the new job (if any)
+  // covers only the other languages. Once a job is terminal, a new call
+  // translates (and bills) again and replaces the tracks.
+  //
+  // Refused with failed_precondition and code captions_required when the
+  // video has no AI captions, insights_transcript_unavailable when the
+  // source track has no transcript, and with invalid_argument
+  // (parameter_invalid) when a target equals the source language or is not a
+  // supported translation language (the violation lists the supported codes).
+  // Deployments without the feature refuse it with `parameter_unsupported`.
+  // Account refusals (spend limit, past due, suspended) are the same as
+  // CreateJob's.
+  //
+  // Privacy: the caption TEXT (never the audio or video) is sent to Anthropic,
+  // our AI subprocessor, to produce the translation; it is not used to train
+  // models. Requesting a translation also enables the AI correction pass
+  // described under SubtitleTrack.insights (same subprocessor, no charge).
+  rpc TranslateCaptions(TranslateCaptionsRequest) returns (TranslateCaptionsResponse);
 }
 
 // =============================================================================
@@ -355,6 +390,37 @@ message Video {
   // not ready, or has no stored source). Read-only.
   optional google.protobuf.Timestamp source_expires_at = 55;
 
+  // Guide page: a hosted, shareable page for this video at
+  // <player base>/v/{id}/guide — the player on top, its AI insights
+  // (summary, chapters, key points, questions, highlights, terms, topics)
+  // and the full transcript with timestamps that seek the player, in the
+  // language of the caption track, with Open Graph and schema.org VideoObject
+  // markup. It exists only for a public or unlisted video that has ready
+  // insights or a generated transcript; a private video never gets one.
+  //
+  // guide_page_enabled is the EFFECTIVE setting: on when guide_page is "on",
+  // off when it is "off", and the app's HostingConfig.guide_pages_enabled
+  // default (unset meaning false) when it is "default". Server-set, and
+  // present on every VideoService response (reads, updates, creates, Watch).
+  //
+  // Absent in video.* webhook payloads: a webhook snapshot does not resolve
+  // the app default. Read guide_page there (exact in every payload), or call
+  // GetVideo for the effective value and guide_url.
+  optional bool guide_page_enabled = 56;
+
+  // The guide page URL. Present only when the page would render:
+  // guide_page_enabled is true, the video is playable (status "ready" and not
+  // private, the embed_url rule), and it has ready insights or a generated
+  // transcript to show. Durable: it never expires.
+  optional string guide_url = 57;
+
+  // This video's own guide page setting: "default" follows the app's
+  // HostingConfig.guide_pages_enabled (so a later change to the app default
+  // moves it), "on" and "off" pin it. Set it through UpdateVideo.guide_page;
+  // guide_page_enabled is the resulting effective value. Present on every
+  // Video, webhook payloads included.
+  GuidePageSetting guide_page = 58;
+
   // Resource type discriminator. Always "video" for this message.
   // Lets webhook consumers and polyglot SDKs identify the resource without
   // out-of-band knowledge of the field name. Server-set; ignored on requests.
@@ -435,6 +501,11 @@ message VideoTextTrack {
   // computed per request under exactly the same rules as url and is never
   // stored.
   repeated TranscriptRendition transcript_renditions = 10;
+
+  // ISO 639-2 language of the auto-generated track this one was translated
+  // from (SubtitleTrack.translations or VideoService.TranslateCaptions).
+  // Empty for recognized and customer-supplied tracks.
+  string translated_from = 11;
 }
 
 // =============================================================================
@@ -560,6 +631,23 @@ message CreateUploadRequest {
   // rate, on the invoice line "Retained source videos". Unset or false: the
   // source is temporary and not billed.
   optional bool source_pinned = 14;
+
+  // Also translate the inline AI captions into these languages (ISO 639-2,
+  // at most 10, distinct). Requires auto_captions = true; rejected otherwise
+  // with `invalid_argument`, error code `parameter_incompatible` on
+  // auto_translations. Sets SubtitleTrack.translations on the inline
+  // generate track: see it for what is produced, how it is billed (EUR 0.12
+  // per source minute per language, delivered languages only) and the
+  // privacy note. With auto_insights the insights are translated as well.
+  // Deployments without the feature reject it with `invalid_argument`, error
+  // code `parameter_unsupported`.
+  repeated string auto_translations = 15 [
+    (buf.validate.field).repeated = {
+      max_items: 10,
+      unique: true,
+      items: {string: {pattern: "^[a-z]{3}$"}}
+    }
+  ];
 }
 
 // Response from creating an upload.
@@ -700,6 +788,23 @@ message CreateFromUrlRequest {
   // rate, on the invoice line "Retained source videos". Unset or false: the
   // source is temporary and not billed.
   optional bool source_pinned = 12;
+
+  // Also translate the inline AI captions into these languages (ISO 639-2,
+  // at most 10, distinct). Requires auto_captions = true; rejected otherwise
+  // with `invalid_argument`, error code `parameter_incompatible` on
+  // auto_translations. Sets SubtitleTrack.translations on the inline
+  // generate track: see it for what is produced, how it is billed (EUR 0.12
+  // per source minute per language, delivered languages only) and the
+  // privacy note. With auto_insights the insights are translated as well.
+  // Deployments without the feature reject it with `invalid_argument`, error
+  // code `parameter_unsupported`.
+  repeated string auto_translations = 13 [
+    (buf.validate.field).repeated = {
+      max_items: 10,
+      unique: true,
+      items: {string: {pattern: "^[a-z]{3}$"}}
+    }
+  ];
 }
 
 // Response from creating a video from a URL.
@@ -861,6 +966,23 @@ message CreateMultipartUploadRequest {
   // rate, on the invoice line "Retained source videos". Unset or false: the
   // source is temporary and not billed.
   optional bool source_pinned = 19;
+
+  // Also translate the inline AI captions into these languages (ISO 639-2,
+  // at most 10, distinct). Requires auto_captions = true; rejected otherwise
+  // with `invalid_argument`, error code `parameter_incompatible` on
+  // auto_translations. Sets SubtitleTrack.translations on the inline
+  // generate track: see it for what is produced, how it is billed (EUR 0.12
+  // per source minute per language, delivered languages only) and the
+  // privacy note. With auto_insights the insights are translated as well.
+  // Deployments without the feature reject it with `invalid_argument`, error
+  // code `parameter_unsupported`.
+  repeated string auto_translations = 20 [
+    (buf.validate.field).repeated = {
+      max_items: 10,
+      unique: true,
+      items: {string: {pattern: "^[a-z]{3}$"}}
+    }
+  ];
 }
 
 // Response from creating a multipart upload.
@@ -1045,6 +1167,30 @@ message UpdateVideoRequest {
   // anything on the spot: the next sweep schedules the deletion with a fresh
   // warning webhook, no sooner than 72 hours out.
   optional bool source_pinned = 7;
+
+  // Set this video's guide page (Video.guide_url): "on" or "off" pins it,
+  // "default" clears the pin so the video follows the app's
+  // HostingConfig.guide_pages_enabled again. Unset leaves the video as it is.
+  // The page serves only public and unlisted videos regardless.
+  optional GuidePageSetting guide_page = 9 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
+
+  // Field 8 was a boolean guide_page_enabled during development; it never
+  // shipped, but stays reserved so no client built against it is misread.
+  reserved 8;
+  reserved "guide_page_enabled";
+}
+
+// A video's guide page setting (Video.guide_page, UpdateVideoRequest.guide_page).
+enum GuidePageSetting {
+  // Not set. Never returned on a Video (API or webhook); rejected on
+  // UpdateVideoRequest.
+  GUIDE_PAGE_SETTING_UNSPECIFIED = 0;
+  // Follow the app's HostingConfig.guide_pages_enabled default.
+  GUIDE_PAGE_SETTING_DEFAULT = 1;
+  // Guide page on for this video, whatever the app default says.
+  GUIDE_PAGE_SETTING_ON = 2;
+  // Guide page off for this video, whatever the app default says.
+  GUIDE_PAGE_SETTING_OFF = 3;
 }
 
 // Response from updating a video.
@@ -1390,6 +1536,14 @@ message GenerateInsightsRequest {
   // you want, at most 300 characters. Same meaning as InsightsOptions.hint.
   optional string hint = 3 [(buf.validate.field).string.max_len = 300];
 
+  // Optional glossary of names and terms as they should be spelled in the
+  // insights text, one term per line, at most 4000 characters. Same meaning
+  // as InsightsOptions.glossary, minus the caption correction: this pass
+  // reads captions that already exist and never rewrites them. No effect on
+  // pricing. When absent, the app's default (App.caption_glossary) is used.
+  // Echoed as TranscriptInsights.glossary.
+  optional string glossary = 5 [(buf.validate.field).string.max_len = 4000];
+
   // Optional app the video belongs to. API-key callers may omit it (their
   // key's app is used) or pass their own app; a different app is rejected
   // with PermissionDenied. Portal/JWT callers may pass it; omitted, the app
@@ -1405,6 +1559,86 @@ message GenerateInsightsResponse {
   // video and language. Status is "pending"; poll VideoService.Get (or
   // Watch) or subscribe to video.insights.ready / video.insights.failed.
   TranscriptInsights insights = 1;
+}
+
+// =============================================================================
+// Caption translation
+// =============================================================================
+
+// Request to translate a hosted video's existing AI captions.
+message TranslateCaptionsRequest {
+  // Video ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // ISO 639-2 language of the AI caption track to translate FROM. Optional
+  // when the video has exactly one AI caption track that was not itself a
+  // translation; required when it has several (refused with
+  // parameter_required, listing the available languages).
+  optional string source_language = 2 [
+    (buf.validate.field).string.pattern = "^[a-z]{3}$"
+  ];
+
+  // Languages to translate INTO (ISO 639-2), 1 to 10, distinct. Both the
+  // bibliographic and the terminologic form are accepted; normalized to ISO
+  // 639-2/B on the response ("deu" is echoed as "ger").
+  repeated string target_languages = 3 [
+    (buf.validate.field).repeated = {
+      min_items: 1,
+      max_items: 10,
+      unique: true,
+      items: {string: {pattern: "^[a-z]{3}$"}}
+    }
+  ];
+
+  // Also translate the video's ready insights in source_language, when there
+  // are any. Default true. Insights are translated by the API after the job
+  // completes, never regenerated.
+  optional bool include_insights = 4;
+
+  // Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+  optional string app_id = 5 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// A target language already being translated by an earlier job.
+message TranslationInFlight {
+  // ISO 639-2 language (normalized).
+  string language = 1;
+
+  // The still-running job (job_…) that carries it.
+  string job_id = 2;
+}
+
+// Response from TranslateCaptions.
+message TranslateCaptionsResponse {
+  // The job created for the languages that were not already in flight
+  // (job_…). Empty when every requested language was in flight.
+  string job_id = 1;
+
+  // The video.
+  string video_id = 2;
+
+  // The track language translated from (normalized).
+  string source_language = 3;
+
+  // The languages the new job translates into (normalized). Empty when
+  // job_id is empty.
+  repeated string target_languages = 4;
+
+  // Languages requested that an earlier, still-running job already covers.
+  repeated TranslationInFlight in_flight = 5;
+
+  // Estimated fee for the new job in EUR at your effective rate
+  // (source minutes × target_languages × rate). 0 when job_id is empty.
+  double estimated_fee_eur = 6;
+
+  // Whether the insights in source_language will be translated once the job
+  // completes (include_insights and ready source insights exist).
+  bool insights_included = 7;
 }
 
 // =============================================================================

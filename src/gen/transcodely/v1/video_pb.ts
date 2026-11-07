@@ -123,6 +123,49 @@ proto3.util.setEnumType(VideoVisibility, "transcodely.v1.VideoVisibility", [
 ]);
 
 /**
+ * A video's guide page setting (Video.guide_page, UpdateVideoRequest.guide_page).
+ *
+ * @generated from enum transcodely.v1.GuidePageSetting
+ */
+export enum GuidePageSetting {
+  /**
+   * Not set. Never returned on a Video (API or webhook); rejected on
+   * UpdateVideoRequest.
+   *
+   * @generated from enum value: GUIDE_PAGE_SETTING_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Follow the app's HostingConfig.guide_pages_enabled default.
+   *
+   * @generated from enum value: GUIDE_PAGE_SETTING_DEFAULT = 1;
+   */
+  DEFAULT = 1,
+
+  /**
+   * Guide page on for this video, whatever the app default says.
+   *
+   * @generated from enum value: GUIDE_PAGE_SETTING_ON = 2;
+   */
+  ON = 2,
+
+  /**
+   * Guide page off for this video, whatever the app default says.
+   *
+   * @generated from enum value: GUIDE_PAGE_SETTING_OFF = 3;
+   */
+  OFF = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(GuidePageSetting)
+proto3.util.setEnumType(GuidePageSetting, "transcodely.v1.GuidePageSetting", [
+  { no: 0, name: "GUIDE_PAGE_SETTING_UNSPECIFIED" },
+  { no: 1, name: "GUIDE_PAGE_SETTING_DEFAULT" },
+  { no: 2, name: "GUIDE_PAGE_SETTING_ON" },
+  { no: 3, name: "GUIDE_PAGE_SETTING_OFF" },
+]);
+
+/**
  * Processing state of a highlight clip.
  *
  * @generated from enum transcodely.v1.VideoHighlightStatus
@@ -486,6 +529,49 @@ export class Video extends Message<Video> {
   sourceExpiresAt?: Timestamp;
 
   /**
+   * Guide page: a hosted, shareable page for this video at
+   * <player base>/v/{id}/guide — the player on top, its AI insights
+   * (summary, chapters, key points, questions, highlights, terms, topics)
+   * and the full transcript with timestamps that seek the player, in the
+   * language of the caption track, with Open Graph and schema.org VideoObject
+   * markup. It exists only for a public or unlisted video that has ready
+   * insights or a generated transcript; a private video never gets one.
+   *
+   * guide_page_enabled is the EFFECTIVE setting: on when guide_page is "on",
+   * off when it is "off", and the app's HostingConfig.guide_pages_enabled
+   * default (unset meaning false) when it is "default". Server-set, and
+   * present on every VideoService response (reads, updates, creates, Watch).
+   *
+   * Absent in video.* webhook payloads: a webhook snapshot does not resolve
+   * the app default. Read guide_page there (exact in every payload), or call
+   * GetVideo for the effective value and guide_url.
+   *
+   * @generated from field: optional bool guide_page_enabled = 56;
+   */
+  guidePageEnabled?: boolean;
+
+  /**
+   * The guide page URL. Present only when the page would render:
+   * guide_page_enabled is true, the video is playable (status "ready" and not
+   * private, the embed_url rule), and it has ready insights or a generated
+   * transcript to show. Durable: it never expires.
+   *
+   * @generated from field: optional string guide_url = 57;
+   */
+  guideUrl?: string;
+
+  /**
+   * This video's own guide page setting: "default" follows the app's
+   * HostingConfig.guide_pages_enabled (so a later change to the app default
+   * moves it), "on" and "off" pin it. Set it through UpdateVideo.guide_page;
+   * guide_page_enabled is the resulting effective value. Present on every
+   * Video, webhook payloads included.
+   *
+   * @generated from field: transcodely.v1.GuidePageSetting guide_page = 58;
+   */
+  guidePage = GuidePageSetting.UNSPECIFIED;
+
+  /**
    * Resource type discriminator. Always "video" for this message.
    * Lets webhook consumers and polyglot SDKs identify the resource without
    * out-of-band knowledge of the field name. Server-set; ignored on requests.
@@ -537,6 +623,9 @@ export class Video extends Message<Video> {
     { no: 47, name: "source_scheduled_for_deletion_at", kind: "message", T: Timestamp, opt: true },
     { no: 48, name: "source_deleted_at", kind: "message", T: Timestamp, opt: true },
     { no: 55, name: "source_expires_at", kind: "message", T: Timestamp, opt: true },
+    { no: 56, name: "guide_page_enabled", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 57, name: "guide_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 58, name: "guide_page", kind: "enum", T: proto3.getEnumType(GuidePageSetting) },
     { no: 43, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
@@ -741,6 +830,15 @@ export class VideoTextTrack extends Message<VideoTextTrack> {
    */
   transcriptRenditions: TranscriptRendition[] = [];
 
+  /**
+   * ISO 639-2 language of the auto-generated track this one was translated
+   * from (SubtitleTrack.translations or VideoService.TranslateCaptions).
+   * Empty for recognized and customer-supplied tracks.
+   *
+   * @generated from field: string translated_from = 11;
+   */
+  translatedFrom = "";
+
   constructor(data?: PartialMessage<VideoTextTrack>) {
     super();
     proto3.util.initPartial(data, this);
@@ -759,6 +857,7 @@ export class VideoTextTrack extends Message<VideoTextTrack> {
     { no: 8, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 9, name: "created_at", kind: "message", T: Timestamp },
     { no: 10, name: "transcript_renditions", kind: "message", T: TranscriptRendition, repeated: true },
+    { no: 11, name: "translated_from", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VideoTextTrack {
@@ -938,6 +1037,21 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
    */
   sourcePinned?: boolean;
 
+  /**
+   * Also translate the inline AI captions into these languages (ISO 639-2,
+   * at most 10, distinct). Requires auto_captions = true; rejected otherwise
+   * with `invalid_argument`, error code `parameter_incompatible` on
+   * auto_translations. Sets SubtitleTrack.translations on the inline
+   * generate track: see it for what is produced, how it is billed (EUR 0.12
+   * per source minute per language, delivered languages only) and the
+   * privacy note. With auto_insights the insights are translated as well.
+   * Deployments without the feature reject it with `invalid_argument`, error
+   * code `parameter_unsupported`.
+   *
+   * @generated from field: repeated string auto_translations = 15;
+   */
+  autoTranslations: string[] = [];
+
   constructor(data?: PartialMessage<CreateUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -960,6 +1074,7 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
     { no: 12, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 13, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
     { no: 14, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 15, name: "auto_translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateUploadRequest {
@@ -1266,6 +1381,21 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
    */
   sourcePinned?: boolean;
 
+  /**
+   * Also translate the inline AI captions into these languages (ISO 639-2,
+   * at most 10, distinct). Requires auto_captions = true; rejected otherwise
+   * with `invalid_argument`, error code `parameter_incompatible` on
+   * auto_translations. Sets SubtitleTrack.translations on the inline
+   * generate track: see it for what is produced, how it is billed (EUR 0.12
+   * per source minute per language, delivered languages only) and the
+   * privacy note. With auto_insights the insights are translated as well.
+   * Deployments without the feature reject it with `invalid_argument`, error
+   * code `parameter_unsupported`.
+   *
+   * @generated from field: repeated string auto_translations = 13;
+   */
+  autoTranslations: string[] = [];
+
   constructor(data?: PartialMessage<CreateFromUrlRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1286,6 +1416,7 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
     { no: 10, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 11, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
     { no: 12, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 13, name: "auto_translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateFromUrlRequest {
@@ -1617,6 +1748,21 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
    */
   sourcePinned?: boolean;
 
+  /**
+   * Also translate the inline AI captions into these languages (ISO 639-2,
+   * at most 10, distinct). Requires auto_captions = true; rejected otherwise
+   * with `invalid_argument`, error code `parameter_incompatible` on
+   * auto_translations. Sets SubtitleTrack.translations on the inline
+   * generate track: see it for what is produced, how it is billed (EUR 0.12
+   * per source minute per language, delivered languages only) and the
+   * privacy note. With auto_insights the insights are translated as well.
+   * Deployments without the feature reject it with `invalid_argument`, error
+   * code `parameter_unsupported`.
+   *
+   * @generated from field: repeated string auto_translations = 20;
+   */
+  autoTranslations: string[] = [];
+
   constructor(data?: PartialMessage<CreateMultipartUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1641,6 +1787,7 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
     { no: 17, name: "auto_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 18, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
     { no: 19, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 20, name: "auto_translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateMultipartUploadRequest {
@@ -2281,6 +2428,16 @@ export class UpdateVideoRequest extends Message<UpdateVideoRequest> {
    */
   sourcePinned?: boolean;
 
+  /**
+   * Set this video's guide page (Video.guide_url): "on" or "off" pins it,
+   * "default" clears the pin so the video follows the app's
+   * HostingConfig.guide_pages_enabled again. Unset leaves the video as it is.
+   * The page serves only public and unlisted videos regardless.
+   *
+   * @generated from field: optional transcodely.v1.GuidePageSetting guide_page = 9;
+   */
+  guidePage?: GuidePageSetting;
+
   constructor(data?: PartialMessage<UpdateVideoRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2296,6 +2453,7 @@ export class UpdateVideoRequest extends Message<UpdateVideoRequest> {
     { no: 5, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 6, name: "clear_tags", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 7, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 9, name: "guide_page", kind: "enum", T: proto3.getEnumType(GuidePageSetting), opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateVideoRequest {
@@ -3460,6 +3618,18 @@ export class GenerateInsightsRequest extends Message<GenerateInsightsRequest> {
   hint?: string;
 
   /**
+   * Optional glossary of names and terms as they should be spelled in the
+   * insights text, one term per line, at most 4000 characters. Same meaning
+   * as InsightsOptions.glossary, minus the caption correction: this pass
+   * reads captions that already exist and never rewrites them. No effect on
+   * pricing. When absent, the app's default (App.caption_glossary) is used.
+   * Echoed as TranscriptInsights.glossary.
+   *
+   * @generated from field: optional string glossary = 5;
+   */
+  glossary?: string;
+
+  /**
    * Optional app the video belongs to. API-key callers may omit it (their
    * key's app is used) or pass their own app; a different app is rejected
    * with PermissionDenied. Portal/JWT callers may pass it; omitted, the app
@@ -3480,6 +3650,7 @@ export class GenerateInsightsRequest extends Message<GenerateInsightsRequest> {
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 3, name: "hint", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 5, name: "glossary", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 4, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
@@ -3540,6 +3711,228 @@ export class GenerateInsightsResponse extends Message<GenerateInsightsResponse> 
 
   static equals(a: GenerateInsightsResponse | PlainMessage<GenerateInsightsResponse> | undefined, b: GenerateInsightsResponse | PlainMessage<GenerateInsightsResponse> | undefined): boolean {
     return proto3.util.equals(GenerateInsightsResponse, a, b);
+  }
+}
+
+/**
+ * Request to translate a hosted video's existing AI captions.
+ *
+ * @generated from message transcodely.v1.TranslateCaptionsRequest
+ */
+export class TranslateCaptionsRequest extends Message<TranslateCaptionsRequest> {
+  /**
+   * Video ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * ISO 639-2 language of the AI caption track to translate FROM. Optional
+   * when the video has exactly one AI caption track that was not itself a
+   * translation; required when it has several (refused with
+   * parameter_required, listing the available languages).
+   *
+   * @generated from field: optional string source_language = 2;
+   */
+  sourceLanguage?: string;
+
+  /**
+   * Languages to translate INTO (ISO 639-2), 1 to 10, distinct. Both the
+   * bibliographic and the terminologic form are accepted; normalized to ISO
+   * 639-2/B on the response ("deu" is echoed as "ger").
+   *
+   * @generated from field: repeated string target_languages = 3;
+   */
+  targetLanguages: string[] = [];
+
+  /**
+   * Also translate the video's ready insights in source_language, when there
+   * are any. Default true. Insights are translated by the API after the job
+   * completes, never regenerated.
+   *
+   * @generated from field: optional bool include_insights = 4;
+   */
+  includeInsights?: boolean;
+
+  /**
+   * Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+   *
+   * @generated from field: optional string app_id = 5;
+   */
+  appId?: string;
+
+  constructor(data?: PartialMessage<TranslateCaptionsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.TranslateCaptionsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "source_language", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "target_languages", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 4, name: "include_insights", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 5, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TranslateCaptionsRequest {
+    return new TranslateCaptionsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): TranslateCaptionsRequest {
+    return new TranslateCaptionsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): TranslateCaptionsRequest {
+    return new TranslateCaptionsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: TranslateCaptionsRequest | PlainMessage<TranslateCaptionsRequest> | undefined, b: TranslateCaptionsRequest | PlainMessage<TranslateCaptionsRequest> | undefined): boolean {
+    return proto3.util.equals(TranslateCaptionsRequest, a, b);
+  }
+}
+
+/**
+ * A target language already being translated by an earlier job.
+ *
+ * @generated from message transcodely.v1.TranslationInFlight
+ */
+export class TranslationInFlight extends Message<TranslationInFlight> {
+  /**
+   * ISO 639-2 language (normalized).
+   *
+   * @generated from field: string language = 1;
+   */
+  language = "";
+
+  /**
+   * The still-running job (job_…) that carries it.
+   *
+   * @generated from field: string job_id = 2;
+   */
+  jobId = "";
+
+  constructor(data?: PartialMessage<TranslationInFlight>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.TranslationInFlight";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "job_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TranslationInFlight {
+    return new TranslationInFlight().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): TranslationInFlight {
+    return new TranslationInFlight().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): TranslationInFlight {
+    return new TranslationInFlight().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: TranslationInFlight | PlainMessage<TranslationInFlight> | undefined, b: TranslationInFlight | PlainMessage<TranslationInFlight> | undefined): boolean {
+    return proto3.util.equals(TranslationInFlight, a, b);
+  }
+}
+
+/**
+ * Response from TranslateCaptions.
+ *
+ * @generated from message transcodely.v1.TranslateCaptionsResponse
+ */
+export class TranslateCaptionsResponse extends Message<TranslateCaptionsResponse> {
+  /**
+   * The job created for the languages that were not already in flight
+   * (job_…). Empty when every requested language was in flight.
+   *
+   * @generated from field: string job_id = 1;
+   */
+  jobId = "";
+
+  /**
+   * The video.
+   *
+   * @generated from field: string video_id = 2;
+   */
+  videoId = "";
+
+  /**
+   * The track language translated from (normalized).
+   *
+   * @generated from field: string source_language = 3;
+   */
+  sourceLanguage = "";
+
+  /**
+   * The languages the new job translates into (normalized). Empty when
+   * job_id is empty.
+   *
+   * @generated from field: repeated string target_languages = 4;
+   */
+  targetLanguages: string[] = [];
+
+  /**
+   * Languages requested that an earlier, still-running job already covers.
+   *
+   * @generated from field: repeated transcodely.v1.TranslationInFlight in_flight = 5;
+   */
+  inFlight: TranslationInFlight[] = [];
+
+  /**
+   * Estimated fee for the new job in EUR at your effective rate
+   * (source minutes × target_languages × rate). 0 when job_id is empty.
+   *
+   * @generated from field: double estimated_fee_eur = 6;
+   */
+  estimatedFeeEur = 0;
+
+  /**
+   * Whether the insights in source_language will be translated once the job
+   * completes (include_insights and ready source insights exist).
+   *
+   * @generated from field: bool insights_included = 7;
+   */
+  insightsIncluded = false;
+
+  constructor(data?: PartialMessage<TranslateCaptionsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.TranslateCaptionsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "job_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "source_language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "target_languages", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 5, name: "in_flight", kind: "message", T: TranslationInFlight, repeated: true },
+    { no: 6, name: "estimated_fee_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 7, name: "insights_included", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TranslateCaptionsResponse {
+    return new TranslateCaptionsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): TranslateCaptionsResponse {
+    return new TranslateCaptionsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): TranslateCaptionsResponse {
+    return new TranslateCaptionsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: TranslateCaptionsResponse | PlainMessage<TranslateCaptionsResponse> | undefined, b: TranslateCaptionsResponse | PlainMessage<TranslateCaptionsResponse> | undefined): boolean {
+    return proto3.util.equals(TranslateCaptionsResponse, a, b);
   }
 }
 
