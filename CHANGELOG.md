@@ -4,6 +4,22 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.19](https://github.com/transcodely/transcodely-js/compare/v0.3.18...v0.3.19) (2026-11-07)
+
+
+### Features
+
+* protos for api 5.38.0 (guide page, caption glossary, caption translation contract) ([312de4f](https://github.com/transcodely/transcodely-js/commit/312de4fd643ce3546313842d00b73df7edb2c6b7))
+* resync protos for api 5.38.0 — guide page, caption translation, glossary ([14c8327](https://github.com/transcodely/transcodely-js/commit/14c8327077beca655b915faf4e0a89666be13e7f))
+
+
+### Bug Fixes
+
+* **errors:** classify failed_precondition as PreconditionError ([35a064d](https://github.com/transcodely/transcodely-js/commit/35a064dcdc998eecd36d9fbd2d1bd246332bc439))
+* **errors:** classify failed_precondition as PreconditionError ([d99e93d](https://github.com/transcodely/transcodely-js/commit/d99e93de7b1571a627b3679b4bd3a30ce3323b65)), closes [#59](https://github.com/transcodely/transcodely-js/issues/59)
+* **proto:** sync protos from api 3137f067 (label pattern, insights correction docs, highlights billing) ([4bae362](https://github.com/transcodely/transcodely-js/commit/4bae362976a9dd9c43bdd43a7f2d82883b5a2818))
+* **proto:** sync protos from api 3137f067 (label pattern, insights correction docs, highlights billing) ([02fcfe0](https://github.com/transcodely/transcodely-js/commit/02fcfe04ef49a77c675c6c494db62566faf5b392))
+
 ## [0.3.18](https://github.com/transcodely/transcodely-js/compare/v0.3.17...v0.3.18) (2026-11-02)
 
 
