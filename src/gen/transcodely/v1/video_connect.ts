@@ -6,7 +6,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, TranslateCaptionsRequest, TranslateCaptionsResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
+import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, RestyleCaptionsRequest, RestyleCaptionsResponse, TranslateCaptionsRequest, TranslateCaptionsResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -242,7 +242,9 @@ export const VideoService = {
     /**
      * Cut highlight clips from a hosted video: up to max_count short MP4s
      * (default 5) around the verbatim quotes its ready AI insights picked
-     * (TranscriptInsights.highlights), rendered at the video's top rendition's
+     * (TranscriptInsights.highlights; for a translated language, their
+     * translations, which keep the same timings and so cut the same windows),
+     * rendered at the video's top rendition's
      * codec and resolution. Returns the highlights in "pending"; they also
      * appear on Video.highlights, and video.highlights.ready (or
      * video.highlights.failed, when none could be rendered) fires once every
@@ -303,9 +305,17 @@ export const VideoService = {
      * source track has no transcript, and with invalid_argument
      * (parameter_invalid) when a target equals the source language or is not a
      * supported translation language (the violation lists the supported codes).
-     * Deployments without the feature refuse it with `parameter_unsupported`.
+     * Refused with failed_precondition and code captions_job_in_flight while a
+     * RestyleCaptions job on the source language is still running (it is about
+     * to replace the cues the translation would follow); the message names
+     * that job. Deployments without the feature refuse it with
+     * `parameter_unsupported`.
      * Account refusals (spend limit, past due, suspended) are the same as
-     * CreateJob's.
+     * CreateJob's. Refused with unavailable and code translation_busy when the
+     * call could not start within about 10 seconds because other caption
+     * translations (of this video, or many at once) were being started at the
+     * same moment: nothing was created or billed, and the same request can be
+     * retried after a few seconds.
      *
      * Privacy: the caption TEXT (never the audio or video) is sent to Anthropic,
      * our AI subprocessor, to produce the translation; it is not used to train
@@ -318,6 +328,47 @@ export const VideoService = {
       name: "TranslateCaptions",
       I: TranslateCaptionsRequest,
       O: TranslateCaptionsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Re-cuts a hosted video's existing AI captions into cues of a new cue
+     * style (CueStyle), without transcribing again. The words and their
+     * timings come from the track's stored transcript; only how they are
+     * grouped into cues changes. Creates a captions-only job on the video
+     * (job_id in the response; follow it with JobService.Get or the job.*
+     * webhooks). When the job completes, the track's caption file, its
+     * transcript renditions and, when the video's HLS stream carries the
+     * language, its stream rendition are replaced in place, the track's
+     * updated_at moves and VideoTextTrack.cue_style shows the new style.
+     * Insights are kept as they are (the words do not change).
+     *
+     * Translations of the track are not re-cut: they keep their cues, and
+     * their source track's newer updated_at marks them as made from captions
+     * that have since changed. Translate again (TranslateCaptions) to bring
+     * them onto the new cues.
+     *
+     * Free: no captions, translation or processing fee is charged.
+     *
+     * Deployments whose workers do not cut by cue style yet refuse it with
+     * invalid_argument and code `parameter_unsupported` on cue_style.
+     *
+     * Refused with failed_precondition and code captions_required when the
+     * video has no AI captions or the chosen track is itself a translation,
+     * insights_transcript_unavailable when the track has no transcript, and
+     * captions_job_in_flight when a captions job (generation, translation or
+     * another restyle) of the same language is still running on the video;
+     * the message names that job. Refused with unavailable and code
+     * translation_busy when the call could not start within about 10 seconds
+     * because other caption jobs on the video were being started at the same
+     * moment: nothing was created, and the same request can be retried after a
+     * few seconds. Account refusals are the same as CreateJob's.
+     *
+     * @generated from rpc transcodely.v1.VideoService.RestyleCaptions
+     */
+    restyleCaptions: {
+      name: "RestyleCaptions",
+      I: RestyleCaptionsRequest,
+      O: RestyleCaptionsResponse,
       kind: MethodKind.Unary,
     },
   }

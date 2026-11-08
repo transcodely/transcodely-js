@@ -6,6 +6,7 @@ package transcodely.v1;
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 import "transcodely/v1/common.proto";
+import "transcodely/v1/subtitles.proto";
 
 // AppService manages apps (projects) within organizations.
 service AppService {
@@ -150,6 +151,15 @@ message App {
   // shows it as the glossary used. Absent when none is set. Update via
   // AppService.UpdateApp.
   optional string caption_glossary = 17;
+
+  // The app's default cue style: how AI captions are cut into cues (see
+  // CueStyle). Applied to every AI captions track that sets no style of
+  // its own or only some of it, including videos captioned by the
+  // auto_captions upload flag; the job then shows the resolved style it
+  // used. Stored as set, not resolved: a limit left unset here follows its
+  // preset (or `standard`). Absent when none is set, which means `standard`.
+  // Update via AppService.UpdateApp.
+  optional CueStyle cue_style = 18;
 }
 
 // Player configuration: how the hosted player and embeds present every video
@@ -293,6 +303,13 @@ message UpdateAppRequest {
   optional string caption_glossary = 5 [
     (buf.validate.field).string.max_len = 4000
   ];
+
+  // New default cue style (if provided); see App.cue_style. Replaces
+  // the whole stored default, it is not merged into it. An empty style ({})
+  // clears it, so AI captions use `standard`. Applies to captions generated
+  // from now on; existing captions keep their cues until restyled with
+  // VideoService.RestyleCaptions.
+  optional CueStyle cue_style = 6;
 }
 
 // Response from updating an app.

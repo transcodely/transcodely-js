@@ -8,7 +8,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
-import { TranscriptInsights, TranscriptRendition } from "./subtitles_pb.js";
+import { CueStyle, TranscriptInsights, TranscriptRendition } from "./subtitles_pb.js";
 
 /**
  * Video lifecycle status.
@@ -205,6 +205,79 @@ proto3.util.setEnumType(VideoHighlightStatus, "transcodely.v1.VideoHighlightStat
   { no: 2, name: "VIDEO_HIGHLIGHT_STATUS_READY" },
   { no: 3, name: "VIDEO_HIGHLIGHT_STATUS_FAILED" },
 ]);
+
+/**
+ * One line of a video's cost breakdown (Video.cost_breakdown): how much of
+ * Video.total_cost one kind of charge accounts for.
+ *
+ * @generated from message transcodely.v1.VideoCostLine
+ */
+export class VideoCostLine extends Message<VideoCostLine> {
+  /**
+   * What the line is for, a lowercase string:
+   *   "encoding"             — the transcoding work itself: what is left of
+   *                            the video's jobs' settled totals after every
+   *                            other line is taken out. That covers the
+   *                            output (rendition) costs and, on jobs created
+   *                            before August 2026, the minimum-charge floor.
+   *                            Never negative. A job's settled total always
+   *                            includes its fees, so the remainder cannot go
+   *                            below zero; if inconsistent data ever made it
+   *                            negative, the line is omitted (clamped to zero)
+   *                            and nothing else is adjusted.
+   *   "processing"           — the flat per-job processing fee of each job
+   *                            run for the video.
+   *   "captions"             — AI caption generation, inline with the
+   *                            transcode or a later captions job.
+   *   "captions_translation" — caption translation into other languages.
+   *   "insights"             — AI insights, both the per-minute and the
+   *                            per-video part, whether requested with the
+   *                            captions or later via GenerateInsights.
+   *   "highlights"           — highlight clips: the whole settled total of
+   *                            each clip job cut from the video.
+   * New kinds can be added when a new kind of charge is introduced, so show
+   * an unrecognized kind as a generic line rather than dropping it; dropping
+   * it would make the lines stop adding up to total_cost.
+   *
+   * @generated from field: string kind = 1;
+   */
+  kind = "";
+
+  /**
+   * The amount in EUR, the currency of total_cost. Always greater than zero.
+   *
+   * @generated from field: double amount = 2;
+   */
+  amount = 0;
+
+  constructor(data?: PartialMessage<VideoCostLine>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.VideoCostLine";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "kind", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "amount", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VideoCostLine {
+    return new VideoCostLine().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): VideoCostLine {
+    return new VideoCostLine().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): VideoCostLine {
+    return new VideoCostLine().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: VideoCostLine | PlainMessage<VideoCostLine> | undefined, b: VideoCostLine | PlainMessage<VideoCostLine> | undefined): boolean {
+    return proto3.util.equals(VideoCostLine, a, b);
+  }
+}
 
 /**
  * A hosted video asset with playback, storage, and cost tracking.
@@ -434,6 +507,9 @@ export class Video extends Message<Video> {
    * breakdown of already-billed job totals, not an extra charge on top of
    * them: it is contained in total_cost, never added to it.
    *
+   * Kept for compatibility: cost_breakdown's "captions" line carries the same
+   * amount once every linked job has settled, and is the one to read.
+   *
    * @generated from field: optional double captions_cost = 50;
    */
   captionsCost?: number;
@@ -452,6 +528,34 @@ export class Video extends Message<Video> {
    * @generated from field: optional double total_cost = 52;
    */
   totalCost?: number;
+
+  /**
+   * What total_cost is made of, one line per kind of charge, for showing a
+   * small itemized breakdown next to the total. Lines are listed in a fixed
+   * order (encoding, processing, captions, captions_translation, insights,
+   * highlights, then any other kind) and a kind appears at most once.
+   *
+   * The lines add up to total_cost (the one exception, on inconsistent data
+   * only, is described under VideoCostLine.kind "encoding"). Every amount is
+   * an exact sum of the same 6-decimal EUR amounts total_cost is summed
+   * from, with no rounding, so the sum matches total_cost to the cent and
+   * beyond. Round each line only
+   * for display; rounding lines independently can differ from the rounded
+   * total by a cent, so show total_cost itself as the total.
+   *
+   * Only settled amounts count, under the same rules as total_cost: jobs
+   * without a settled total are left out, and estimated or voided fees never
+   * appear. Lines whose amount is zero are omitted. Empty exactly when
+   * total_cost is absent.
+   *
+   * Filled on every read that fills total_cost (GetVideo and ListVideos
+   * included). Empty in webhook event payloads, which also omit total_cost
+   * and captions_cost: event snapshots are taken without the per-video cost
+   * read, so each event does not pay for an extra query.
+   *
+   * @generated from field: repeated transcodely.v1.VideoCostLine cost_breakdown = 59;
+   */
+  costBreakdown: VideoCostLine[] = [];
 
   /**
    * Why this video failed, in one sentence a customer can act on. Present only
@@ -615,6 +719,7 @@ export class Video extends Message<Video> {
     { no: 31, name: "encoding_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 50, name: "captions_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 52, name: "total_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
+    { no: 59, name: "cost_breakdown", kind: "message", T: VideoCostLine, repeated: true },
     { no: 51, name: "error_message", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 40, name: "created_at", kind: "message", T: Timestamp },
     { no: 41, name: "updated_at", kind: "message", T: Timestamp },
@@ -839,6 +944,28 @@ export class VideoTextTrack extends Message<VideoTextTrack> {
    */
   translatedFrom = "";
 
+  /**
+   * When the track last changed. Regenerating an auto-generated track
+   * replaces it in place, so this moves while created_at does not: a
+   * translation whose source track's updated_at is newer than its own was
+   * made from captions that have since been regenerated or restyled
+   * (VideoService.RestyleCaptions).
+   *
+   * @generated from field: google.protobuf.Timestamp updated_at = 12;
+   */
+  updatedAt?: Timestamp;
+
+  /**
+   * The cue style this auto-generated track's cues were cut with,
+   * resolved: the preset the limits started from and all three limits (see
+   * CueStyle). Absent for customer-supplied tracks, for translations
+   * (they keep the cue timing of the track they were translated from, see
+   * translated_from) and for tracks generated before cue styles existed.
+   *
+   * @generated from field: optional transcodely.v1.CueStyle cue_style = 13;
+   */
+  cueStyle?: CueStyle;
+
   constructor(data?: PartialMessage<VideoTextTrack>) {
     super();
     proto3.util.initPartial(data, this);
@@ -858,6 +985,8 @@ export class VideoTextTrack extends Message<VideoTextTrack> {
     { no: 9, name: "created_at", kind: "message", T: Timestamp },
     { no: 10, name: "transcript_renditions", kind: "message", T: TranscriptRendition, repeated: true },
     { no: 11, name: "translated_from", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "updated_at", kind: "message", T: Timestamp },
+    { no: 13, name: "cue_style", kind: "message", T: CueStyle, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VideoTextTrack {
@@ -1052,6 +1181,17 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
    */
   autoTranslations: string[] = [];
 
+  /**
+   * How the inline AI captions are cut into cues; see CueStyle and
+   * SubtitleTrack.cue_style. Optional: when absent, the app's default
+   * (App.cue_style) is used, else `standard`. Requires auto_captions =
+   * true; rejected otherwise with `invalid_argument`, error code
+   * `parameter_incompatible` on cue_style. No effect on pricing.
+   *
+   * @generated from field: optional transcodely.v1.CueStyle cue_style = 16;
+   */
+  cueStyle?: CueStyle;
+
   constructor(data?: PartialMessage<CreateUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1075,6 +1215,7 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
     { no: 13, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
     { no: 14, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 15, name: "auto_translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 16, name: "cue_style", kind: "message", T: CueStyle, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateUploadRequest {
@@ -1396,6 +1537,17 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
    */
   autoTranslations: string[] = [];
 
+  /**
+   * How the inline AI captions are cut into cues; see CueStyle and
+   * SubtitleTrack.cue_style. Optional: when absent, the app's default
+   * (App.cue_style) is used, else `standard`. Requires auto_captions =
+   * true; rejected otherwise with `invalid_argument`, error code
+   * `parameter_incompatible` on cue_style. No effect on pricing.
+   *
+   * @generated from field: optional transcodely.v1.CueStyle cue_style = 14;
+   */
+  cueStyle?: CueStyle;
+
   constructor(data?: PartialMessage<CreateFromUrlRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1417,6 +1569,7 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
     { no: 11, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
     { no: 12, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 13, name: "auto_translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 14, name: "cue_style", kind: "message", T: CueStyle, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateFromUrlRequest {
@@ -1763,6 +1916,17 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
    */
   autoTranslations: string[] = [];
 
+  /**
+   * How the inline AI captions are cut into cues; see CueStyle and
+   * SubtitleTrack.cue_style. Optional: when absent, the app's default
+   * (App.cue_style) is used, else `standard`. Requires auto_captions =
+   * true; rejected otherwise with `invalid_argument`, error code
+   * `parameter_incompatible` on cue_style. No effect on pricing.
+   *
+   * @generated from field: optional transcodely.v1.CueStyle cue_style = 21;
+   */
+  cueStyle?: CueStyle;
+
   constructor(data?: PartialMessage<CreateMultipartUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1788,6 +1952,7 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
     { no: 18, name: "highlights", kind: "message", T: HighlightsConfig, opt: true },
     { no: 19, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 20, name: "auto_translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 21, name: "cue_style", kind: "message", T: CueStyle, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateMultipartUploadRequest {
@@ -3933,6 +4098,144 @@ export class TranslateCaptionsResponse extends Message<TranslateCaptionsResponse
 
   static equals(a: TranslateCaptionsResponse | PlainMessage<TranslateCaptionsResponse> | undefined, b: TranslateCaptionsResponse | PlainMessage<TranslateCaptionsResponse> | undefined): boolean {
     return proto3.util.equals(TranslateCaptionsResponse, a, b);
+  }
+}
+
+/**
+ * Request to re-cut a hosted video's AI captions into a new cue style.
+ *
+ * @generated from message transcodely.v1.RestyleCaptionsRequest
+ */
+export class RestyleCaptionsRequest extends Message<RestyleCaptionsRequest> {
+  /**
+   * Video ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * ISO 639-2 language of the AI caption track to restyle. Optional when the
+   * video has exactly one AI caption track that is not a translation;
+   * required when it has several (refused with parameter_required, listing
+   * the available languages). Both the bibliographic and the terminologic
+   * form are accepted.
+   *
+   * @generated from field: optional string language = 2;
+   */
+  language?: string;
+
+  /**
+   * The style to cut the cues in. Optional: when absent, or for the limits it
+   * leaves unset, the app's default (App.cue_style) is used, else
+   * `standard`, with the same rules as SubtitleTrack.cue_style. So an
+   * empty request re-cuts old captions into the current default style.
+   *
+   * @generated from field: optional transcodely.v1.CueStyle cue_style = 3;
+   */
+  cueStyle?: CueStyle;
+
+  /**
+   * Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+   *
+   * @generated from field: optional string app_id = 4;
+   */
+  appId?: string;
+
+  constructor(data?: PartialMessage<RestyleCaptionsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.RestyleCaptionsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 3, name: "cue_style", kind: "message", T: CueStyle, opt: true },
+    { no: 4, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RestyleCaptionsRequest {
+    return new RestyleCaptionsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RestyleCaptionsRequest {
+    return new RestyleCaptionsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RestyleCaptionsRequest {
+    return new RestyleCaptionsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RestyleCaptionsRequest | PlainMessage<RestyleCaptionsRequest> | undefined, b: RestyleCaptionsRequest | PlainMessage<RestyleCaptionsRequest> | undefined): boolean {
+    return proto3.util.equals(RestyleCaptionsRequest, a, b);
+  }
+}
+
+/**
+ * Response from RestyleCaptions.
+ *
+ * @generated from message transcodely.v1.RestyleCaptionsResponse
+ */
+export class RestyleCaptionsResponse extends Message<RestyleCaptionsResponse> {
+  /**
+   * The captions-only job that re-cuts the track (job_…).
+   *
+   * @generated from field: string job_id = 1;
+   */
+  jobId = "";
+
+  /**
+   * The video.
+   *
+   * @generated from field: string video_id = 2;
+   */
+  videoId = "";
+
+  /**
+   * The language of the track being restyled (normalized to ISO 639-2/B).
+   *
+   * @generated from field: string language = 3;
+   */
+  language = "";
+
+  /**
+   * The style the job cuts the cues in, resolved: the preset the limits
+   * started from and all three limits.
+   *
+   * @generated from field: transcodely.v1.CueStyle cue_style = 4;
+   */
+  cueStyle?: CueStyle;
+
+  constructor(data?: PartialMessage<RestyleCaptionsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.RestyleCaptionsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "job_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "cue_style", kind: "message", T: CueStyle },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RestyleCaptionsResponse {
+    return new RestyleCaptionsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RestyleCaptionsResponse {
+    return new RestyleCaptionsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RestyleCaptionsResponse {
+    return new RestyleCaptionsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RestyleCaptionsResponse | PlainMessage<RestyleCaptionsResponse> | undefined, b: RestyleCaptionsResponse | PlainMessage<RestyleCaptionsResponse> | undefined): boolean {
+    return proto3.util.equals(RestyleCaptionsResponse, a, b);
   }
 }
 

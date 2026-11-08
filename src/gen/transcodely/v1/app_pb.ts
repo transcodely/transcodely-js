@@ -7,6 +7,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import { CueStyle } from "./subtitles_pb.js";
 import { PaginationRequest, PaginationResponse } from "./common_pb.js";
 
 /**
@@ -191,6 +192,19 @@ export class App extends Message<App> {
    */
   captionGlossary?: string;
 
+  /**
+   * The app's default cue style: how AI captions are cut into cues (see
+   * CueStyle). Applied to every AI captions track that sets no style of
+   * its own or only some of it, including videos captioned by the
+   * auto_captions upload flag; the job then shows the resolved style it
+   * used. Stored as set, not resolved: a limit left unset here follows its
+   * preset (or `standard`). Absent when none is set, which means `standard`.
+   * Update via AppService.UpdateApp.
+   *
+   * @generated from field: optional transcodely.v1.CueStyle cue_style = 18;
+   */
+  cueStyle?: CueStyle;
+
   constructor(data?: PartialMessage<App>) {
     super();
     proto3.util.initPartial(data, this);
@@ -215,6 +229,7 @@ export class App extends Message<App> {
     { no: 15, name: "monthly_spend_limit_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 16, name: "player_config", kind: "message", T: PlayerConfig, opt: true },
     { no: 17, name: "caption_glossary", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 18, name: "cue_style", kind: "message", T: CueStyle, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): App {
@@ -662,6 +677,17 @@ export class UpdateAppRequest extends Message<UpdateAppRequest> {
    */
   captionGlossary?: string;
 
+  /**
+   * New default cue style (if provided); see App.cue_style. Replaces
+   * the whole stored default, it is not merged into it. An empty style ({})
+   * clears it, so AI captions use `standard`. Applies to captions generated
+   * from now on; existing captions keep their cues until restyled with
+   * VideoService.RestyleCaptions.
+   *
+   * @generated from field: optional transcodely.v1.CueStyle cue_style = 6;
+   */
+  cueStyle?: CueStyle;
+
   constructor(data?: PartialMessage<UpdateAppRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -674,6 +700,7 @@ export class UpdateAppRequest extends Message<UpdateAppRequest> {
     { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 5, name: "caption_glossary", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 6, name: "cue_style", kind: "message", T: CueStyle, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateAppRequest {
