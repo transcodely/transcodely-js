@@ -4,6 +4,14 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.20](https://github.com/transcodely/transcodely-js/compare/v0.3.19...v0.3.20) (2026-11-08)
+
+
+### Features
+
+* caption cue styles and RestyleCaptions ([bc7006d](https://github.com/transcodely/transcodely-js/commit/bc7006d6ef91e34c3a27983063496e9bc89165da))
+* caption cue styles and videos.restyleCaptions ([6f0cefb](https://github.com/transcodely/transcodely-js/commit/6f0cefb1b79ed66d9d7b6345dcf94f7f9059b93b))
+
 ## [0.3.19](https://github.com/transcodely/transcodely-js/compare/v0.3.18...v0.3.19) (2026-11-07)
 
 
