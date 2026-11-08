@@ -4,6 +4,14 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.21](https://github.com/transcodely/transcodely-js/compare/v0.3.20...v0.3.21) (2026-11-08)
+
+
+### Features
+
+* caption style variants (SetDefaultCaptionStyle, DeleteCaptionStyle) ([25fe792](https://github.com/transcodely/transcodely-js/commit/25fe79237f89ba61ca04fe5a7b40c7c2ab5e647f))
+* caption style variants and videos.setDefaultCaptionStyle / deleteCaptionStyle ([163c051](https://github.com/transcodely/transcodely-js/commit/163c0510c7a4e4cf4dee72c874658cf95f83cf5d))
+
 ## [0.3.20](https://github.com/transcodely/transcodely-js/compare/v0.3.19...v0.3.20) (2026-11-08)
 
 
