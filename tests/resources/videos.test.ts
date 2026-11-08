@@ -10,6 +10,8 @@ import {
   GetSeoMarkupResponse,
   GetStatsResponse,
   ListTopVideosResponse,
+  RestyleCaptionsRequest,
+  RestyleCaptionsResponse,
   TopVideo,
   TranslateCaptionsRequest,
   TranslateCaptionsResponse,
@@ -24,6 +26,8 @@ import {
   VideoStatsTotals,
 } from "../../src/gen/transcodely/v1/video_pb.js";
 import {
+  CueStyle,
+  CueStylePreset,
   InsightsSource,
   InsightsStatus,
   TranscriptInsights,
@@ -305,6 +309,51 @@ describe("Videos facade", () => {
       source_language: "eng",
       target_languages: ["ger", "spa"],
       include_insights: false,
+    });
+  });
+
+  it("restyleCaptions dispatches RestyleCaptions and returns the response", async () => {
+    const transport = makeTransport();
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(
+      new RestyleCaptionsResponse({
+        jobId: "job_a1b2c3d4e5f6",
+        videoId: "vid_a1b2c3d4e5f6g7",
+        language: "eng",
+        cueStyle: new CueStyle({
+          preset: CueStylePreset.COMPACT,
+          maxCharsPerLine: 42,
+          maxLines: 1,
+          maxCueDurationMs: 4000,
+        }),
+      }),
+    );
+    const out = await new Videos(transport).restyleCaptions({ id: "vid_a1b2c3d4e5f6g7" });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toBe(VideoService.methods.restyleCaptions);
+    expect(spy.mock.calls[0][2]).toBeInstanceOf(RestyleCaptionsRequest);
+    expect(out).toBeInstanceOf(RestyleCaptionsResponse);
+    expect(out.jobId).toBe("job_a1b2c3d4e5f6");
+    expect(out.language).toBe("eng");
+    expect(out.cueStyle?.preset).toBe(CueStylePreset.COMPACT);
+    expect(out.cueStyle?.maxCharsPerLine).toBe(42);
+    expect(out.cueStyle?.maxLines).toBe(1);
+    expect(out.cueStyle?.maxCueDurationMs).toBe(4000);
+  });
+
+  it("restyleCaptions sends snake_case fields and a lowercase preset on the wire", async () => {
+    const transport = makeTransport();
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(new RestyleCaptionsResponse());
+    await new Videos(transport).restyleCaptions({
+      id: "vid_a1b2c3d4e5f6g7",
+      language: "eng",
+      cueStyle: { preset: CueStylePreset.LONG, maxLines: 3 },
+    });
+    const wire = toWireJson(spy.mock.calls[0][2] as RestyleCaptionsRequest) as Record<string, unknown>;
+    // Unset optionals (app_id, the other limits) stay off the wire.
+    expect(wire).toEqual({
+      id: "vid_a1b2c3d4e5f6g7",
+      language: "eng",
+      cue_style: { preset: "long", max_lines: 3 },
     });
   });
 

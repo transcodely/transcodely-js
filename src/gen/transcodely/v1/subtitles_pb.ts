@@ -106,6 +106,50 @@ proto3.util.setEnumType(SubtitleFormat, "transcodely.v1.SubtitleFormat", [
 ]);
 
 /**
+ * A named cue style. Each preset is a full set of CueStyle
+ * limits; see CueStyle for the numbers.
+ *
+ * @generated from enum transcodely.v1.CueStylePreset
+ */
+export enum CueStylePreset {
+  /**
+   * @generated from enum value: CUE_STYLE_PRESET_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Short cues for small screens and fast reading: one line of up to 42
+   * characters, at most 4 seconds on screen.
+   *
+   * @generated from enum value: CUE_STYLE_PRESET_COMPACT = 1;
+   */
+  COMPACT = 1,
+
+  /**
+   * The default. About a sentence to a sentence and a half per cue: up to
+   * two lines of 42 characters, at most 7 seconds on screen.
+   *
+   * @generated from enum value: CUE_STYLE_PRESET_STANDARD = 2;
+   */
+  STANDARD = 2,
+
+  /**
+   * Longer cues for lectures and talks: up to two lines of 50 characters, at
+   * most 8 seconds on screen.
+   *
+   * @generated from enum value: CUE_STYLE_PRESET_LONG = 3;
+   */
+  LONG = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(CueStylePreset)
+proto3.util.setEnumType(CueStylePreset, "transcodely.v1.CueStylePreset", [
+  { no: 0, name: "CUE_STYLE_PRESET_UNSPECIFIED" },
+  { no: 1, name: "CUE_STYLE_PRESET_COMPACT" },
+  { no: 2, name: "CUE_STYLE_PRESET_STANDARD" },
+  { no: 3, name: "CUE_STYLE_PRESET_LONG" },
+]);
+
+/**
  * How the txt and md transcript renditions are written. The json rendition
  * always carries every word verbatim, with the removable words flagged.
  *
@@ -514,6 +558,11 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
    * language, charged only for languages whose caption file is delivered.
    * No extra charge for the transcript renditions or the translated insights.
    * Deployments without the feature reject this with `parameter_unsupported`.
+   * On a job whose input is a hosted video (input_video_id), the create is
+   * refused with unavailable and code translation_busy when it could not
+   * start within about 10 seconds because other caption translations were
+   * being started at the same moment: nothing was created or billed, and the
+   * same request can be retried after a few seconds.
    *
    * Privacy: the caption TEXT (never the audio or video) is sent to Anthropic,
    * our AI subprocessor, to produce the translation; it is not used to train
@@ -523,6 +572,22 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
    * @generated from field: repeated string translations = 15;
    */
   translations: string[] = [];
+
+  /**
+   * How the generated captions are cut into cues: how much text one cue
+   * holds and how long it stays on screen. Only valid with the `generate`
+   * operation. Optional: when absent, the app's default
+   * (App.cue_style) is used, and without one the `standard` preset.
+   * Fields set here override the app default field by field (see
+   * CueStyle for how a preset and explicit limits combine). The job
+   * shows the style actually used, resolved: the preset it started from and
+   * all three limits. Translations keep the source cue timing, so they follow
+   * this style too. No effect on pricing. Change it later without
+   * transcribing again with VideoService.RestyleCaptions.
+   *
+   * @generated from field: transcodely.v1.CueStyle cue_style = 16;
+   */
+  cueStyle?: CueStyle;
 
   constructor(data?: PartialMessage<SubtitleTrack>) {
     super();
@@ -547,6 +612,7 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
     { no: 13, name: "transcript", kind: "message", T: TranscriptOptions },
     { no: 14, name: "insights", kind: "message", T: InsightsOptions },
     { no: 15, name: "translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 16, name: "cue_style", kind: "message", T: CueStyle },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubtitleTrack {
@@ -563,6 +629,90 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
 
   static equals(a: SubtitleTrack | PlainMessage<SubtitleTrack> | undefined, b: SubtitleTrack | PlainMessage<SubtitleTrack> | undefined): boolean {
     return proto3.util.equals(SubtitleTrack, a, b);
+  }
+}
+
+/**
+ * How AI captions are cut into cues. Cues follow the speech: a short pause
+ * between words does not end a cue, and no cue exceeds the limits below.
+ * Limits are maximums, not targets: a short sentence is a short cue.
+ *
+ * Start from a preset, override any limit, or both. Every limit not set
+ * comes from the preset; when no preset is set, from the app default
+ * (App.cue_style) and then from `standard`. Naming a preset on a request
+ * replaces the app default as the starting point, so `{"preset": "compact"}`
+ * is always compact. Without a preset, the limits that are set override the
+ * app default one by one.
+ *
+ * | preset     | max_chars_per_line | max_lines | max_cue_duration_ms |
+ * |------------|--------------------|-----------|---------------------|
+ * | `compact`  | 42                 | 1         | 4000                |
+ * | `standard` | 42                 | 2         | 7000                |
+ * | `long`     | 50                 | 2         | 8000                |
+ *
+ * On responses the style is resolved: preset is the preset the limits
+ * started from, and all three limits are set.
+ *
+ * @generated from message transcodely.v1.CueStyle
+ */
+export class CueStyle extends Message<CueStyle> {
+  /**
+   * The preset to start from: `compact`, `standard` or `long`. Default:
+   * the app default's preset, else `standard`.
+   *
+   * @generated from field: optional transcodely.v1.CueStylePreset preset = 1;
+   */
+  preset?: CueStylePreset;
+
+  /**
+   * Most characters on one line of a cue, 20 to 60.
+   *
+   * @generated from field: optional uint32 max_chars_per_line = 2;
+   */
+  maxCharsPerLine?: number;
+
+  /**
+   * Most lines in one cue, 1 to 3.
+   *
+   * @generated from field: optional uint32 max_lines = 3;
+   */
+  maxLines?: number;
+
+  /**
+   * Longest time one cue stays on screen, in milliseconds, 2000 to 10000.
+   *
+   * @generated from field: optional uint32 max_cue_duration_ms = 4;
+   */
+  maxCueDurationMs?: number;
+
+  constructor(data?: PartialMessage<CueStyle>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.CueStyle";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "preset", kind: "enum", T: proto3.getEnumType(CueStylePreset), opt: true },
+    { no: 2, name: "max_chars_per_line", kind: "scalar", T: 13 /* ScalarType.UINT32 */, opt: true },
+    { no: 3, name: "max_lines", kind: "scalar", T: 13 /* ScalarType.UINT32 */, opt: true },
+    { no: 4, name: "max_cue_duration_ms", kind: "scalar", T: 13 /* ScalarType.UINT32 */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CueStyle {
+    return new CueStyle().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CueStyle {
+    return new CueStyle().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CueStyle {
+    return new CueStyle().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CueStyle | PlainMessage<CueStyle> | undefined, b: CueStyle | PlainMessage<CueStyle> | undefined): boolean {
+    return proto3.util.equals(CueStyle, a, b);
   }
 }
 
@@ -1190,6 +1340,9 @@ export class InsightsTerm extends Message<InsightsTerm> {
 export class InsightsHighlight extends Message<InsightsHighlight> {
   /**
    * The quote, exactly as it appears in the transcript (never paraphrased).
+   * In a translated entry (translated_from set), the faithful translation of
+   * that quote; the original words are the highlight at the same position in
+   * the source-language entry, which has the same timing.
    *
    * @generated from field: string text = 1;
    */
@@ -1247,7 +1400,8 @@ export class InsightsHighlight extends Message<InsightsHighlight> {
  *
  * The sections are written in the transcript's language (unless your hint
  * asks otherwise) and are present only once status is "ready". Every timing
- * refers to the transcript, and every highlight is a verbatim quote from it.
+ * refers to the transcript, and every highlight is a verbatim quote from it
+ * (in a translated entry, the translation of one).
  *
  * The artifact files (insights.json, insights.md and chapters.vtt) are
  * written next to the caption file: in the job's output destination, or in
@@ -1335,7 +1489,8 @@ export class TranscriptInsights extends Message<TranscriptInsights> {
   terms: InsightsTerm[] = [];
 
   /**
-   * Quotable moments, each a verbatim quote from the transcript.
+   * Quotable moments, each a verbatim quote from the transcript (translated,
+   * in a translated entry).
    *
    * @generated from field: repeated transcodely.v1.InsightsHighlight highlights = 11;
    */
@@ -1450,8 +1605,9 @@ export class TranscriptInsights extends Message<TranscriptInsights> {
   source = InsightsSource.UNSPECIFIED;
 
   /**
-   * The hosted video (vid_…) the insights belong to, for source "video".
-   * Empty for source "job" (see Video.insights for a hosted video's
+   * The hosted video (vid_…) the insights belong to, for source "video" and
+   * for translated entries of a job on a hosted video. Empty for other
+   * source "job" entries (see Video.insights for a hosted video's
    * job-sourced insights).
    *
    * @generated from field: string video_id = 26;
@@ -1474,14 +1630,23 @@ export class TranscriptInsights extends Message<TranscriptInsights> {
    * ISO 639-2 language of the insights these were translated from (see
    * SubtitleTrack.translations). Empty when the insights were written in the
    * transcript's own language. A translated entry keeps every timing of its
-   * source entry; `highlights` stay in the SOURCE language (they are verbatim
-   * quotes of the transcript and are never translated). A translated entry
+   * source entry and every list's length and order; `highlights` are
+   * translated too, each a faithful translation of the source quote at the
+   * same position, with its timing. A translated entry
    * carries no price of its own: it is included in the `captions_translation`
    * fee, so fee_eur shows 0 for source "video".
    *
    * @generated from field: string translated_from = 29;
    */
   translatedFrom = "";
+
+  /**
+   * The job (job_…) that produced this entry, for source "job". Empty for
+   * source "video".
+   *
+   * @generated from field: string job_id = 30;
+   */
+  jobId = "";
 
   constructor(data?: PartialMessage<TranscriptInsights>) {
     super();
@@ -1520,6 +1685,7 @@ export class TranscriptInsights extends Message<TranscriptInsights> {
     { no: 26, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 27, name: "fee_eur", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
     { no: 29, name: "translated_from", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 30, name: "job_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TranscriptInsights {

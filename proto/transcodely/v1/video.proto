@@ -98,7 +98,9 @@ service VideoService {
 
   // Cut highlight clips from a hosted video: up to max_count short MP4s
   // (default 5) around the verbatim quotes its ready AI insights picked
-  // (TranscriptInsights.highlights), rendered at the video's top rendition's
+  // (TranscriptInsights.highlights; for a translated language, their
+  // translations, which keep the same timings and so cut the same windows),
+  // rendered at the video's top rendition's
   // codec and resolution. Returns the highlights in "pending"; they also
   // appear on Video.highlights, and video.highlights.ready (or
   // video.highlights.failed, when none could be rendered) fires once every
@@ -151,15 +153,56 @@ service VideoService {
   // source track has no transcript, and with invalid_argument
   // (parameter_invalid) when a target equals the source language or is not a
   // supported translation language (the violation lists the supported codes).
-  // Deployments without the feature refuse it with `parameter_unsupported`.
+  // Refused with failed_precondition and code captions_job_in_flight while a
+  // RestyleCaptions job on the source language is still running (it is about
+  // to replace the cues the translation would follow); the message names
+  // that job. Deployments without the feature refuse it with
+  // `parameter_unsupported`.
   // Account refusals (spend limit, past due, suspended) are the same as
-  // CreateJob's.
+  // CreateJob's. Refused with unavailable and code translation_busy when the
+  // call could not start within about 10 seconds because other caption
+  // translations (of this video, or many at once) were being started at the
+  // same moment: nothing was created or billed, and the same request can be
+  // retried after a few seconds.
   //
   // Privacy: the caption TEXT (never the audio or video) is sent to Anthropic,
   // our AI subprocessor, to produce the translation; it is not used to train
   // models. Requesting a translation also enables the AI correction pass
   // described under SubtitleTrack.insights (same subprocessor, no charge).
   rpc TranslateCaptions(TranslateCaptionsRequest) returns (TranslateCaptionsResponse);
+
+  // Re-cuts a hosted video's existing AI captions into cues of a new cue
+  // style (CueStyle), without transcribing again. The words and their
+  // timings come from the track's stored transcript; only how they are
+  // grouped into cues changes. Creates a captions-only job on the video
+  // (job_id in the response; follow it with JobService.Get or the job.*
+  // webhooks). When the job completes, the track's caption file, its
+  // transcript renditions and, when the video's HLS stream carries the
+  // language, its stream rendition are replaced in place, the track's
+  // updated_at moves and VideoTextTrack.cue_style shows the new style.
+  // Insights are kept as they are (the words do not change).
+  //
+  // Translations of the track are not re-cut: they keep their cues, and
+  // their source track's newer updated_at marks them as made from captions
+  // that have since changed. Translate again (TranslateCaptions) to bring
+  // them onto the new cues.
+  //
+  // Free: no captions, translation or processing fee is charged.
+  //
+  // Deployments whose workers do not cut by cue style yet refuse it with
+  // invalid_argument and code `parameter_unsupported` on cue_style.
+  //
+  // Refused with failed_precondition and code captions_required when the
+  // video has no AI captions or the chosen track is itself a translation,
+  // insights_transcript_unavailable when the track has no transcript, and
+  // captions_job_in_flight when a captions job (generation, translation or
+  // another restyle) of the same language is still running on the video;
+  // the message names that job. Refused with unavailable and code
+  // translation_busy when the call could not start within about 10 seconds
+  // because other caption jobs on the video were being started at the same
+  // moment: nothing was created, and the same request can be retried after a
+  // few seconds. Account refusals are the same as CreateJob's.
+  rpc RestyleCaptions(RestyleCaptionsRequest) returns (RestyleCaptionsResponse);
 }
 
 // =============================================================================
@@ -212,6 +255,39 @@ enum VideoVisibility {
 // =============================================================================
 // Resources
 // =============================================================================
+
+// One line of a video's cost breakdown (Video.cost_breakdown): how much of
+// Video.total_cost one kind of charge accounts for.
+message VideoCostLine {
+  // What the line is for, a lowercase string:
+  //   "encoding"             — the transcoding work itself: what is left of
+  //                            the video's jobs' settled totals after every
+  //                            other line is taken out. That covers the
+  //                            output (rendition) costs and, on jobs created
+  //                            before August 2026, the minimum-charge floor.
+  //                            Never negative. A job's settled total always
+  //                            includes its fees, so the remainder cannot go
+  //                            below zero; if inconsistent data ever made it
+  //                            negative, the line is omitted (clamped to zero)
+  //                            and nothing else is adjusted.
+  //   "processing"           — the flat per-job processing fee of each job
+  //                            run for the video.
+  //   "captions"             — AI caption generation, inline with the
+  //                            transcode or a later captions job.
+  //   "captions_translation" — caption translation into other languages.
+  //   "insights"             — AI insights, both the per-minute and the
+  //                            per-video part, whether requested with the
+  //                            captions or later via GenerateInsights.
+  //   "highlights"           — highlight clips: the whole settled total of
+  //                            each clip job cut from the video.
+  // New kinds can be added when a new kind of charge is introduced, so show
+  // an unrecognized kind as a generic line rather than dropping it; dropping
+  // it would make the lines stop adding up to total_cost.
+  string kind = 1;
+
+  // The amount in EUR, the currency of total_cost. Always greater than zero.
+  double amount = 2;
+}
 
 // A hosted video asset with playback, storage, and cost tracking.
 message Video {
@@ -330,6 +406,9 @@ message Video {
   // and still-estimated fees are never counted. This is a per-feature
   // breakdown of already-billed job totals, not an extra charge on top of
   // them: it is contained in total_cost, never added to it.
+  //
+  // Kept for compatibility: cost_breakdown's "captions" line carries the same
+  // amount once every linked job has settled, and is the one to read.
   optional double captions_cost = 50;
   // Everything this video has cost, in EUR: the sum of the settled totals of
   // every job billed for it — the transcode that produced it plus any later
@@ -341,6 +420,29 @@ message Video {
   // reconciles with the invoice; captions_cost is a breakdown inside it.
   // Absent while nothing linked to the video has been billed yet.
   optional double total_cost = 52;
+  // What total_cost is made of, one line per kind of charge, for showing a
+  // small itemized breakdown next to the total. Lines are listed in a fixed
+  // order (encoding, processing, captions, captions_translation, insights,
+  // highlights, then any other kind) and a kind appears at most once.
+  //
+  // The lines add up to total_cost (the one exception, on inconsistent data
+  // only, is described under VideoCostLine.kind "encoding"). Every amount is
+  // an exact sum of the same 6-decimal EUR amounts total_cost is summed
+  // from, with no rounding, so the sum matches total_cost to the cent and
+  // beyond. Round each line only
+  // for display; rounding lines independently can differ from the rounded
+  // total by a cent, so show total_cost itself as the total.
+  //
+  // Only settled amounts count, under the same rules as total_cost: jobs
+  // without a settled total are left out, and estimated or voided fees never
+  // appear. Lines whose amount is zero are omitted. Empty exactly when
+  // total_cost is absent.
+  //
+  // Filled on every read that fills total_cost (GetVideo and ListVideos
+  // included). Empty in webhook event payloads, which also omit total_cost
+  // and captions_cost: event snapshots are taken without the per-video cost
+  // read, so each event does not pay for an extra query.
+  repeated VideoCostLine cost_breakdown = 59;
 
   // Why this video failed, in one sentence a customer can act on. Present only
   // when status is "error"; absent for every other status.
@@ -506,6 +608,20 @@ message VideoTextTrack {
   // from (SubtitleTrack.translations or VideoService.TranslateCaptions).
   // Empty for recognized and customer-supplied tracks.
   string translated_from = 11;
+
+  // When the track last changed. Regenerating an auto-generated track
+  // replaces it in place, so this moves while created_at does not: a
+  // translation whose source track's updated_at is newer than its own was
+  // made from captions that have since been regenerated or restyled
+  // (VideoService.RestyleCaptions).
+  google.protobuf.Timestamp updated_at = 12;
+
+  // The cue style this auto-generated track's cues were cut with,
+  // resolved: the preset the limits started from and all three limits (see
+  // CueStyle). Absent for customer-supplied tracks, for translations
+  // (they keep the cue timing of the track they were translated from, see
+  // translated_from) and for tracks generated before cue styles existed.
+  optional CueStyle cue_style = 13;
 }
 
 // =============================================================================
@@ -648,6 +764,13 @@ message CreateUploadRequest {
       items: {string: {pattern: "^[a-z]{3}$"}}
     }
   ];
+
+  // How the inline AI captions are cut into cues; see CueStyle and
+  // SubtitleTrack.cue_style. Optional: when absent, the app's default
+  // (App.cue_style) is used, else `standard`. Requires auto_captions =
+  // true; rejected otherwise with `invalid_argument`, error code
+  // `parameter_incompatible` on cue_style. No effect on pricing.
+  optional CueStyle cue_style = 16;
 }
 
 // Response from creating an upload.
@@ -805,6 +928,13 @@ message CreateFromUrlRequest {
       items: {string: {pattern: "^[a-z]{3}$"}}
     }
   ];
+
+  // How the inline AI captions are cut into cues; see CueStyle and
+  // SubtitleTrack.cue_style. Optional: when absent, the app's default
+  // (App.cue_style) is used, else `standard`. Requires auto_captions =
+  // true; rejected otherwise with `invalid_argument`, error code
+  // `parameter_incompatible` on cue_style. No effect on pricing.
+  optional CueStyle cue_style = 14;
 }
 
 // Response from creating a video from a URL.
@@ -983,6 +1113,13 @@ message CreateMultipartUploadRequest {
       items: {string: {pattern: "^[a-z]{3}$"}}
     }
   ];
+
+  // How the inline AI captions are cut into cues; see CueStyle and
+  // SubtitleTrack.cue_style. Optional: when absent, the app's default
+  // (App.cue_style) is used, else `standard`. Requires auto_captions =
+  // true; rejected otherwise with `invalid_argument`, error code
+  // `parameter_incompatible` on cue_style. No effect on pricing.
+  optional CueStyle cue_style = 21;
 }
 
 // Response from creating a multipart upload.
@@ -1639,6 +1776,55 @@ message TranslateCaptionsResponse {
   // Whether the insights in source_language will be translated once the job
   // completes (include_insights and ready source insights exist).
   bool insights_included = 7;
+}
+
+// =============================================================================
+// Caption restyle
+// =============================================================================
+
+// Request to re-cut a hosted video's AI captions into a new cue style.
+message RestyleCaptionsRequest {
+  // Video ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // ISO 639-2 language of the AI caption track to restyle. Optional when the
+  // video has exactly one AI caption track that is not a translation;
+  // required when it has several (refused with parameter_required, listing
+  // the available languages). Both the bibliographic and the terminologic
+  // form are accepted.
+  optional string language = 2 [
+    (buf.validate.field).string.pattern = "^[a-z]{3}$"
+  ];
+
+  // The style to cut the cues in. Optional: when absent, or for the limits it
+  // leaves unset, the app's default (App.cue_style) is used, else
+  // `standard`, with the same rules as SubtitleTrack.cue_style. So an
+  // empty request re-cuts old captions into the current default style.
+  optional CueStyle cue_style = 3;
+
+  // Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+  optional string app_id = 4 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from RestyleCaptions.
+message RestyleCaptionsResponse {
+  // The captions-only job that re-cuts the track (job_…).
+  string job_id = 1;
+
+  // The video.
+  string video_id = 2;
+
+  // The language of the track being restyled (normalized to ISO 639-2/B).
+  string language = 3;
+
+  // The style the job cuts the cues in, resolved: the preset the limits
+  // started from and all three limits.
+  CueStyle cue_style = 4;
 }
 
 // =============================================================================

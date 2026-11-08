@@ -139,6 +139,9 @@ export {
   type Video,
   type VideoRendition,
   type VideoTextTrack,
+  // One line of Video.costBreakdown: how much of Video.totalCost one kind of
+  // charge accounts for. Show an unrecognized kind as a generic line.
+  type VideoCostLine,
   type CreateUploadRequest,
   type CreateUploadResponse,
   type CompleteUploadRequest,
@@ -190,6 +193,10 @@ export {
   type TranslateCaptionsRequest,
   type TranslateCaptionsResponse,
   type TranslationInFlight,
+  // Caption restyling: videos.restyleCaptions re-cuts existing AI captions
+  // into a new CueStyle without transcribing again.
+  type RestyleCaptionsRequest,
+  type RestyleCaptionsResponse,
   // Guide page: Video.guidePage is the video's own setting (DEFAULT follows
   // the app's HostingConfig.guidePagesEnabled; ON / OFF pin it),
   // Video.guidePageEnabled the effective value (absent in video.* webhook
@@ -581,6 +588,11 @@ export {
   type SubtitleTrack,
   type SubtitleResult,
   type BurnInStyle,
+  // How AI captions are cut into cues: a preset and/or explicit limits. Set
+  // on a generate SubtitleTrack, the inline-captions create requests, or as
+  // the app default (App.cueStyle); resolved on VideoTextTrack.cueStyle.
+  type CueStyle,
+  CueStylePreset,
   SubtitleOperation,
   SubtitleFormat,
 } from "./gen/transcodely/v1/subtitles_pb.js";

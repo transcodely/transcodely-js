@@ -21,6 +21,8 @@ import {
   ListTopVideosRequest,
   type ListTopVideosResponse,
   ListVideosRequest,
+  RestyleCaptionsRequest,
+  type RestyleCaptionsResponse,
   TranslateCaptionsRequest,
   type TranslateCaptionsResponse,
   UpdateVideoRequest,
@@ -320,6 +322,35 @@ export class Videos {
       VideoService,
       VideoService.methods.translateCaptions,
       new TranslateCaptionsRequest(req),
+      opts,
+    );
+  }
+
+  /**
+   * Re-cut a hosted video's existing AI captions into cues of a new
+   * `CueStyle` without transcribing again: the words and their timings come
+   * from the track's stored transcript, only their grouping into cues
+   * changes. Creates a captions-only job on the video (`jobId` in the
+   * response); when it completes the track's caption file, transcript
+   * renditions and HLS caption rendition are replaced in place and
+   * `VideoTextTrack.cueStyle` shows the new style. Insights are kept, and
+   * translations of the track keep their old cues until translated again.
+   *
+   * Free: no captions, translation or processing fee. Pass `language` when the
+   * video has several AI caption tracks; leave `cueStyle` unset to re-cut into
+   * the app's current default. Refused with failed_precondition (code
+   * captions_required, insights_transcript_unavailable or
+   * captions_job_in_flight) when there is nothing to restyle or a captions job
+   * of that language is still running.
+   */
+  async restyleCaptions(
+    req: PartialMessage<RestyleCaptionsRequest>,
+    opts?: CallOptions,
+  ): Promise<RestyleCaptionsResponse> {
+    return this.transport.unary(
+      VideoService,
+      VideoService.methods.restyleCaptions,
+      new RestyleCaptionsRequest(req),
       opts,
     );
   }
