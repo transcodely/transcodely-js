@@ -130,8 +130,9 @@ service VideoService {
 
   // Translate a hosted video's existing AI captions into other languages,
   // without transcribing again. Creates one captions-only job on the video
-  // (input_video_id = the video) that reads the source track's transcript
-  // and writes, per target language: a caption track (replacing any existing
+  // (input_video_id = the video) that reads the transcript of the source
+  // language's default caption style (VideoTextTrack.is_default) and
+  // writes, per target language: a caption track (replacing any existing
   // auto-generated track of that language on completion), its transcript
   // renditions and, when the video streams as HLS, a caption rendition in
   // the manifest. With include_insights (default true) and ready insights in
@@ -173,19 +174,28 @@ service VideoService {
 
   // Re-cuts a hosted video's existing AI captions into cues of a new cue
   // style (CueStyle), without transcribing again. The words and their
-  // timings come from the track's stored transcript; only how they are
+  // timings come from the language's stored transcript; only how they are
   // grouped into cues changes. Creates a captions-only job on the video
   // (job_id in the response; follow it with JobService.Get or the job.*
-  // webhooks). When the job completes, the track's caption file, its
-  // transcript renditions and, when the video's HLS stream carries the
-  // language, its stream rendition are replaced in place, the track's
-  // updated_at moves and VideoTextTrack.cue_style shows the new style.
-  // Insights are kept as they are (the words do not change).
+  // webhooks). Insights are kept as they are (the words do not change).
   //
-  // Translations of the track are not re-cut: they keep their cues, and
-  // their source track's newer updated_at marks them as made from captions
-  // that have since changed. Translate again (TranslateCaptions) to bring
-  // them onto the new cues.
+  // A language keeps one caption track per style (VideoTextTrack.
+  // style_variant, the preset of cue_style). When the language has no track
+  // in the requested style yet, the job adds one next to the existing
+  // styles: viewers can switch between them in the player, and the new one
+  // is not the default unless make_default is set (adds_variant in the
+  // response). When it has one, that track is re-cut in place. Either way
+  // the track's caption file, its transcript renditions and, when the
+  // video's HLS stream carries the language, its stream rendition are
+  // written, its updated_at moves and its cue_style shows the new style. No
+  // other style of the language is touched. Deployments that do not offer
+  // several styles per language yet re-cut the language's default track in
+  // place instead, whatever its style, and adds_variant is false.
+  //
+  // Translations are not re-cut: they keep their cues. When the default
+  // style's cues change, its newer updated_at marks them as made from
+  // captions that have since changed. Translate again (TranslateCaptions)
+  // to bring them onto the new cues.
   //
   // Free: no captions, translation or processing fee is charged.
   //
@@ -203,6 +213,40 @@ service VideoService {
   // moment: nothing was created, and the same request can be retried after a
   // few seconds. Account refusals are the same as CreateJob's.
   rpc RestyleCaptions(RestyleCaptionsRequest) returns (RestyleCaptionsResponse);
+
+  // Makes another of a language's caption styles its default. The default
+  // style is the one players select for the language and the one labelled
+  // with the language name alone; the previous default stays available
+  // under "<language> (<style>)". When the video streams as HLS, its master
+  // playlist is rewritten so the language's default rendition plays the new
+  // default style's captions, and the playlist is purged from the CDN.
+  // Translations of the language become stale (VideoTextTrack.stale):
+  // translate again to bring them onto the new default's cues. Free.
+  //
+  // Setting the current default again succeeds and changes nothing.
+  // Refused with not_found when the video has no AI caption track of that
+  // language in that style, and with failed_precondition and code
+  // captions_job_in_flight while a captions job (generation, translation or
+  // restyle) of the language is still running on the video; the message
+  // names that job. Refused with unavailable and code translation_busy when
+  // other caption changes on the video were being started at the same
+  // moment, and caption_manifest_busy when the video's playlist kept
+  // changing while it was being rewritten; nothing was changed, and the same
+  // request can be retried after a few seconds.
+  rpc SetDefaultCaptionStyle(SetDefaultCaptionStyleRequest) returns (SetDefaultCaptionStyleResponse);
+
+  // Removes one style of a language's AI captions: the caption track, its
+  // entry in the video's HLS master playlist (purged from the CDN) and its
+  // files. The default style cannot be removed, which also keeps a
+  // language's only style: make another style the default first
+  // (SetDefaultCaptionStyle), or regenerate the captions. Free.
+  //
+  // Refused with not_found when the video has no AI caption track of that
+  // language in that style, with invalid_argument and code
+  // parameter_invalid when that track is the language's default, and with
+  // the same captions_job_in_flight, translation_busy and
+  // caption_manifest_busy refusals as SetDefaultCaptionStyle.
+  rpc DeleteCaptionStyle(DeleteCaptionStyleRequest) returns (DeleteCaptionStyleResponse);
 }
 
 // =============================================================================
@@ -567,8 +611,16 @@ message VideoTextTrack {
   // Empty when the producing job recorded no language.
   string language = 3;
 
-  // Human-readable track label shown in the player's caption menu (e.g.
-  // "English"). Empty when none was supplied.
+  // Human-readable track label (e.g. "English"). For an auto-generated
+  // track it is the label its generate track was given, else the English
+  // name of its language, followed by its style in parentheses when the
+  // track is not the language's default style: "Bulgarian" for the
+  // default, "Bulgarian (compact)" for another style (see style_variant). A
+  // language with one style is labelled without a style. For a
+  // customer-supplied track it is the label that was supplied, empty when
+  // none was. The player's caption menu shows the
+  // HLS rendition name, which follows the same rule with the language's own
+  // name ("Български", "Български (compact)").
   string label = 4;
 
   // Subtitle file format: "webvtt", "srt", "ttml", or "ass".
@@ -612,8 +664,9 @@ message VideoTextTrack {
   // When the track last changed. Regenerating an auto-generated track
   // replaces it in place, so this moves while created_at does not: a
   // translation whose source track's updated_at is newer than its own was
-  // made from captions that have since been regenerated or restyled
-  // (VideoService.RestyleCaptions).
+  // made from captions that have since been regenerated, restyled
+  // (VideoService.RestyleCaptions) or made the default
+  // (VideoService.SetDefaultCaptionStyle); stale says the same directly.
   google.protobuf.Timestamp updated_at = 12;
 
   // The cue style this auto-generated track's cues were cut with,
@@ -622,6 +675,32 @@ message VideoTextTrack {
   // (they keep the cue timing of the track they were translated from, see
   // translated_from) and for tracks generated before cue styles existed.
   optional CueStyle cue_style = 13;
+
+  // Whether this auto-generated track is its language's default style: the
+  // one the player selects for the language, the one translations are made
+  // from, and the one labelled with the language name alone. A language can
+  // carry its AI captions in several styles (VideoService.RestyleCaptions
+  // adds one); exactly one of them is the default
+  // (VideoService.SetDefaultCaptionStyle changes it). Always true for
+  // translations, which follow their source's default style. False for
+  // customer-supplied tracks.
+  bool is_default = 14;
+
+  // The cue style preset this auto-generated track is one version of:
+  // `compact`, `standard` or `long`. A language has at most one track per
+  // style. A style with explicit limits belongs to the preset it started
+  // from (cue_style.preset); tracks generated before cue styles existed are
+  // `standard`. A translation has its source default style's preset.
+  // Absent for customer-supplied tracks.
+  optional CueStylePreset style_variant = 15;
+
+  // Whether this auto-generated track was cut from older captions than the
+  // language's latest. Set on the other styles of a language when its
+  // captions are generated again (they are kept, but cut from the previous
+  // transcript: restyle them again to bring them up to date), and on
+  // translations when their source track's default style changes or its
+  // captions change (translate again). False for customer-supplied tracks.
+  bool stale = 16;
 }
 
 // =============================================================================
@@ -1809,6 +1888,11 @@ message RestyleCaptionsRequest {
   optional string app_id = 4 [
     (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
   ];
+
+  // Make the restyled style the language's default once the job completes
+  // (see SetDefaultCaptionStyle). Default: false, so a new style is added
+  // next to the default without changing what viewers see first.
+  optional bool make_default = 5;
 }
 
 // Response from RestyleCaptions.
@@ -1825,6 +1909,81 @@ message RestyleCaptionsResponse {
   // The style the job cuts the cues in, resolved: the preset the limits
   // started from and all three limits.
   CueStyle cue_style = 4;
+
+  // The style version of the language the job writes
+  // (VideoTextTrack.style_variant): cue_style's preset.
+  CueStylePreset style_variant = 5;
+
+  // Whether the job adds a new style version of the language (true) or
+  // re-cuts the existing track of that style in place (false).
+  bool adds_variant = 6;
+}
+
+// Request to change a language's default caption style.
+message SetDefaultCaptionStyleRequest {
+  // Video ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // ISO 639-2 language of the AI captions. Both the bibliographic and the
+  // terminologic form are accepted.
+  string language = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^[a-z]{3}$"
+  ];
+
+  // The style to make the default: `compact`, `standard` or `long`.
+  CueStylePreset style_variant = 3 [(buf.validate.field).enum = {
+    defined_only: true,
+    not_in: [0]
+  }];
+
+  // Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+  optional string app_id = 4 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from SetDefaultCaptionStyle.
+message SetDefaultCaptionStyleResponse {
+  // The video, with its text tracks as they are now.
+  Video video = 1;
+}
+
+// Request to remove one style of a language's AI captions.
+message DeleteCaptionStyleRequest {
+  // Video ID.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // ISO 639-2 language of the AI captions. Both the bibliographic and the
+  // terminologic form are accepted.
+  string language = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^[a-z]{3}$"
+  ];
+
+  // The style to remove: `compact`, `standard` or `long`. Not the
+  // language's default.
+  CueStylePreset style_variant = 3 [(buf.validate.field).enum = {
+    defined_only: true,
+    not_in: [0]
+  }];
+
+  // Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+  optional string app_id = 4 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from DeleteCaptionStyle.
+message DeleteCaptionStyleResponse {
+  // The video, with its text tracks as they are now.
+  Video video = 1;
 }
 
 // =============================================================================

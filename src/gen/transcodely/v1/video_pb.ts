@@ -8,7 +8,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
-import { CueStyle, TranscriptInsights, TranscriptRendition } from "./subtitles_pb.js";
+import { CueStyle, CueStylePreset, TranscriptInsights, TranscriptRendition } from "./subtitles_pb.js";
 
 /**
  * Video lifecycle status.
@@ -871,8 +871,16 @@ export class VideoTextTrack extends Message<VideoTextTrack> {
   language = "";
 
   /**
-   * Human-readable track label shown in the player's caption menu (e.g.
-   * "English"). Empty when none was supplied.
+   * Human-readable track label (e.g. "English"). For an auto-generated
+   * track it is the label its generate track was given, else the English
+   * name of its language, followed by its style in parentheses when the
+   * track is not the language's default style: "Bulgarian" for the
+   * default, "Bulgarian (compact)" for another style (see style_variant). A
+   * language with one style is labelled without a style. For a
+   * customer-supplied track it is the label that was supplied, empty when
+   * none was. The player's caption menu shows the
+   * HLS rendition name, which follows the same rule with the language's own
+   * name ("Български", "Български (compact)").
    *
    * @generated from field: string label = 4;
    */
@@ -948,8 +956,9 @@ export class VideoTextTrack extends Message<VideoTextTrack> {
    * When the track last changed. Regenerating an auto-generated track
    * replaces it in place, so this moves while created_at does not: a
    * translation whose source track's updated_at is newer than its own was
-   * made from captions that have since been regenerated or restyled
-   * (VideoService.RestyleCaptions).
+   * made from captions that have since been regenerated, restyled
+   * (VideoService.RestyleCaptions) or made the default
+   * (VideoService.SetDefaultCaptionStyle); stale says the same directly.
    *
    * @generated from field: google.protobuf.Timestamp updated_at = 12;
    */
@@ -965,6 +974,44 @@ export class VideoTextTrack extends Message<VideoTextTrack> {
    * @generated from field: optional transcodely.v1.CueStyle cue_style = 13;
    */
   cueStyle?: CueStyle;
+
+  /**
+   * Whether this auto-generated track is its language's default style: the
+   * one the player selects for the language, the one translations are made
+   * from, and the one labelled with the language name alone. A language can
+   * carry its AI captions in several styles (VideoService.RestyleCaptions
+   * adds one); exactly one of them is the default
+   * (VideoService.SetDefaultCaptionStyle changes it). Always true for
+   * translations, which follow their source's default style. False for
+   * customer-supplied tracks.
+   *
+   * @generated from field: bool is_default = 14;
+   */
+  isDefault = false;
+
+  /**
+   * The cue style preset this auto-generated track is one version of:
+   * `compact`, `standard` or `long`. A language has at most one track per
+   * style. A style with explicit limits belongs to the preset it started
+   * from (cue_style.preset); tracks generated before cue styles existed are
+   * `standard`. A translation has its source default style's preset.
+   * Absent for customer-supplied tracks.
+   *
+   * @generated from field: optional transcodely.v1.CueStylePreset style_variant = 15;
+   */
+  styleVariant?: CueStylePreset;
+
+  /**
+   * Whether this auto-generated track was cut from older captions than the
+   * language's latest. Set on the other styles of a language when its
+   * captions are generated again (they are kept, but cut from the previous
+   * transcript: restyle them again to bring them up to date), and on
+   * translations when their source track's default style changes or its
+   * captions change (translate again). False for customer-supplied tracks.
+   *
+   * @generated from field: bool stale = 16;
+   */
+  stale = false;
 
   constructor(data?: PartialMessage<VideoTextTrack>) {
     super();
@@ -987,6 +1034,9 @@ export class VideoTextTrack extends Message<VideoTextTrack> {
     { no: 11, name: "translated_from", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 12, name: "updated_at", kind: "message", T: Timestamp },
     { no: 13, name: "cue_style", kind: "message", T: CueStyle, opt: true },
+    { no: 14, name: "is_default", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 15, name: "style_variant", kind: "enum", T: proto3.getEnumType(CueStylePreset), opt: true },
+    { no: 16, name: "stale", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VideoTextTrack {
@@ -4142,6 +4192,15 @@ export class RestyleCaptionsRequest extends Message<RestyleCaptionsRequest> {
    */
   appId?: string;
 
+  /**
+   * Make the restyled style the language's default once the job completes
+   * (see SetDefaultCaptionStyle). Default: false, so a new style is added
+   * next to the default without changing what viewers see first.
+   *
+   * @generated from field: optional bool make_default = 5;
+   */
+  makeDefault?: boolean;
+
   constructor(data?: PartialMessage<RestyleCaptionsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -4154,6 +4213,7 @@ export class RestyleCaptionsRequest extends Message<RestyleCaptionsRequest> {
     { no: 2, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 3, name: "cue_style", kind: "message", T: CueStyle, opt: true },
     { no: 4, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 5, name: "make_default", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RestyleCaptionsRequest {
@@ -4208,6 +4268,22 @@ export class RestyleCaptionsResponse extends Message<RestyleCaptionsResponse> {
    */
   cueStyle?: CueStyle;
 
+  /**
+   * The style version of the language the job writes
+   * (VideoTextTrack.style_variant): cue_style's preset.
+   *
+   * @generated from field: transcodely.v1.CueStylePreset style_variant = 5;
+   */
+  styleVariant = CueStylePreset.UNSPECIFIED;
+
+  /**
+   * Whether the job adds a new style version of the language (true) or
+   * re-cuts the existing track of that style in place (false).
+   *
+   * @generated from field: bool adds_variant = 6;
+   */
+  addsVariant = false;
+
   constructor(data?: PartialMessage<RestyleCaptionsResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -4220,6 +4296,8 @@ export class RestyleCaptionsResponse extends Message<RestyleCaptionsResponse> {
     { no: 2, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "cue_style", kind: "message", T: CueStyle },
+    { no: 5, name: "style_variant", kind: "enum", T: proto3.getEnumType(CueStylePreset) },
+    { no: 6, name: "adds_variant", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RestyleCaptionsResponse {
@@ -4236,6 +4314,221 @@ export class RestyleCaptionsResponse extends Message<RestyleCaptionsResponse> {
 
   static equals(a: RestyleCaptionsResponse | PlainMessage<RestyleCaptionsResponse> | undefined, b: RestyleCaptionsResponse | PlainMessage<RestyleCaptionsResponse> | undefined): boolean {
     return proto3.util.equals(RestyleCaptionsResponse, a, b);
+  }
+}
+
+/**
+ * Request to change a language's default caption style.
+ *
+ * @generated from message transcodely.v1.SetDefaultCaptionStyleRequest
+ */
+export class SetDefaultCaptionStyleRequest extends Message<SetDefaultCaptionStyleRequest> {
+  /**
+   * Video ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * ISO 639-2 language of the AI captions. Both the bibliographic and the
+   * terminologic form are accepted.
+   *
+   * @generated from field: string language = 2;
+   */
+  language = "";
+
+  /**
+   * The style to make the default: `compact`, `standard` or `long`.
+   *
+   * @generated from field: transcodely.v1.CueStylePreset style_variant = 3;
+   */
+  styleVariant = CueStylePreset.UNSPECIFIED;
+
+  /**
+   * Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+   *
+   * @generated from field: optional string app_id = 4;
+   */
+  appId?: string;
+
+  constructor(data?: PartialMessage<SetDefaultCaptionStyleRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.SetDefaultCaptionStyleRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "style_variant", kind: "enum", T: proto3.getEnumType(CueStylePreset) },
+    { no: 4, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetDefaultCaptionStyleRequest {
+    return new SetDefaultCaptionStyleRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetDefaultCaptionStyleRequest {
+    return new SetDefaultCaptionStyleRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetDefaultCaptionStyleRequest {
+    return new SetDefaultCaptionStyleRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetDefaultCaptionStyleRequest | PlainMessage<SetDefaultCaptionStyleRequest> | undefined, b: SetDefaultCaptionStyleRequest | PlainMessage<SetDefaultCaptionStyleRequest> | undefined): boolean {
+    return proto3.util.equals(SetDefaultCaptionStyleRequest, a, b);
+  }
+}
+
+/**
+ * Response from SetDefaultCaptionStyle.
+ *
+ * @generated from message transcodely.v1.SetDefaultCaptionStyleResponse
+ */
+export class SetDefaultCaptionStyleResponse extends Message<SetDefaultCaptionStyleResponse> {
+  /**
+   * The video, with its text tracks as they are now.
+   *
+   * @generated from field: transcodely.v1.Video video = 1;
+   */
+  video?: Video;
+
+  constructor(data?: PartialMessage<SetDefaultCaptionStyleResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.SetDefaultCaptionStyleResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "video", kind: "message", T: Video },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetDefaultCaptionStyleResponse {
+    return new SetDefaultCaptionStyleResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetDefaultCaptionStyleResponse {
+    return new SetDefaultCaptionStyleResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetDefaultCaptionStyleResponse {
+    return new SetDefaultCaptionStyleResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetDefaultCaptionStyleResponse | PlainMessage<SetDefaultCaptionStyleResponse> | undefined, b: SetDefaultCaptionStyleResponse | PlainMessage<SetDefaultCaptionStyleResponse> | undefined): boolean {
+    return proto3.util.equals(SetDefaultCaptionStyleResponse, a, b);
+  }
+}
+
+/**
+ * Request to remove one style of a language's AI captions.
+ *
+ * @generated from message transcodely.v1.DeleteCaptionStyleRequest
+ */
+export class DeleteCaptionStyleRequest extends Message<DeleteCaptionStyleRequest> {
+  /**
+   * Video ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * ISO 639-2 language of the AI captions. Both the bibliographic and the
+   * terminologic form are accepted.
+   *
+   * @generated from field: string language = 2;
+   */
+  language = "";
+
+  /**
+   * The style to remove: `compact`, `standard` or `long`. Not the
+   * language's default.
+   *
+   * @generated from field: transcodely.v1.CueStylePreset style_variant = 3;
+   */
+  styleVariant = CueStylePreset.UNSPECIFIED;
+
+  /**
+   * Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+   *
+   * @generated from field: optional string app_id = 4;
+   */
+  appId?: string;
+
+  constructor(data?: PartialMessage<DeleteCaptionStyleRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.DeleteCaptionStyleRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "language", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "style_variant", kind: "enum", T: proto3.getEnumType(CueStylePreset) },
+    { no: 4, name: "app_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteCaptionStyleRequest {
+    return new DeleteCaptionStyleRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteCaptionStyleRequest {
+    return new DeleteCaptionStyleRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteCaptionStyleRequest {
+    return new DeleteCaptionStyleRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeleteCaptionStyleRequest | PlainMessage<DeleteCaptionStyleRequest> | undefined, b: DeleteCaptionStyleRequest | PlainMessage<DeleteCaptionStyleRequest> | undefined): boolean {
+    return proto3.util.equals(DeleteCaptionStyleRequest, a, b);
+  }
+}
+
+/**
+ * Response from DeleteCaptionStyle.
+ *
+ * @generated from message transcodely.v1.DeleteCaptionStyleResponse
+ */
+export class DeleteCaptionStyleResponse extends Message<DeleteCaptionStyleResponse> {
+  /**
+   * The video, with its text tracks as they are now.
+   *
+   * @generated from field: transcodely.v1.Video video = 1;
+   */
+  video?: Video;
+
+  constructor(data?: PartialMessage<DeleteCaptionStyleResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.DeleteCaptionStyleResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "video", kind: "message", T: Video },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteCaptionStyleResponse {
+    return new DeleteCaptionStyleResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteCaptionStyleResponse {
+    return new DeleteCaptionStyleResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteCaptionStyleResponse {
+    return new DeleteCaptionStyleResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeleteCaptionStyleResponse | PlainMessage<DeleteCaptionStyleResponse> | undefined, b: DeleteCaptionStyleResponse | PlainMessage<DeleteCaptionStyleResponse> | undefined): boolean {
+    return proto3.util.equals(DeleteCaptionStyleResponse, a, b);
   }
 }
 

@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { VideoService } from "../../src/gen/transcodely/v1/video_connect.js";
 import {
   CreateFromUrlResponse,
+  DeleteCaptionStyleRequest,
+  DeleteCaptionStyleResponse,
   GenerateHighlightsRequest,
   GenerateHighlightsResponse,
   GenerateInsightsRequest,
@@ -12,6 +14,8 @@ import {
   ListTopVideosResponse,
   RestyleCaptionsRequest,
   RestyleCaptionsResponse,
+  SetDefaultCaptionStyleRequest,
+  SetDefaultCaptionStyleResponse,
   TopVideo,
   TranslateCaptionsRequest,
   TranslateCaptionsResponse,
@@ -32,7 +36,7 @@ import {
   InsightsStatus,
   TranscriptInsights,
 } from "../../src/gen/transcodely/v1/subtitles_pb.js";
-import { toWireJson } from "../../src/codec/json.js";
+import { fromJson, toWireJson } from "../../src/codec/json.js";
 import { Videos } from "../../src/resources/videos.js";
 import { Transport } from "../../src/transport/transport.js";
 
@@ -355,6 +359,119 @@ describe("Videos facade", () => {
       language: "eng",
       cue_style: { preset: "long", max_lines: 3 },
     });
+  });
+
+  it("restyleCaptions sends make_default and reads style_variant / adds_variant", async () => {
+    const transport = makeTransport();
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(
+      fromJson(
+        {
+          job_id: "job_a1b2c3d4e5f6",
+          video_id: "vid_a1b2c3d4e5f6g7",
+          language: "eng",
+          style_variant: "compact",
+          adds_variant: true,
+        },
+        RestyleCaptionsResponse,
+      ),
+    );
+    const out = await new Videos(transport).restyleCaptions({
+      id: "vid_a1b2c3d4e5f6g7",
+      cueStyle: { preset: CueStylePreset.COMPACT },
+      makeDefault: true,
+    });
+    const wire = toWireJson(spy.mock.calls[0][2] as RestyleCaptionsRequest) as Record<string, unknown>;
+    expect(wire).toEqual({
+      id: "vid_a1b2c3d4e5f6g7",
+      cue_style: { preset: "compact" },
+      make_default: true,
+    });
+    expect(out.styleVariant).toBe(CueStylePreset.COMPACT);
+    expect(out.addsVariant).toBe(true);
+  });
+
+  it("setDefaultCaptionStyle dispatches SetDefaultCaptionStyle and returns the video", async () => {
+    const transport = makeTransport();
+    // The response as the API sends it: two English styles plus a translation
+    // made stale by the default changing.
+    const res = fromJson(
+      {
+        video: {
+          id: "vid_a1b2c3d4e5f6g7",
+          text_tracks: [
+            { id: "trk_long", language: "eng", label: "English", auto_generated: true, is_default: true, style_variant: "long" },
+            {
+              id: "trk_std",
+              language: "eng",
+              label: "English (standard)",
+              auto_generated: true,
+              style_variant: "standard",
+            },
+            {
+              id: "trk_bul",
+              language: "bul",
+              label: "Bulgarian",
+              auto_generated: true,
+              is_default: true,
+              style_variant: "long",
+              translated_from: "eng",
+              stale: true,
+            },
+          ],
+        },
+      },
+      SetDefaultCaptionStyleResponse,
+    );
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(res);
+    const video = await new Videos(transport).setDefaultCaptionStyle({
+      id: "vid_a1b2c3d4e5f6g7",
+      language: "eng",
+      styleVariant: CueStylePreset.LONG,
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toBe(VideoService.methods.setDefaultCaptionStyle);
+    expect(spy.mock.calls[0][2]).toBeInstanceOf(SetDefaultCaptionStyleRequest);
+    expect(toWireJson(spy.mock.calls[0][2] as SetDefaultCaptionStyleRequest)).toEqual({
+      id: "vid_a1b2c3d4e5f6g7",
+      language: "eng",
+      style_variant: "long",
+    });
+
+    expect(video).toBeInstanceOf(Video);
+    const [def, other, translation] = video.textTracks;
+    expect(def.isDefault).toBe(true);
+    expect(def.styleVariant).toBe(CueStylePreset.LONG);
+    expect(def.label).toBe("English");
+    expect(other.isDefault).toBe(false);
+    expect(other.styleVariant).toBe(CueStylePreset.STANDARD);
+    expect(other.label).toBe("English (standard)");
+    expect(other.stale).toBe(false);
+    expect(translation.stale).toBe(true);
+    expect(translation.translatedFrom).toBe("eng");
+  });
+
+  it("deleteCaptionStyle dispatches DeleteCaptionStyle and returns the video", async () => {
+    const transport = makeTransport();
+    const spy = vi
+      .spyOn(transport, "unary")
+      .mockResolvedValue(new DeleteCaptionStyleResponse({ video: fakeVideo() }));
+    const video = await new Videos(transport).deleteCaptionStyle({
+      id: "vid_a1b2c3d4e5f6g7",
+      language: "eng",
+      styleVariant: CueStylePreset.STANDARD,
+      appId: "app_xyz",
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toBe(VideoService.methods.deleteCaptionStyle);
+    expect(spy.mock.calls[0][2]).toBeInstanceOf(DeleteCaptionStyleRequest);
+    expect(toWireJson(spy.mock.calls[0][2] as DeleteCaptionStyleRequest)).toEqual({
+      id: "vid_a1b2c3d4e5f6g7",
+      language: "eng",
+      style_variant: "standard",
+      app_id: "app_xyz",
+    });
+    expect(video).toBeInstanceOf(Video);
+    expect(video.id).toBe("vid_a1b2c3d4e5f6g7");
   });
 
   it("update sends guide_page as the lowercase setting", async () => {

@@ -6,7 +6,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, RestyleCaptionsRequest, RestyleCaptionsResponse, TranslateCaptionsRequest, TranslateCaptionsResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
+import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteCaptionStyleRequest, DeleteCaptionStyleResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, RestyleCaptionsRequest, RestyleCaptionsResponse, SetDefaultCaptionStyleRequest, SetDefaultCaptionStyleResponse, TranslateCaptionsRequest, TranslateCaptionsResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -282,8 +282,9 @@ export const VideoService = {
     /**
      * Translate a hosted video's existing AI captions into other languages,
      * without transcribing again. Creates one captions-only job on the video
-     * (input_video_id = the video) that reads the source track's transcript
-     * and writes, per target language: a caption track (replacing any existing
+     * (input_video_id = the video) that reads the transcript of the source
+     * language's default caption style (VideoTextTrack.is_default) and
+     * writes, per target language: a caption track (replacing any existing
      * auto-generated track of that language on completion), its transcript
      * renditions and, when the video streams as HLS, a caption rendition in
      * the manifest. With include_insights (default true) and ready insights in
@@ -333,19 +334,28 @@ export const VideoService = {
     /**
      * Re-cuts a hosted video's existing AI captions into cues of a new cue
      * style (CueStyle), without transcribing again. The words and their
-     * timings come from the track's stored transcript; only how they are
+     * timings come from the language's stored transcript; only how they are
      * grouped into cues changes. Creates a captions-only job on the video
      * (job_id in the response; follow it with JobService.Get or the job.*
-     * webhooks). When the job completes, the track's caption file, its
-     * transcript renditions and, when the video's HLS stream carries the
-     * language, its stream rendition are replaced in place, the track's
-     * updated_at moves and VideoTextTrack.cue_style shows the new style.
-     * Insights are kept as they are (the words do not change).
+     * webhooks). Insights are kept as they are (the words do not change).
      *
-     * Translations of the track are not re-cut: they keep their cues, and
-     * their source track's newer updated_at marks them as made from captions
-     * that have since changed. Translate again (TranslateCaptions) to bring
-     * them onto the new cues.
+     * A language keeps one caption track per style (VideoTextTrack.
+     * style_variant, the preset of cue_style). When the language has no track
+     * in the requested style yet, the job adds one next to the existing
+     * styles: viewers can switch between them in the player, and the new one
+     * is not the default unless make_default is set (adds_variant in the
+     * response). When it has one, that track is re-cut in place. Either way
+     * the track's caption file, its transcript renditions and, when the
+     * video's HLS stream carries the language, its stream rendition are
+     * written, its updated_at moves and its cue_style shows the new style. No
+     * other style of the language is touched. Deployments that do not offer
+     * several styles per language yet re-cut the language's default track in
+     * place instead, whatever its style, and adds_variant is false.
+     *
+     * Translations are not re-cut: they keep their cues. When the default
+     * style's cues change, its newer updated_at marks them as made from
+     * captions that have since changed. Translate again (TranslateCaptions)
+     * to bring them onto the new cues.
      *
      * Free: no captions, translation or processing fee is charged.
      *
@@ -369,6 +379,56 @@ export const VideoService = {
       name: "RestyleCaptions",
       I: RestyleCaptionsRequest,
       O: RestyleCaptionsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Makes another of a language's caption styles its default. The default
+     * style is the one players select for the language and the one labelled
+     * with the language name alone; the previous default stays available
+     * under "<language> (<style>)". When the video streams as HLS, its master
+     * playlist is rewritten so the language's default rendition plays the new
+     * default style's captions, and the playlist is purged from the CDN.
+     * Translations of the language become stale (VideoTextTrack.stale):
+     * translate again to bring them onto the new default's cues. Free.
+     *
+     * Setting the current default again succeeds and changes nothing.
+     * Refused with not_found when the video has no AI caption track of that
+     * language in that style, and with failed_precondition and code
+     * captions_job_in_flight while a captions job (generation, translation or
+     * restyle) of the language is still running on the video; the message
+     * names that job. Refused with unavailable and code translation_busy when
+     * other caption changes on the video were being started at the same
+     * moment, and caption_manifest_busy when the video's playlist kept
+     * changing while it was being rewritten; nothing was changed, and the same
+     * request can be retried after a few seconds.
+     *
+     * @generated from rpc transcodely.v1.VideoService.SetDefaultCaptionStyle
+     */
+    setDefaultCaptionStyle: {
+      name: "SetDefaultCaptionStyle",
+      I: SetDefaultCaptionStyleRequest,
+      O: SetDefaultCaptionStyleResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Removes one style of a language's AI captions: the caption track, its
+     * entry in the video's HLS master playlist (purged from the CDN) and its
+     * files. The default style cannot be removed, which also keeps a
+     * language's only style: make another style the default first
+     * (SetDefaultCaptionStyle), or regenerate the captions. Free.
+     *
+     * Refused with not_found when the video has no AI caption track of that
+     * language in that style, with invalid_argument and code
+     * parameter_invalid when that track is the language's default, and with
+     * the same captions_job_in_flight, translation_busy and
+     * caption_manifest_busy refusals as SetDefaultCaptionStyle.
+     *
+     * @generated from rpc transcodely.v1.VideoService.DeleteCaptionStyle
+     */
+    deleteCaptionStyle: {
+      name: "DeleteCaptionStyle",
+      I: DeleteCaptionStyleRequest,
+      O: DeleteCaptionStyleResponse,
       kind: MethodKind.Unary,
     },
   }

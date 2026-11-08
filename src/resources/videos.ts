@@ -8,6 +8,7 @@ import {
   CreateFromUrlRequest,
   CreateMultipartUploadRequest,
   CreateUploadRequest,
+  DeleteCaptionStyleRequest,
   DeleteVideoRequest,
   GenerateHighlightsRequest,
   GenerateInsightsRequest,
@@ -23,6 +24,7 @@ import {
   ListVideosRequest,
   RestyleCaptionsRequest,
   type RestyleCaptionsResponse,
+  SetDefaultCaptionStyleRequest,
   TranslateCaptionsRequest,
   type TranslateCaptionsResponse,
   UpdateVideoRequest,
@@ -331,10 +333,12 @@ export class Videos {
    * `CueStyle` without transcribing again: the words and their timings come
    * from the track's stored transcript, only their grouping into cues
    * changes. Creates a captions-only job on the video (`jobId` in the
-   * response); when it completes the track's caption file, transcript
-   * renditions and HLS caption rendition are replaced in place and
-   * `VideoTextTrack.cueStyle` shows the new style. Insights are kept, and
-   * translations of the track keep their old cues until translated again.
+   * response). A language keeps one caption track per style
+   * (`VideoTextTrack.styleVariant`): when it has no track in the requested
+   * style yet the job adds one next to the existing styles (`addsVariant` in
+   * the response), not the default unless `makeDefault` is set; otherwise
+   * that style's track is re-cut in place. Insights are kept, and
+   * translations keep their old cues until translated again.
    *
    * Free: no captions, translation or processing fee. Pass `language` when the
    * video has several AI caption tracks; leave `cueStyle` unset to re-cut into
@@ -353,5 +357,62 @@ export class Videos {
       new RestyleCaptionsRequest(req),
       opts,
     );
+  }
+
+  /**
+   * Make another of a language's caption styles (`styleVariant`: compact,
+   * standard or long) its default: the style players select for the
+   * language and the one labelled with the language name alone
+   * (`VideoTextTrack.isDefault`). The previous default stays available under
+   * "<language> (<style>)". For a video that streams as HLS the master
+   * playlist is rewritten and purged from the CDN. Translations of the
+   * language become stale (`VideoTextTrack.stale`) until translated again.
+   * Free. Returns the video with its text tracks as they are now.
+   *
+   * Setting the current default again succeeds and changes nothing. Refused
+   * with not_found when the video has no AI caption track of that language in
+   * that style, with failed_precondition (code captions_job_in_flight) while a
+   * captions job of the language is running, and with unavailable (code
+   * translation_busy or caption_manifest_busy) when the same request can be
+   * retried after a few seconds.
+   */
+  async setDefaultCaptionStyle(
+    req: PartialMessage<SetDefaultCaptionStyleRequest>,
+    opts?: CallOptions,
+  ): Promise<Video> {
+    const res = await this.transport.unary(
+      VideoService,
+      VideoService.methods.setDefaultCaptionStyle,
+      new SetDefaultCaptionStyleRequest(req),
+      opts,
+    );
+    return res.video!;
+  }
+
+  /**
+   * Remove one style (`styleVariant`) of a language's AI captions: the caption
+   * track, its entry in the video's HLS master playlist (purged from the CDN)
+   * and its files. The language's default style cannot be removed, which also
+   * keeps a language's only style: make another style the default first with
+   * `setDefaultCaptionStyle`. Free. Returns the video with its text tracks as
+   * they are now.
+   *
+   * Refused with not_found when the video has no AI caption track of that
+   * language in that style, with invalid_argument (code parameter_invalid)
+   * when that track is the language's default, and with the same
+   * captions_job_in_flight, translation_busy and caption_manifest_busy
+   * refusals as `setDefaultCaptionStyle`.
+   */
+  async deleteCaptionStyle(
+    req: PartialMessage<DeleteCaptionStyleRequest>,
+    opts?: CallOptions,
+  ): Promise<Video> {
+    const res = await this.transport.unary(
+      VideoService,
+      VideoService.methods.deleteCaptionStyle,
+      new DeleteCaptionStyleRequest(req),
+      opts,
+    );
+    return res.video!;
   }
 }

@@ -197,6 +197,13 @@ export {
   // into a new CueStyle without transcribing again.
   type RestyleCaptionsRequest,
   type RestyleCaptionsResponse,
+  // Caption style variants: a language can carry its AI captions in several
+  // styles (VideoTextTrack.styleVariant, isDefault). videos.setDefaultCaptionStyle
+  // changes which one players select; videos.deleteCaptionStyle removes one.
+  type SetDefaultCaptionStyleRequest,
+  type SetDefaultCaptionStyleResponse,
+  type DeleteCaptionStyleRequest,
+  type DeleteCaptionStyleResponse,
   // Guide page: Video.guidePage is the video's own setting (DEFAULT follows
   // the app's HostingConfig.guidePagesEnabled; ON / OFF pin it),
   // Video.guidePageEnabled the effective value (absent in video.* webhook
