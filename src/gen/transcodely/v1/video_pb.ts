@@ -123,6 +123,99 @@ proto3.util.setEnumType(VideoVisibility, "transcodely.v1.VideoVisibility", [
 ]);
 
 /**
+ * Whether an organization's free trial can be used.
+ *
+ * @generated from enum transcodely.v1.FreeTrialStatus
+ */
+export enum FreeTrialStatus {
+  /**
+   * Default value, never returned.
+   *
+   * @generated from enum value: FREE_TRIAL_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The trial has not been used yet.
+   *
+   * @generated from enum value: FREE_TRIAL_STATUS_AVAILABLE = 1;
+   */
+  AVAILABLE = 1,
+
+  /**
+   * A video has used the trial.
+   *
+   * @generated from enum value: FREE_TRIAL_STATUS_USED = 2;
+   */
+  USED = 2,
+
+  /**
+   * The caller cannot use the trial; see FreeTrial.unavailable_reason.
+   *
+   * @generated from enum value: FREE_TRIAL_STATUS_UNAVAILABLE = 3;
+   */
+  UNAVAILABLE = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(FreeTrialStatus)
+proto3.util.setEnumType(FreeTrialStatus, "transcodely.v1.FreeTrialStatus", [
+  { no: 0, name: "FREE_TRIAL_STATUS_UNSPECIFIED" },
+  { no: 1, name: "FREE_TRIAL_STATUS_AVAILABLE" },
+  { no: 2, name: "FREE_TRIAL_STATUS_USED" },
+  { no: 3, name: "FREE_TRIAL_STATUS_UNAVAILABLE" },
+]);
+
+/**
+ * Why a caller cannot use the free trial.
+ *
+ * @generated from enum transcodely.v1.FreeTrialUnavailableReason
+ */
+export enum FreeTrialUnavailableReason {
+  /**
+   * Default value, never returned.
+   *
+   * @generated from enum value: FREE_TRIAL_UNAVAILABLE_REASON_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * This deployment does not offer the free trial.
+   *
+   * @generated from enum value: FREE_TRIAL_UNAVAILABLE_REASON_DISABLED = 1;
+   */
+  DISABLED = 1,
+
+  /**
+   * The signed-in user's email address is not verified.
+   *
+   * @generated from enum value: FREE_TRIAL_UNAVAILABLE_REASON_EMAIL_NOT_VERIFIED = 2;
+   */
+  EMAIL_NOT_VERIFIED = 2,
+
+  /**
+   * The caller is not a signed-in user (an API key).
+   *
+   * @generated from enum value: FREE_TRIAL_UNAVAILABLE_REASON_USER_REQUIRED = 3;
+   */
+  USER_REQUIRED = 3,
+
+  /**
+   * The platform's daily free-trial limit is reached; the trial is offered
+   * again from the next UTC day.
+   *
+   * @generated from enum value: FREE_TRIAL_UNAVAILABLE_REASON_DAILY_LIMIT = 4;
+   */
+  DAILY_LIMIT = 4,
+}
+// Retrieve enum metadata with: proto3.getEnumType(FreeTrialUnavailableReason)
+proto3.util.setEnumType(FreeTrialUnavailableReason, "transcodely.v1.FreeTrialUnavailableReason", [
+  { no: 0, name: "FREE_TRIAL_UNAVAILABLE_REASON_UNSPECIFIED" },
+  { no: 1, name: "FREE_TRIAL_UNAVAILABLE_REASON_DISABLED" },
+  { no: 2, name: "FREE_TRIAL_UNAVAILABLE_REASON_EMAIL_NOT_VERIFIED" },
+  { no: 3, name: "FREE_TRIAL_UNAVAILABLE_REASON_USER_REQUIRED" },
+  { no: 4, name: "FREE_TRIAL_UNAVAILABLE_REASON_DAILY_LIMIT" },
+]);
+
+/**
  * A video's guide page setting (Video.guide_page, UpdateVideoRequest.guide_page).
  *
  * @generated from enum transcodely.v1.GuidePageSetting
@@ -676,6 +769,16 @@ export class Video extends Message<Video> {
   guidePage = GuidePageSetting.UNSPECIFIED;
 
   /**
+   * Set when this video used its organization's free trial
+   * (CreateUploadRequest.free_trial): its transcode, captions and insights
+   * are never invoiced. total_cost and cost_breakdown still show what the
+   * work is worth at the normal price. Absent on every other video.
+   *
+   * @generated from field: optional transcodely.v1.VideoFreeTrial free_trial = 60;
+   */
+  freeTrial?: VideoFreeTrial;
+
+  /**
    * Resource type discriminator. Always "video" for this message.
    * Lets webhook consumers and polyglot SDKs identify the resource without
    * out-of-band knowledge of the field name. Server-set; ignored on requests.
@@ -731,6 +834,7 @@ export class Video extends Message<Video> {
     { no: 56, name: "guide_page_enabled", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 57, name: "guide_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 58, name: "guide_page", kind: "enum", T: proto3.getEnumType(GuidePageSetting) },
+    { no: 60, name: "free_trial", kind: "message", T: VideoFreeTrial, opt: true },
     { no: 43, name: "object", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
@@ -1242,6 +1346,40 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
    */
   cueStyle?: CueStyle;
 
+  /**
+   * Use the organization's free trial for this video: its transcode, AI
+   * captions and AI insights, processing fee included, are never invoiced.
+   * Each organization gets one trial, for one video of up to
+   * FreeTrial.max_duration_seconds and FreeTrial.max_upload_bytes; see
+   * GetFreeTrial. Requires auto_captions = true (auto_insights may be set
+   * too, and is covered); preset, auto_translations, highlights and
+   * source_pinned are not covered and are rejected alongside it with
+   * `invalid_argument`, error code `parameter_incompatible` on free_trial.
+   *
+   * Refused with `failed_precondition` and error code
+   * `free_trial_already_used` when the organization (or the signed-in user,
+   * in another organization) has already used it, and
+   * `email_not_verified` when the caller is not a signed-in user with a
+   * verified email address (API keys cannot use the trial). Refused with
+   * `resource_exhausted` and error code `free_trial_unavailable_today` when
+   * the platform's daily trial limit is reached; that refusal uses up
+   * nothing and clears at the next UTC midnight. Deployments
+   * without the trial reject it with `invalid_argument`, error code
+   * `parameter_unsupported`. A file over max_upload_bytes is rejected with
+   * `invalid_argument`, error code `max_upload_size_exceeded`.
+   *
+   * The trial is used by this request. If the video then fails (the upload
+   * never completes and the video is deleted, the job is refused or fails),
+   * the trial is handed back and can be used again, at most three times in
+   * all. Video.free_trial marks a trial video. The video's encoding uses the
+   * app's normal ladder within the account's limits; its hosting is billed
+   * like any other video (never, while the organization has no payment
+   * method). Unset: the video is billed normally.
+   *
+   * @generated from field: optional transcodely.v1.FreeTrialOptions free_trial = 17;
+   */
+  freeTrial?: FreeTrialOptions;
+
   constructor(data?: PartialMessage<CreateUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1266,6 +1404,7 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
     { no: 14, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 15, name: "auto_translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 16, name: "cue_style", kind: "message", T: CueStyle, opt: true },
+    { no: 17, name: "free_trial", kind: "message", T: FreeTrialOptions, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateUploadRequest {
@@ -1598,6 +1737,40 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
    */
   cueStyle?: CueStyle;
 
+  /**
+   * Use the organization's free trial for this video: its transcode, AI
+   * captions and AI insights, processing fee included, are never invoiced.
+   * Each organization gets one trial, for one video of up to
+   * FreeTrial.max_duration_seconds and FreeTrial.max_upload_bytes; see
+   * GetFreeTrial. Requires auto_captions = true (auto_insights may be set
+   * too, and is covered); preset, auto_translations, highlights and
+   * source_pinned are not covered and are rejected alongside it with
+   * `invalid_argument`, error code `parameter_incompatible` on free_trial.
+   *
+   * Refused with `failed_precondition` and error code
+   * `free_trial_already_used` when the organization (or the signed-in user,
+   * in another organization) has already used it, and
+   * `email_not_verified` when the caller is not a signed-in user with a
+   * verified email address (API keys cannot use the trial). Refused with
+   * `resource_exhausted` and error code `free_trial_unavailable_today` when
+   * the platform's daily trial limit is reached; that refusal uses up
+   * nothing and clears at the next UTC midnight. Deployments
+   * without the trial reject it with `invalid_argument`, error code
+   * `parameter_unsupported`. A file over max_upload_bytes is rejected with
+   * `invalid_argument`, error code `max_upload_size_exceeded`.
+   *
+   * The trial is used by this request. If the video then fails (the upload
+   * never completes and the video is deleted, the job is refused or fails),
+   * the trial is handed back and can be used again, at most three times in
+   * all. Video.free_trial marks a trial video. The video's encoding uses the
+   * app's normal ladder within the account's limits; its hosting is billed
+   * like any other video (never, while the organization has no payment
+   * method). Unset: the video is billed normally.
+   *
+   * @generated from field: optional transcodely.v1.FreeTrialOptions free_trial = 15;
+   */
+  freeTrial?: FreeTrialOptions;
+
   constructor(data?: PartialMessage<CreateFromUrlRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1620,6 +1793,7 @@ export class CreateFromUrlRequest extends Message<CreateFromUrlRequest> {
     { no: 12, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 13, name: "auto_translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 14, name: "cue_style", kind: "message", T: CueStyle, opt: true },
+    { no: 15, name: "free_trial", kind: "message", T: FreeTrialOptions, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateFromUrlRequest {
@@ -1679,6 +1853,272 @@ export class CreateFromUrlResponse extends Message<CreateFromUrlResponse> {
 
   static equals(a: CreateFromUrlResponse | PlainMessage<CreateFromUrlResponse> | undefined, b: CreateFromUrlResponse | PlainMessage<CreateFromUrlResponse> | undefined): boolean {
     return proto3.util.equals(CreateFromUrlResponse, a, b);
+  }
+}
+
+/**
+ * Options for a video that uses the organization's free trial. See
+ * CreateUploadRequest.free_trial.
+ *
+ * @generated from message transcodely.v1.FreeTrialOptions
+ */
+export class FreeTrialOptions extends Message<FreeTrialOptions> {
+  /**
+   * How long the source is, in seconds, as the client measured it (for
+   * example HTMLMediaElement.duration of the file being uploaded). When it is
+   * more than one second longer than the trial's max_duration_seconds, only
+   * the first max_duration_seconds of the source are encoded, captioned and
+   * summarized, and Video.free_trial.clipped is true. Within that second the
+   * video is processed whole (client and server durations differ slightly).
+   *
+   * The real duration is checked once the source is read. A clipped video
+   * whose real source turns out shorter than max_duration_seconds fails with
+   * `input_clip_out_of_range`. An unclipped video (this value omitted, 0, or
+   * at most one second past max_duration_seconds) whose real source is more
+   * than one second longer than max_duration_seconds fails with
+   * `free_trial_duration_exceeded`. Either
+   * failure bills nothing and hands the trial back.
+   *
+   * @generated from field: double source_duration_seconds = 1;
+   */
+  sourceDurationSeconds = 0;
+
+  constructor(data?: PartialMessage<FreeTrialOptions>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.FreeTrialOptions";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "source_duration_seconds", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): FreeTrialOptions {
+    return new FreeTrialOptions().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): FreeTrialOptions {
+    return new FreeTrialOptions().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): FreeTrialOptions {
+    return new FreeTrialOptions().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: FreeTrialOptions | PlainMessage<FreeTrialOptions> | undefined, b: FreeTrialOptions | PlainMessage<FreeTrialOptions> | undefined): boolean {
+    return proto3.util.equals(FreeTrialOptions, a, b);
+  }
+}
+
+/**
+ * How a video used its organization's free trial.
+ *
+ * @generated from message transcodely.v1.VideoFreeTrial
+ */
+export class VideoFreeTrial extends Message<VideoFreeTrial> {
+  /**
+   * The longest stretch of source the trial covers, in seconds, as it was
+   * when this video took the trial.
+   *
+   * @generated from field: int32 max_duration_seconds = 1;
+   */
+  maxDurationSeconds = 0;
+
+  /**
+   * True when the source was longer than max_duration_seconds, so only its
+   * first max_duration_seconds were encoded, captioned and summarized. The
+   * video's duration is then that shorter length.
+   *
+   * @generated from field: bool clipped = 2;
+   */
+  clipped = false;
+
+  constructor(data?: PartialMessage<VideoFreeTrial>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.VideoFreeTrial";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "max_duration_seconds", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "clipped", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VideoFreeTrial {
+    return new VideoFreeTrial().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): VideoFreeTrial {
+    return new VideoFreeTrial().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): VideoFreeTrial {
+    return new VideoFreeTrial().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: VideoFreeTrial | PlainMessage<VideoFreeTrial> | undefined, b: VideoFreeTrial | PlainMessage<VideoFreeTrial> | undefined): boolean {
+    return proto3.util.equals(VideoFreeTrial, a, b);
+  }
+}
+
+/**
+ * Request for the organization's free trial status.
+ *
+ * @generated from message transcodely.v1.GetFreeTrialRequest
+ */
+export class GetFreeTrialRequest extends Message<GetFreeTrialRequest> {
+  constructor(data?: PartialMessage<GetFreeTrialRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetFreeTrialRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetFreeTrialRequest {
+    return new GetFreeTrialRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetFreeTrialRequest {
+    return new GetFreeTrialRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetFreeTrialRequest {
+    return new GetFreeTrialRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetFreeTrialRequest | PlainMessage<GetFreeTrialRequest> | undefined, b: GetFreeTrialRequest | PlainMessage<GetFreeTrialRequest> | undefined): boolean {
+    return proto3.util.equals(GetFreeTrialRequest, a, b);
+  }
+}
+
+/**
+ * Response with the organization's free trial status.
+ *
+ * @generated from message transcodely.v1.GetFreeTrialResponse
+ */
+export class GetFreeTrialResponse extends Message<GetFreeTrialResponse> {
+  /**
+   * The caller's organization's free trial.
+   *
+   * @generated from field: transcodely.v1.FreeTrial free_trial = 1;
+   */
+  freeTrial?: FreeTrial;
+
+  constructor(data?: PartialMessage<GetFreeTrialResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.GetFreeTrialResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "free_trial", kind: "message", T: FreeTrial },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetFreeTrialResponse {
+    return new GetFreeTrialResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetFreeTrialResponse {
+    return new GetFreeTrialResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetFreeTrialResponse {
+    return new GetFreeTrialResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetFreeTrialResponse | PlainMessage<GetFreeTrialResponse> | undefined, b: GetFreeTrialResponse | PlainMessage<GetFreeTrialResponse> | undefined): boolean {
+    return proto3.util.equals(GetFreeTrialResponse, a, b);
+  }
+}
+
+/**
+ * The free trial of one organization: one video with AI captions and AI
+ * insights, at no charge.
+ *
+ * @generated from message transcodely.v1.FreeTrial
+ */
+export class FreeTrial extends Message<FreeTrial> {
+  /**
+   * "available": the next CreateUpload / CreateMultipartUpload /
+   * CreateFromUrl with free_trial set will take it. "used": a video has
+   * taken it (video_id); a failed trial video hands it back, so this can
+   * return to "available". "unavailable": this caller cannot use it now;
+   * see unavailable_reason.
+   *
+   * @generated from field: transcodely.v1.FreeTrialStatus status = 1;
+   */
+  status = FreeTrialStatus.UNSPECIFIED;
+
+  /**
+   * Why status is "unavailable": "disabled" (this deployment does not offer
+   * the trial), "email_not_verified" (verify the account's email address,
+   * then sign in again), "user_required" (an API key is calling; sign in
+   * to the dashboard) or "daily_limit" (the platform's daily trial limit is
+   * reached; try again from the next UTC day). Absent for any other status.
+   *
+   * @generated from field: optional transcodely.v1.FreeTrialUnavailableReason unavailable_reason = 2;
+   */
+  unavailableReason?: FreeTrialUnavailableReason;
+
+  /**
+   * The longest source the trial covers, in seconds. A longer source is
+   * cut to its first max_duration_seconds (see
+   * FreeTrialOptions.source_duration_seconds). 0 when the trial is disabled.
+   *
+   * @generated from field: int32 max_duration_seconds = 3;
+   */
+  maxDurationSeconds = 0;
+
+  /**
+   * The largest file the trial accepts, in bytes. 0 when the trial is
+   * disabled.
+   *
+   * @generated from field: int64 max_upload_bytes = 4;
+   */
+  maxUploadBytes = protoInt64.zero;
+
+  /**
+   * The video that took the trial, when status is "used".
+   *
+   * @generated from field: optional string video_id = 5;
+   */
+  videoId?: string;
+
+  constructor(data?: PartialMessage<FreeTrial>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.FreeTrial";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "status", kind: "enum", T: proto3.getEnumType(FreeTrialStatus) },
+    { no: 2, name: "unavailable_reason", kind: "enum", T: proto3.getEnumType(FreeTrialUnavailableReason), opt: true },
+    { no: 3, name: "max_duration_seconds", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "max_upload_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 5, name: "video_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): FreeTrial {
+    return new FreeTrial().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): FreeTrial {
+    return new FreeTrial().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): FreeTrial {
+    return new FreeTrial().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: FreeTrial | PlainMessage<FreeTrial> | undefined, b: FreeTrial | PlainMessage<FreeTrial> | undefined): boolean {
+    return proto3.util.equals(FreeTrial, a, b);
   }
 }
 
@@ -1977,6 +2417,40 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
    */
   cueStyle?: CueStyle;
 
+  /**
+   * Use the organization's free trial for this video: its transcode, AI
+   * captions and AI insights, processing fee included, are never invoiced.
+   * Each organization gets one trial, for one video of up to
+   * FreeTrial.max_duration_seconds and FreeTrial.max_upload_bytes; see
+   * GetFreeTrial. Requires auto_captions = true (auto_insights may be set
+   * too, and is covered); preset, auto_translations, highlights and
+   * source_pinned are not covered and are rejected alongside it with
+   * `invalid_argument`, error code `parameter_incompatible` on free_trial.
+   *
+   * Refused with `failed_precondition` and error code
+   * `free_trial_already_used` when the organization (or the signed-in user,
+   * in another organization) has already used it, and
+   * `email_not_verified` when the caller is not a signed-in user with a
+   * verified email address (API keys cannot use the trial). Refused with
+   * `resource_exhausted` and error code `free_trial_unavailable_today` when
+   * the platform's daily trial limit is reached; that refusal uses up
+   * nothing and clears at the next UTC midnight. Deployments
+   * without the trial reject it with `invalid_argument`, error code
+   * `parameter_unsupported`. A file over max_upload_bytes is rejected with
+   * `invalid_argument`, error code `max_upload_size_exceeded`.
+   *
+   * The trial is used by this request. If the video then fails (the upload
+   * never completes and the video is deleted, the job is refused or fails),
+   * the trial is handed back and can be used again, at most three times in
+   * all. Video.free_trial marks a trial video. The video's encoding uses the
+   * app's normal ladder within the account's limits; its hosting is billed
+   * like any other video (never, while the organization has no payment
+   * method). Unset: the video is billed normally.
+   *
+   * @generated from field: optional transcodely.v1.FreeTrialOptions free_trial = 22;
+   */
+  freeTrial?: FreeTrialOptions;
+
   constructor(data?: PartialMessage<CreateMultipartUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2003,6 +2477,7 @@ export class CreateMultipartUploadRequest extends Message<CreateMultipartUploadR
     { no: 19, name: "source_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
     { no: 20, name: "auto_translations", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 21, name: "cue_style", kind: "message", T: CueStyle, opt: true },
+    { no: 22, name: "free_trial", kind: "message", T: FreeTrialOptions, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateMultipartUploadRequest {

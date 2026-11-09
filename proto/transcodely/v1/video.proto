@@ -247,6 +247,16 @@ service VideoService {
   // the same captions_job_in_flight, translation_busy and
   // caption_manifest_busy refusals as SetDefaultCaptionStyle.
   rpc DeleteCaptionStyle(DeleteCaptionStyleRequest) returns (DeleteCaptionStyleResponse);
+
+  // Whether the caller's organization can still use its free trial: one
+  // video with AI captions and AI insights, up to max_duration_seconds long,
+  // at no charge. Use it to decide whether to offer the trial before an
+  // upload; the trial itself is taken by setting free_trial on CreateUpload,
+  // CreateMultipartUpload or CreateFromUrl. Read-only, free, and available to
+  // any member of the organization. API-key callers get status
+  // "unavailable" with reason "user_required": the trial is for signed-in
+  // dashboard users.
+  rpc GetFreeTrial(GetFreeTrialRequest) returns (GetFreeTrialResponse);
 }
 
 // =============================================================================
@@ -567,6 +577,12 @@ message Video {
   // Video, webhook payloads included.
   GuidePageSetting guide_page = 58;
 
+  // Set when this video used its organization's free trial
+  // (CreateUploadRequest.free_trial): its transcode, captions and insights
+  // are never invoiced. total_cost and cost_breakdown still show what the
+  // work is worth at the normal price. Absent on every other video.
+  optional VideoFreeTrial free_trial = 60;
+
   // Resource type discriminator. Always "video" for this message.
   // Lets webhook consumers and polyglot SDKs identify the resource without
   // out-of-band knowledge of the field name. Server-set; ignored on requests.
@@ -850,6 +866,36 @@ message CreateUploadRequest {
   // true; rejected otherwise with `invalid_argument`, error code
   // `parameter_incompatible` on cue_style. No effect on pricing.
   optional CueStyle cue_style = 16;
+
+  // Use the organization's free trial for this video: its transcode, AI
+  // captions and AI insights, processing fee included, are never invoiced.
+  // Each organization gets one trial, for one video of up to
+  // FreeTrial.max_duration_seconds and FreeTrial.max_upload_bytes; see
+  // GetFreeTrial. Requires auto_captions = true (auto_insights may be set
+  // too, and is covered); preset, auto_translations, highlights and
+  // source_pinned are not covered and are rejected alongside it with
+  // `invalid_argument`, error code `parameter_incompatible` on free_trial.
+  //
+  // Refused with `failed_precondition` and error code
+  // `free_trial_already_used` when the organization (or the signed-in user,
+  // in another organization) has already used it, and
+  // `email_not_verified` when the caller is not a signed-in user with a
+  // verified email address (API keys cannot use the trial). Refused with
+  // `resource_exhausted` and error code `free_trial_unavailable_today` when
+  // the platform's daily trial limit is reached; that refusal uses up
+  // nothing and clears at the next UTC midnight. Deployments
+  // without the trial reject it with `invalid_argument`, error code
+  // `parameter_unsupported`. A file over max_upload_bytes is rejected with
+  // `invalid_argument`, error code `max_upload_size_exceeded`.
+  //
+  // The trial is used by this request. If the video then fails (the upload
+  // never completes and the video is deleted, the job is refused or fails),
+  // the trial is handed back and can be used again, at most three times in
+  // all. Video.free_trial marks a trial video. The video's encoding uses the
+  // app's normal ladder within the account's limits; its hosting is billed
+  // like any other video (never, while the organization has no payment
+  // method). Unset: the video is billed normally.
+  optional FreeTrialOptions free_trial = 17;
 }
 
 // Response from creating an upload.
@@ -1014,6 +1060,36 @@ message CreateFromUrlRequest {
   // true; rejected otherwise with `invalid_argument`, error code
   // `parameter_incompatible` on cue_style. No effect on pricing.
   optional CueStyle cue_style = 14;
+
+  // Use the organization's free trial for this video: its transcode, AI
+  // captions and AI insights, processing fee included, are never invoiced.
+  // Each organization gets one trial, for one video of up to
+  // FreeTrial.max_duration_seconds and FreeTrial.max_upload_bytes; see
+  // GetFreeTrial. Requires auto_captions = true (auto_insights may be set
+  // too, and is covered); preset, auto_translations, highlights and
+  // source_pinned are not covered and are rejected alongside it with
+  // `invalid_argument`, error code `parameter_incompatible` on free_trial.
+  //
+  // Refused with `failed_precondition` and error code
+  // `free_trial_already_used` when the organization (or the signed-in user,
+  // in another organization) has already used it, and
+  // `email_not_verified` when the caller is not a signed-in user with a
+  // verified email address (API keys cannot use the trial). Refused with
+  // `resource_exhausted` and error code `free_trial_unavailable_today` when
+  // the platform's daily trial limit is reached; that refusal uses up
+  // nothing and clears at the next UTC midnight. Deployments
+  // without the trial reject it with `invalid_argument`, error code
+  // `parameter_unsupported`. A file over max_upload_bytes is rejected with
+  // `invalid_argument`, error code `max_upload_size_exceeded`.
+  //
+  // The trial is used by this request. If the video then fails (the upload
+  // never completes and the video is deleted, the job is refused or fails),
+  // the trial is handed back and can be used again, at most three times in
+  // all. Video.free_trial marks a trial video. The video's encoding uses the
+  // app's normal ladder within the account's limits; its hosting is billed
+  // like any other video (never, while the organization has no payment
+  // method). Unset: the video is billed normally.
+  optional FreeTrialOptions free_trial = 15;
 }
 
 // Response from creating a video from a URL.
@@ -1022,6 +1098,119 @@ message CreateFromUrlResponse {
   // URL ingest (no bytes are uploaded); the job lifecycle plus video.ready /
   // video.failed cover the outcome.
   Video video = 1;
+}
+
+// Options for a video that uses the organization's free trial. See
+// CreateUploadRequest.free_trial.
+message FreeTrialOptions {
+  // How long the source is, in seconds, as the client measured it (for
+  // example HTMLMediaElement.duration of the file being uploaded). When it is
+  // more than one second longer than the trial's max_duration_seconds, only
+  // the first max_duration_seconds of the source are encoded, captioned and
+  // summarized, and Video.free_trial.clipped is true. Within that second the
+  // video is processed whole (client and server durations differ slightly).
+  //
+  // The real duration is checked once the source is read. A clipped video
+  // whose real source turns out shorter than max_duration_seconds fails with
+  // `input_clip_out_of_range`. An unclipped video (this value omitted, 0, or
+  // at most one second past max_duration_seconds) whose real source is more
+  // than one second longer than max_duration_seconds fails with
+  // `free_trial_duration_exceeded`. Either
+  // failure bills nothing and hands the trial back.
+  double source_duration_seconds = 1 [
+    (buf.validate.field).double.gte = 0,
+    (buf.validate.field).double.finite = true,
+    (buf.validate.field).cel = {
+      id: "free_trial.source_duration_storable"
+      message: "source_duration_seconds must be at most 10000000"
+      expression: "this <= 10000000.0"
+    }
+  ];
+}
+
+// How a video used its organization's free trial.
+message VideoFreeTrial {
+  // The longest stretch of source the trial covers, in seconds, as it was
+  // when this video took the trial.
+  int32 max_duration_seconds = 1;
+
+  // True when the source was longer than max_duration_seconds, so only its
+  // first max_duration_seconds were encoded, captioned and summarized. The
+  // video's duration is then that shorter length.
+  bool clipped = 2;
+}
+
+// Request for the organization's free trial status.
+message GetFreeTrialRequest {}
+
+// Response with the organization's free trial status.
+message GetFreeTrialResponse {
+  // The caller's organization's free trial.
+  FreeTrial free_trial = 1;
+}
+
+// The free trial of one organization: one video with AI captions and AI
+// insights, at no charge.
+message FreeTrial {
+  // "available": the next CreateUpload / CreateMultipartUpload /
+  // CreateFromUrl with free_trial set will take it. "used": a video has
+  // taken it (video_id); a failed trial video hands it back, so this can
+  // return to "available". "unavailable": this caller cannot use it now;
+  // see unavailable_reason.
+  FreeTrialStatus status = 1;
+
+  // Why status is "unavailable": "disabled" (this deployment does not offer
+  // the trial), "email_not_verified" (verify the account's email address,
+  // then sign in again), "user_required" (an API key is calling; sign in
+  // to the dashboard) or "daily_limit" (the platform's daily trial limit is
+  // reached; try again from the next UTC day). Absent for any other status.
+  optional FreeTrialUnavailableReason unavailable_reason = 2;
+
+  // The longest source the trial covers, in seconds. A longer source is
+  // cut to its first max_duration_seconds (see
+  // FreeTrialOptions.source_duration_seconds). 0 when the trial is disabled.
+  int32 max_duration_seconds = 3;
+
+  // The largest file the trial accepts, in bytes. 0 when the trial is
+  // disabled.
+  int64 max_upload_bytes = 4;
+
+  // The video that took the trial, when status is "used".
+  optional string video_id = 5;
+}
+
+// Whether an organization's free trial can be used.
+enum FreeTrialStatus {
+  // Default value, never returned.
+  FREE_TRIAL_STATUS_UNSPECIFIED = 0;
+
+  // The trial has not been used yet.
+  FREE_TRIAL_STATUS_AVAILABLE = 1;
+
+  // A video has used the trial.
+  FREE_TRIAL_STATUS_USED = 2;
+
+  // The caller cannot use the trial; see FreeTrial.unavailable_reason.
+  FREE_TRIAL_STATUS_UNAVAILABLE = 3;
+}
+
+// Why a caller cannot use the free trial.
+enum FreeTrialUnavailableReason {
+  // Default value, never returned.
+  FREE_TRIAL_UNAVAILABLE_REASON_UNSPECIFIED = 0;
+
+  // This deployment does not offer the free trial.
+  FREE_TRIAL_UNAVAILABLE_REASON_DISABLED = 1;
+
+  // The signed-in user's email address is not verified.
+  FREE_TRIAL_UNAVAILABLE_REASON_EMAIL_NOT_VERIFIED = 2;
+
+  // The caller is not a signed-in user (an API key).
+  FREE_TRIAL_UNAVAILABLE_REASON_USER_REQUIRED = 3;
+
+  // The platform's daily free-trial limit is reached; the trial is offered
+  // again from the next UTC day.
+  FREE_TRIAL_UNAVAILABLE_REASON_DAILY_LIMIT = 4;
 }
 
 // =============================================================================
@@ -1199,6 +1388,36 @@ message CreateMultipartUploadRequest {
   // true; rejected otherwise with `invalid_argument`, error code
   // `parameter_incompatible` on cue_style. No effect on pricing.
   optional CueStyle cue_style = 21;
+
+  // Use the organization's free trial for this video: its transcode, AI
+  // captions and AI insights, processing fee included, are never invoiced.
+  // Each organization gets one trial, for one video of up to
+  // FreeTrial.max_duration_seconds and FreeTrial.max_upload_bytes; see
+  // GetFreeTrial. Requires auto_captions = true (auto_insights may be set
+  // too, and is covered); preset, auto_translations, highlights and
+  // source_pinned are not covered and are rejected alongside it with
+  // `invalid_argument`, error code `parameter_incompatible` on free_trial.
+  //
+  // Refused with `failed_precondition` and error code
+  // `free_trial_already_used` when the organization (or the signed-in user,
+  // in another organization) has already used it, and
+  // `email_not_verified` when the caller is not a signed-in user with a
+  // verified email address (API keys cannot use the trial). Refused with
+  // `resource_exhausted` and error code `free_trial_unavailable_today` when
+  // the platform's daily trial limit is reached; that refusal uses up
+  // nothing and clears at the next UTC midnight. Deployments
+  // without the trial reject it with `invalid_argument`, error code
+  // `parameter_unsupported`. A file over max_upload_bytes is rejected with
+  // `invalid_argument`, error code `max_upload_size_exceeded`.
+  //
+  // The trial is used by this request. If the video then fails (the upload
+  // never completes and the video is deleted, the job is refused or fails),
+  // the trial is handed back and can be used again, at most three times in
+  // all. Video.free_trial marks a trial video. The video's encoding uses the
+  // app's normal ladder within the account's limits; its hosting is billed
+  // like any other video (never, while the organization has no payment
+  // method). Unset: the video is billed normally.
+  optional FreeTrialOptions free_trial = 22;
 }
 
 // Response from creating a multipart upload.
