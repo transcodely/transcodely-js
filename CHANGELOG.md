@@ -4,6 +4,14 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.22](https://github.com/transcodely/transcodely-js/compare/v0.3.21...v0.3.22) (2026-11-09)
+
+
+### Features
+
+* free captions trial (GetFreeTrial) ([f041881](https://github.com/transcodely/transcodely-js/commit/f04188192823d45b31fe1d230c65fdeb9d8be48d))
+* free captions trial and videos.getFreeTrial ([e5e3e1a](https://github.com/transcodely/transcodely-js/commit/e5e3e1a7813011e9ed826f2566102a8a23fc935f))
+
 ## [0.3.21](https://github.com/transcodely/transcodely-js/compare/v0.3.20...v0.3.21) (2026-11-08)
 
 
