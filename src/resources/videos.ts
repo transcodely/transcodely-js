@@ -10,8 +10,10 @@ import {
   CreateUploadRequest,
   DeleteCaptionStyleRequest,
   DeleteVideoRequest,
+  type FreeTrial,
   GenerateHighlightsRequest,
   GenerateInsightsRequest,
+  GetFreeTrialRequest,
   GetSeoMarkupRequest,
   type GetSeoMarkupResponse,
   GetStatsRequest,
@@ -414,5 +416,23 @@ export class Videos {
       opts,
     );
     return res.video!;
+  }
+
+  /**
+   * Get the caller's organization's free captions trial: one video with AI
+   * captions and AI insights at no charge. `status` is `AVAILABLE` when the
+   * next upload or URL-ingest with `freeTrial` set will take it, `USED` once a
+   * video has (`videoId`; a failed trial video hands it back), or
+   * `UNAVAILABLE` with `unavailableReason` saying why. `maxDurationSeconds`
+   * and `maxUploadBytes` give the trial's limits.
+   */
+  async getFreeTrial(opts?: CallOptions): Promise<FreeTrial> {
+    const res = await this.transport.unary(
+      VideoService,
+      VideoService.methods.getFreeTrial,
+      new GetFreeTrialRequest(),
+      opts,
+    );
+    return res.freeTrial!;
   }
 }

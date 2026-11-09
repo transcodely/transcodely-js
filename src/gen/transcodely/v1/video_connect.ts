@@ -6,7 +6,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteCaptionStyleRequest, DeleteCaptionStyleResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, RestyleCaptionsRequest, RestyleCaptionsResponse, SetDefaultCaptionStyleRequest, SetDefaultCaptionStyleResponse, TranslateCaptionsRequest, TranslateCaptionsResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
+import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteCaptionStyleRequest, DeleteCaptionStyleResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetFreeTrialRequest, GetFreeTrialResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, RestyleCaptionsRequest, RestyleCaptionsResponse, SetDefaultCaptionStyleRequest, SetDefaultCaptionStyleResponse, TranslateCaptionsRequest, TranslateCaptionsResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -429,6 +429,24 @@ export const VideoService = {
       name: "DeleteCaptionStyle",
       I: DeleteCaptionStyleRequest,
       O: DeleteCaptionStyleResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Whether the caller's organization can still use its free trial: one
+     * video with AI captions and AI insights, up to max_duration_seconds long,
+     * at no charge. Use it to decide whether to offer the trial before an
+     * upload; the trial itself is taken by setting free_trial on CreateUpload,
+     * CreateMultipartUpload or CreateFromUrl. Read-only, free, and available to
+     * any member of the organization. API-key callers get status
+     * "unavailable" with reason "user_required": the trial is for signed-in
+     * dashboard users.
+     *
+     * @generated from rpc transcodely.v1.VideoService.GetFreeTrial
+     */
+    getFreeTrial: {
+      name: "GetFreeTrial",
+      I: GetFreeTrialRequest,
+      O: GetFreeTrialResponse,
       kind: MethodKind.Unary,
     },
   }

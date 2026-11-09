@@ -9,6 +9,14 @@ import {
   GenerateHighlightsResponse,
   GenerateInsightsRequest,
   GenerateInsightsResponse,
+  FreeTrialStatus,
+  FreeTrialUnavailableReason,
+  GetFreeTrialRequest,
+  GetFreeTrialResponse,
+  FreeTrialStatus,
+  FreeTrialUnavailableReason,
+  GetFreeTrialRequest,
+  GetFreeTrialResponse,
   GetSeoMarkupResponse,
   GetStatsResponse,
   ListTopVideosResponse,
@@ -483,5 +491,43 @@ describe("Videos facade", () => {
     // enum goes out lowercase and the reserved guide_page_enabled never does.
     expect(wire).toMatchObject({ id: "vid_a1b2c3d4e5f6g7", guide_page: "on" });
     expect(wire).not.toHaveProperty("guide_page_enabled");
+  });
+
+  it("getFreeTrial dispatches GetFreeTrial and returns the trial", async () => {
+    const transport = makeTransport();
+    const res = fromJson(
+      {
+        free_trial: {
+          status: "unavailable",
+          unavailable_reason: "daily_limit",
+          max_duration_seconds: 300,
+          max_upload_bytes: "1073741824",
+        },
+      },
+      GetFreeTrialResponse,
+    );
+    const spy = vi.spyOn(transport, "unary").mockResolvedValue(res);
+    const trial = await new Videos(transport).getFreeTrial();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toBe(VideoService.methods.getFreeTrial);
+    expect(spy.mock.calls[0][2]).toBeInstanceOf(GetFreeTrialRequest);
+    expect(trial.status).toBe(FreeTrialStatus.UNAVAILABLE);
+    expect(trial.unavailableReason).toBe(
+      FreeTrialUnavailableReason.DAILY_LIMIT,
+    );
+    expect(trial.maxDurationSeconds).toBe(300);
+    expect(trial.maxUploadBytes).toBe(1073741824n);
+  });
+
+  it("getFreeTrial returns the video that used the trial", async () => {
+    const transport = makeTransport();
+    const res = fromJson(
+      { free_trial: { status: "used", video_id: "vid_a1b2c3d4e5f6g7" } },
+      GetFreeTrialResponse,
+    );
+    vi.spyOn(transport, "unary").mockResolvedValue(res);
+    const trial = await new Videos(transport).getFreeTrial();
+    expect(trial.status).toBe(FreeTrialStatus.USED);
+    expect(trial.videoId).toBe("vid_a1b2c3d4e5f6g7");
   });
 });

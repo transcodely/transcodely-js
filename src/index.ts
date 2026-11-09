@@ -208,6 +208,17 @@ export {
   // the app's HostingConfig.guidePagesEnabled; ON / OFF pin it),
   // Video.guidePageEnabled the effective value (absent in video.* webhook
   // payloads) and Video.guideUrl the page when it would render.
+  // Free captions trial: videos.getFreeTrial reports whether the organization's
+  // one free video is available; pass FreeTrialOptions as `freeTrial` on the
+  // upload / URL-ingest requests, and Video.freeTrial (VideoFreeTrial) reports
+  // how a video used it.
+  type FreeTrial,
+  type FreeTrialOptions,
+  type VideoFreeTrial,
+  type GetFreeTrialRequest,
+  type GetFreeTrialResponse,
+  FreeTrialStatus,
+  FreeTrialUnavailableReason,
   GuidePageSetting,
   VideoStatus,
   VideoVisibility,
