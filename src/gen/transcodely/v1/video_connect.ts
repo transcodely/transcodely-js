@@ -217,7 +217,7 @@ export const VideoService = {
     /**
      * Generate AI insights (title suggestions, summary, key points, chapters,
      * questions, key terms, highlights, topics) from a hosted video's existing
-     * AI captions, without transcribing again. Billed EUR 0.02 per video plus
+     * AI captions, without transcribing again. Billed EUR 0.05 per video plus
      * EUR 0.005 per minute of source, charged only when the insights become
      * ready. Returns the entry in "pending"; it also appears on Video.insights,
      * and video.insights.ready or video.insights.failed fires when it finishes.
@@ -291,9 +291,10 @@ export const VideoService = {
      * the source language, the insights are translated too and appear as one
      * more Video.insights entry per language (video.insights.ready fires).
      *
-     * Billed as the `captions_translation` fee: EUR 0.12 per source minute per
-     * language, charged only for languages actually delivered; nothing else
-     * (no captions fee, no per-job processing fee).
+     * Billed as the `captions_translation` fee: EUR 0.02 per source minute per
+     * language, at least EUR 0.05 per language, charged only for languages
+     * actually delivered; nothing else (no captions fee, no per-job processing
+     * fee).
      *
      * While a translation job for this video and a target language is still
      * running, that language is not requested again: the response lists it

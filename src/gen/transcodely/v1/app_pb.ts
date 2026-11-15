@@ -1625,8 +1625,9 @@ export class PricingEntry extends Message<PricingEntry> {
 
   /**
    * What base_price is per: eur_per_output_minute, eur_per_source_minute,
-   * eur_per_video, eur_per_job, eur_per_gb_month, eur_per_gb, or eur_per_unit
-   * for a charge whose unit is not known yet. Empty for a charge that has only
+   * eur_per_language_minute, eur_per_video, eur_per_video_language,
+   * eur_per_job, eur_per_gb_month, eur_per_gb, or eur_per_unit for a charge
+   * whose unit is not known yet. Empty for a charge that has only
    * a multiplier.
    *
    * @generated from field: string unit = 5;

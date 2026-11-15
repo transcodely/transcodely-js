@@ -510,7 +510,7 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
    * AI insights over the generated transcript: title suggestions, a summary,
    * key points, chapters, questions the content answers, key terms, quotable
    * highlights and topics. Only valid with the `generate` operation. Opt-in
-   * and billed at EUR 0.02 per video plus EUR 0.005 per source minute (the
+   * and billed at EUR 0.05 per video plus EUR 0.005 per source minute (the
    * `insights_job` and `insights` fees, see Job.fees); a job whose insights
    * fail is not charged for them.
    *
@@ -554,8 +554,10 @@ export class SubtitleTrack extends Message<SubtitleTrack> {
    * enabled, the insights are translated too (same chapter timings) and
    * appear as one more Job.insights / Video.insights entry per language.
    *
-   * Billed as the `captions_translation` fee: EUR 0.12 per source minute per
-   * language, charged only for languages whose caption file is delivered.
+   * Billed as the `captions_translation` fee: EUR 0.02 per source minute per
+   * language, at least EUR 0.05 per language (so a video under 2.5 minutes
+   * bills EUR 0.05 per language), charged only for languages whose caption
+   * file is delivered.
    * No extra charge for the transcript renditions or the translated insights.
    * Deployments without the feature reject this with `parameter_unsupported`.
    * On a job whose input is a hosted video (input_video_id), the create is
@@ -1615,7 +1617,7 @@ export class TranscriptInsights extends Message<TranscriptInsights> {
   videoId = "";
 
   /**
-   * Price of this entry in EUR, for source "video": EUR 0.02 per video plus
+   * Price of this entry in EUR, for source "video": EUR 0.05 per video plus
    * EUR 0.005 per minute of source, fixed when the entry was created. Charged
    * only when status becomes "ready"; nothing is charged when it fails. An
    * entry that becomes "ready" after a newer entry for the same language was
