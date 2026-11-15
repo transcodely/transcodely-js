@@ -81,7 +81,7 @@ service VideoService {
 
   // Generate AI insights (title suggestions, summary, key points, chapters,
   // questions, key terms, highlights, topics) from a hosted video's existing
-  // AI captions, without transcribing again. Billed EUR 0.02 per video plus
+  // AI captions, without transcribing again. Billed EUR 0.05 per video plus
   // EUR 0.005 per minute of source, charged only when the insights become
   // ready. Returns the entry in "pending"; it also appears on Video.insights,
   // and video.insights.ready or video.insights.failed fires when it finishes.
@@ -139,9 +139,10 @@ service VideoService {
   // the source language, the insights are translated too and appear as one
   // more Video.insights entry per language (video.insights.ready fires).
   //
-  // Billed as the `captions_translation` fee: EUR 0.12 per source minute per
-  // language, charged only for languages actually delivered; nothing else
-  // (no captions fee, no per-job processing fee).
+  // Billed as the `captions_translation` fee: EUR 0.02 per source minute per
+  // language, at least EUR 0.05 per language, charged only for languages
+  // actually delivered; nothing else (no captions fee, no per-job processing
+  // fee).
   //
   // While a translation job for this video and a target language is still
   // running, that language is not requested again: the response lists it
@@ -327,7 +328,11 @@ message VideoCostLine {
   //   "processing"           — the flat per-job processing fee of each job
   //                            run for the video.
   //   "captions"             — AI caption generation, inline with the
-  //                            transcode or a later captions job.
+  //                            transcode or a later captions job. AI captions
+  //                            on a hosted video are included with hosting
+  //                            for jobs created from 2026-11-15, so the line
+  //                            is then 0; it is still listed (not omitted),
+  //                            so the captions can be shown as included.
   //   "captions_translation" — caption translation into other languages.
   //   "insights"             — AI insights, both the per-minute and the
   //                            per-video part, whether requested with the
@@ -339,7 +344,9 @@ message VideoCostLine {
   // it would make the lines stop adding up to total_cost.
   string kind = 1;
 
-  // The amount in EUR, the currency of total_cost. Always greater than zero.
+  // The amount in EUR, the currency of total_cost. Greater than zero, except
+  // a "captions" line, which is 0 when the captions were included with
+  // hosting.
   double amount = 2;
 }
 
@@ -489,7 +496,8 @@ message Video {
   //
   // Only settled amounts count, under the same rules as total_cost: jobs
   // without a settled total are left out, and estimated or voided fees never
-  // appear. Lines whose amount is zero are omitted. Empty exactly when
+  // appear. Lines whose amount is zero are omitted, except a "captions" line
+  // of 0 (captions included with hosting). Empty exactly when
   // total_cost is absent.
   //
   // Filled on every read that fills total_cost (GetVideo and ListVideos
@@ -816,7 +824,7 @@ message CreateUploadRequest {
   // carries insights.enabled = true; see SubtitleTrack.insights). Requires
   // auto_captions = true; rejected otherwise with `invalid_argument`, error
   // code `parameter_incompatible` on auto_insights. Billed as the
-  // `insights_job` (EUR 0.02 per video) and `insights` (EUR 0.005 per source
+  // `insights_job` (EUR 0.05 per video) and `insights` (EUR 0.005 per source
   // minute) fees on the transcode job, on top of the captions fee; not
   // charged when the insights fail. The insights surface as Video.insights.
   // Deployments without the feature reject it with `invalid_argument`, error
@@ -1010,7 +1018,7 @@ message CreateFromUrlRequest {
   // carries insights.enabled = true; see SubtitleTrack.insights). Requires
   // auto_captions = true; rejected otherwise with `invalid_argument`, error
   // code `parameter_incompatible` on auto_insights. Billed as the
-  // `insights_job` (EUR 0.02 per video) and `insights` (EUR 0.005 per source
+  // `insights_job` (EUR 0.05 per video) and `insights` (EUR 0.005 per source
   // minute) fees on the transcode job, on top of the captions fee; not
   // charged when the insights fail. The insights surface as Video.insights.
   // Deployments without the feature reject it with `invalid_argument`, error
@@ -1338,7 +1346,7 @@ message CreateMultipartUploadRequest {
   // carries insights.enabled = true; see SubtitleTrack.insights). Requires
   // auto_captions = true; rejected otherwise with `invalid_argument`, error
   // code `parameter_incompatible` on auto_insights. Billed as the
-  // `insights_job` (EUR 0.02 per video) and `insights` (EUR 0.005 per source
+  // `insights_job` (EUR 0.05 per video) and `insights` (EUR 0.005 per source
   // minute) fees on the transcode job, on top of the captions fee; not
   // charged when the insights fail. The insights surface as Video.insights.
   // Deployments without the feature reject it with `invalid_argument`, error

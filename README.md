@@ -337,7 +337,7 @@ languages without transcribing again. One captions-only job writes, per
 target language, a caption track, its transcript renditions and (on HLS) a
 caption rendition in the manifest; ready insights in the source language are
 translated too unless `includeInsights` is `false`. Billed as the
-`captions_translation` fee (EUR 0.12 per source minute per language, delivered
+`captions_translation` fee (EUR 0.02 per source minute per language, at least EUR 0.05 per language, delivered
 languages only):
 
 ```ts

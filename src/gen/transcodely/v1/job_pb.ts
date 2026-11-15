@@ -2996,8 +2996,8 @@ export class Job extends Message<Job> {
  * fee type, on top of the encode cost. Two families share this message, and
  * they differ in what decides whether they are billed:
  *
- *   METERED ADD-ONS (v1: "captions", AI caption generation at EUR 0.05 per
- *   source minute) pay for a service performed alongside the encode. They are
+ *   METERED ADD-ONS ("captions", "captions_translation", "insights",
+ *   "insights_job") pay for a service performed alongside the encode. They are
  *   metered when the input probe supplies the source duration, and billed only
  *   when the completion report shows the artifact was actually produced — no
  *   artifact, no fee. A failed or canceled job never pays one.
@@ -3022,9 +3022,19 @@ export class JobFee extends Message<JobFee> {
   /**
    * Fee discriminator:
    *   "processing"   — the flat per-job processing fee (see Job.fees).
-   *   "captions"     — AI caption generation (transcript renditions included).
+   *   "captions"     — AI caption generation (transcript renditions
+   *                    included): EUR 0.01 per source minute, or EUR 0 when
+   *                    the job belongs to a video hosted with Transcodely
+   *                    (described "AI Caption Generation (included with
+   *                    hosting)"; the line is still listed, at 0).
+   *   "captions_translation" — caption translation: EUR 0.02 per source
+   *                    minute per delivered language, at least
+   *                    minimum_per_language (EUR 0.05) per language.
    *   "insights"     — AI insights, the per-source-minute part (EUR 0.005/min).
-   *   "insights_job" — AI insights, the per-video part (EUR 0.02).
+   *   "insights_job" — AI insights, the per-video part (EUR 0.05).
+   * Prices are list prices for jobs created from 2026-11-15 (earlier jobs
+   * keep the rates they were quoted: captions 0.05, translation 0.12,
+   * insights_job 0.02); an app on custom pricing sees its own rates.
    * The two insights fees stay estimated until the insights are ready (after
    * the job completes), then are confirmed together, or voided together when
    * the insights fail.
@@ -3043,8 +3053,11 @@ export class JobFee extends Message<JobFee> {
 
   /**
    * Metering unit:
-   *   "job"           — a flat per-job charge; quantity is always 1.
-   *   "source_minute" — input duration in minutes.
+   *   "job"             — a flat per-job charge; quantity is always 1.
+   *   "source_minute"   — input duration in minutes.
+   *   "language_minute" — input duration in minutes times the number of
+   *                       languages (requested until the job completes,
+   *                       delivered after).
    *
    * @generated from field: string unit = 3;
    */
@@ -3069,8 +3082,10 @@ export class JobFee extends Message<JobFee> {
   rate = 0;
 
   /**
-   * quantity x rate, in `currency`. For a "source_minute" fee this is 0 until
-   * the input probe completes; for a "job" fee it equals rate from creation.
+   * quantity x rate, in `currency`, raised to minimum_per_language x
+   * languages when that is larger. For a "source_minute" or
+   * "language_minute" fee this is 0 until the input probe completes; for a
+   * "job" fee it equals rate from creation.
    *
    * @generated from field: double amount = 6;
    */
@@ -3092,6 +3107,16 @@ export class JobFee extends Message<JobFee> {
    */
   id = "";
 
+  /**
+   * The least this fee bills per language, in `currency`, locked at job
+   * creation: amount = max(quantity x rate, minimum_per_language x
+   * languages). Set only on a "captions_translation" fee quoted from
+   * 2026-11-15 (EUR 0.05 at list price); absent on every other fee.
+   *
+   * @generated from field: optional double minimum_per_language = 9;
+   */
+  minimumPerLanguage?: number;
+
   constructor(data?: PartialMessage<JobFee>) {
     super();
     proto3.util.initPartial(data, this);
@@ -3108,6 +3133,7 @@ export class JobFee extends Message<JobFee> {
     { no: 6, name: "amount", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 7, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "minimum_per_language", kind: "scalar", T: 1 /* ScalarType.DOUBLE */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JobFee {
