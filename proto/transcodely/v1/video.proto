@@ -1695,6 +1695,10 @@ message GetUsageResponse {
 }
 
 // Aggregated usage and cost summary for a billing period.
+//
+// Every GB in this summary (storage, retained sources, delivery) is
+// 2^30 = 1,073,741,824 bytes (1 GiB), the same unit the per-GB prices and
+// the invoice quantities use.
 message UsageSummary {
   // Billing month in YYYY-MM format.
   string billing_month = 1;
@@ -1707,6 +1711,7 @@ message UsageSummary {
   // Storage metrics: the deliverables (renditions, manifests, posters), the
   // invoice line "Hosting — storage". Original source files are not included;
   // retained ones are reported in retained_source_gb_avg / retained_source_cost.
+  // Average daily GB stored (1 GB = 2^30 bytes) over the period.
   double storage_gb_avg = 10;
   // Storage cost of the period so far, as your invoice will carry it. Each
   // day is one GB-day: the day's stored bytes at the day's monthly price
@@ -1717,21 +1722,35 @@ message UsageSummary {
   double storage_cost = 11;
   int32 videos_hosted = 12;
 
-  // Average daily GB of RETAINED original source files (videos with
-  // source_pinned) over the period. Sources inside their retention window are
-  // free and not counted.
+  // Average daily GB (1 GB = 2^30 bytes) of RETAINED original source files
+  // (videos with source_pinned) over the period. Sources inside their
+  // retention window are free and not counted.
   double retained_source_gb_avg = 13;
   // Cost of retained original source files so far, the invoice line "Retained
   // source videos": billed like storage_cost, at the same storage rate.
   double retained_source_cost = 14;
 
-  // Egress metrics.
+  // Egress metrics. Delivery is metered once per UTC day. GB delivered in
+  // the period, 1 GB = 2^30 bytes (1 GiB).
   double egress_gb = 20;
   // Delivery cost of the period so far, as your invoice will carry it:
   // billed delivery at the rate it was billed at, delivery not billed yet
-  // estimated at your current rate.
+  // estimated at your current rate. If the rate for some not-yet-billed
+  // delivery cannot be determined, that delivery is still counted in
+  // egress_gb but left out of this estimate until it is billed; its day is
+  // then covered by hosting_estimated_from.
   double egress_cost = 21;
   int64 total_requests = 22;
+
+  // Delivery of the period broken down by the delivery region that served it
+  // (see HostingConfig.delivery_regions), one entry per region with usage,
+  // in the order delivery_regions lists the regions, with the entry for
+  // delivery metered before regional pricing (empty region), if any, last.
+  // The entries' egress_bytes add up exactly to the period's delivered
+  // bytes; their egress_gb and egress_cost add up to egress_gb and
+  // egress_cost to within 0.000001 (costs are exact to 0.000001 EUR, and the
+  // totals are computed from the exact amounts, not by adding the entries).
+  repeated RegionEgressUsage egress_by_region = 23;
 
   // Total cost across all categories (encoding, storage, retained sources,
   // egress).
@@ -1772,15 +1791,54 @@ message DailyUsage {
   // no snapshot was taken that day.
   int64 storage_bytes = 2;
 
-  // Bytes egressed during this day (sum of the day's hourly egress records).
+  // Bytes delivered by the CDN during this day. Delivery is metered once per
+  // UTC day, so the current day reads zero until it has been collected.
   int64 egress_bytes = 3;
 
-  // CDN requests served during this day (sum of the day's hourly records).
+  // CDN requests served during this day.
   int64 request_count = 4;
 
   // Encoding cost for videos created on this day, derived from the linked
   // transcoding jobs' actual cost. Zero when no billable video was created.
   double encoding_cost = 5;
+
+  // This day's delivery broken down by the delivery region that served it,
+  // one entry per region with usage, ordered as in
+  // UsageSummary.egress_by_region. Entries sum to egress_bytes.
+  repeated RegionEgressBytes egress_by_region = 6;
+}
+
+// One delivery region's share of a period's delivery (UsageSummary).
+message RegionEgressUsage {
+  // The delivery region that served the bytes (see
+  // HostingConfig.delivery_regions), or empty for delivery metered before
+  // delivery was priced per region, which is billed at the former single
+  // delivery rate.
+  string region = 1;
+
+  // Bytes delivered from this region in the period.
+  int64 egress_bytes = 2;
+
+  // The same, in GB: egress_bytes / 2^30 (1 GB = 1 GiB, as in
+  // UsageSummary.egress_gb).
+  double egress_gb = 3;
+
+  // Delivery cost for this region, in the parent UsageSummary's currency
+  // (EUR), with the same semantics as UsageSummary.egress_cost: delivery
+  // already billed at the rate it was billed at, delivery not billed yet
+  // (see hosting_estimated_from) estimated at your current rate for the
+  // region.
+  double egress_cost = 4;
+}
+
+// One delivery region's share of a day's delivery (DailyUsage).
+message RegionEgressBytes {
+  // The delivery region that served the bytes, or empty for delivery metered
+  // before delivery was priced per region. See RegionEgressUsage.region.
+  string region = 1;
+
+  // Bytes delivered from this region on the day.
+  int64 egress_bytes = 2;
 }
 
 // =============================================================================

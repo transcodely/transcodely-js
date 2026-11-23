@@ -1110,6 +1110,38 @@ export class HostingConfig extends Message<HostingConfig> {
    */
   guidePagesEnabled?: boolean;
 
+  /**
+   * The CDN delivery regions enabled for this app's hosted videos: "europe",
+   * "north_america", "asia_oceania", "south_america" and
+   * "middle_east_africa".
+   *
+   * Reads always return the full set in effect, in the order listed above:
+   * an app that never changed it reads all five. On UpdateHostingConfig an
+   * empty list leaves the setting unchanged, and a non-empty list replaces
+   * the whole set; at least one region is always enabled. Unknown or repeated
+   * values are rejected with invalid_argument.
+   *
+   * Delivery is billed per GB (1 GB = 2^30 bytes, 1 GiB) at the rate of the
+   * region that served it (see GetPricing, rule_type "egress", whose
+   * rule_key is the region). The CDN's edge locations are grouped into these
+   * regions for billing: delivery from Mexico City is billed as North
+   * America; from Turkey, Israel and India as Asia & Oceania; from the Gulf
+   * states as Middle East & Africa. Viewers outside the enabled regions still
+   * play the video: it is served from the nearest enabled region instead,
+   * from farther away, so start-up can be slower and buffering more likely.
+   * A change takes effect within about a minute.
+   *
+   * If the CDN cannot confirm a change right now, the update fails with error
+   * code "delivery_regions_update_failed" (retryable): the change is not
+   * saved, nor is anything else in the request, and the previous delivery
+   * regions are restored where possible. Retry the same request. If another
+   * change to the same app's hosting settings is still being applied, the
+   * update fails with "hosting_config_busy" (retryable) and nothing is saved.
+   *
+   * @generated from field: repeated string delivery_regions = 7;
+   */
+  deliveryRegions: string[] = [];
+
   constructor(data?: PartialMessage<HostingConfig>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1124,6 +1156,7 @@ export class HostingConfig extends Message<HostingConfig> {
     { no: 4, name: "auto_profile_defaults", kind: "message", T: AutoProfileDefaults, opt: true },
     { no: 5, name: "delete_source_after_days", kind: "scalar", T: 5 /* ScalarType.INT32 */, opt: true },
     { no: 6, name: "guide_pages_enabled", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
+    { no: 7, name: "delivery_regions", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): HostingConfig {
@@ -1603,7 +1636,11 @@ export class PricingEntry extends Message<PricingEntry> {
   ruleType = "";
 
   /**
-   * Charge within its class, e.g. h264, 1080p, captions, processing_m.
+   * Charge within its class, e.g. h264, 1080p, captions, processing_m. For
+   * rule_type "egress" it is the delivery region whose rate it is (europe,
+   * north_america, asia_oceania, south_america, middle_east_africa; see
+   * HostingConfig.delivery_regions). Before delivery was priced per region
+   * it was the single key "standard".
    *
    * @generated from field: string rule_key = 2;
    */
@@ -1628,7 +1665,8 @@ export class PricingEntry extends Message<PricingEntry> {
    * eur_per_language_minute, eur_per_video, eur_per_video_language,
    * eur_per_job, eur_per_gb_month, eur_per_gb, or eur_per_unit for a charge
    * whose unit is not known yet. Empty for a charge that has only
-   * a multiplier.
+   * a multiplier. In eur_per_gb_month and eur_per_gb, 1 GB = 2^30 bytes
+   * (1 GiB).
    *
    * @generated from field: string unit = 5;
    */

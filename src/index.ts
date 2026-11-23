@@ -170,6 +170,8 @@ export {
   type GetUsageResponse,
   type UsageSummary,
   type DailyUsage,
+  type RegionEgressUsage,
+  type RegionEgressBytes,
   type GetStatsRequest,
   type GetStatsResponse,
   type VideoStatsDay,

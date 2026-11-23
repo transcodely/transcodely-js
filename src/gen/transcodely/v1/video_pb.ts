@@ -3462,6 +3462,10 @@ export class GetUsageResponse extends Message<GetUsageResponse> {
 /**
  * Aggregated usage and cost summary for a billing period.
  *
+ * Every GB in this summary (storage, retained sources, delivery) is
+ * 2^30 = 1,073,741,824 bytes (1 GiB), the same unit the per-GB prices and
+ * the invoice quantities use.
+ *
  * @generated from message transcodely.v1.UsageSummary
  */
 export class UsageSummary extends Message<UsageSummary> {
@@ -3493,6 +3497,7 @@ export class UsageSummary extends Message<UsageSummary> {
    * Storage metrics: the deliverables (renditions, manifests, posters), the
    * invoice line "Hosting — storage". Original source files are not included;
    * retained ones are reported in retained_source_gb_avg / retained_source_cost.
+   * Average daily GB stored (1 GB = 2^30 bytes) over the period.
    *
    * @generated from field: double storage_gb_avg = 10;
    */
@@ -3516,9 +3521,9 @@ export class UsageSummary extends Message<UsageSummary> {
   videosHosted = 0;
 
   /**
-   * Average daily GB of RETAINED original source files (videos with
-   * source_pinned) over the period. Sources inside their retention window are
-   * free and not counted.
+   * Average daily GB (1 GB = 2^30 bytes) of RETAINED original source files
+   * (videos with source_pinned) over the period. Sources inside their
+   * retention window are free and not counted.
    *
    * @generated from field: double retained_source_gb_avg = 13;
    */
@@ -3533,7 +3538,8 @@ export class UsageSummary extends Message<UsageSummary> {
   retainedSourceCost = 0;
 
   /**
-   * Egress metrics.
+   * Egress metrics. Delivery is metered once per UTC day. GB delivered in
+   * the period, 1 GB = 2^30 bytes (1 GiB).
    *
    * @generated from field: double egress_gb = 20;
    */
@@ -3542,7 +3548,10 @@ export class UsageSummary extends Message<UsageSummary> {
   /**
    * Delivery cost of the period so far, as your invoice will carry it:
    * billed delivery at the rate it was billed at, delivery not billed yet
-   * estimated at your current rate.
+   * estimated at your current rate. If the rate for some not-yet-billed
+   * delivery cannot be determined, that delivery is still counted in
+   * egress_gb but left out of this estimate until it is billed; its day is
+   * then covered by hosting_estimated_from.
    *
    * @generated from field: double egress_cost = 21;
    */
@@ -3552,6 +3561,20 @@ export class UsageSummary extends Message<UsageSummary> {
    * @generated from field: int64 total_requests = 22;
    */
   totalRequests = protoInt64.zero;
+
+  /**
+   * Delivery of the period broken down by the delivery region that served it
+   * (see HostingConfig.delivery_regions), one entry per region with usage,
+   * in the order delivery_regions lists the regions, with the entry for
+   * delivery metered before regional pricing (empty region), if any, last.
+   * The entries' egress_bytes add up exactly to the period's delivered
+   * bytes; their egress_gb and egress_cost add up to egress_gb and
+   * egress_cost to within 0.000001 (costs are exact to 0.000001 EUR, and the
+   * totals are computed from the exact amounts, not by adding the entries).
+   *
+   * @generated from field: repeated transcodely.v1.RegionEgressUsage egress_by_region = 23;
+   */
+  egressByRegion: RegionEgressUsage[] = [];
 
   /**
    * Total cost across all categories (encoding, storage, retained sources,
@@ -3615,6 +3638,7 @@ export class UsageSummary extends Message<UsageSummary> {
     { no: 20, name: "egress_gb", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 21, name: "egress_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 22, name: "total_requests", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 23, name: "egress_by_region", kind: "message", T: RegionEgressUsage, repeated: true },
     { no: 30, name: "total_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
     { no: 31, name: "currency", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 32, name: "hosting_estimated_from", kind: "scalar", T: 9 /* ScalarType.STRING */ },
@@ -3663,14 +3687,15 @@ export class DailyUsage extends Message<DailyUsage> {
   storageBytes = protoInt64.zero;
 
   /**
-   * Bytes egressed during this day (sum of the day's hourly egress records).
+   * Bytes delivered by the CDN during this day. Delivery is metered once per
+   * UTC day, so the current day reads zero until it has been collected.
    *
    * @generated from field: int64 egress_bytes = 3;
    */
   egressBytes = protoInt64.zero;
 
   /**
-   * CDN requests served during this day (sum of the day's hourly records).
+   * CDN requests served during this day.
    *
    * @generated from field: int64 request_count = 4;
    */
@@ -3683,6 +3708,15 @@ export class DailyUsage extends Message<DailyUsage> {
    * @generated from field: double encoding_cost = 5;
    */
   encodingCost = 0;
+
+  /**
+   * This day's delivery broken down by the delivery region that served it,
+   * one entry per region with usage, ordered as in
+   * UsageSummary.egress_by_region. Entries sum to egress_bytes.
+   *
+   * @generated from field: repeated transcodely.v1.RegionEgressBytes egress_by_region = 6;
+   */
+  egressByRegion: RegionEgressBytes[] = [];
 
   constructor(data?: PartialMessage<DailyUsage>) {
     super();
@@ -3697,6 +3731,7 @@ export class DailyUsage extends Message<DailyUsage> {
     { no: 3, name: "egress_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 4, name: "request_count", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 5, name: "encoding_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 6, name: "egress_by_region", kind: "message", T: RegionEgressBytes, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DailyUsage {
@@ -3713,6 +3748,129 @@ export class DailyUsage extends Message<DailyUsage> {
 
   static equals(a: DailyUsage | PlainMessage<DailyUsage> | undefined, b: DailyUsage | PlainMessage<DailyUsage> | undefined): boolean {
     return proto3.util.equals(DailyUsage, a, b);
+  }
+}
+
+/**
+ * One delivery region's share of a period's delivery (UsageSummary).
+ *
+ * @generated from message transcodely.v1.RegionEgressUsage
+ */
+export class RegionEgressUsage extends Message<RegionEgressUsage> {
+  /**
+   * The delivery region that served the bytes (see
+   * HostingConfig.delivery_regions), or empty for delivery metered before
+   * delivery was priced per region, which is billed at the former single
+   * delivery rate.
+   *
+   * @generated from field: string region = 1;
+   */
+  region = "";
+
+  /**
+   * Bytes delivered from this region in the period.
+   *
+   * @generated from field: int64 egress_bytes = 2;
+   */
+  egressBytes = protoInt64.zero;
+
+  /**
+   * The same, in GB: egress_bytes / 2^30 (1 GB = 1 GiB, as in
+   * UsageSummary.egress_gb).
+   *
+   * @generated from field: double egress_gb = 3;
+   */
+  egressGb = 0;
+
+  /**
+   * Delivery cost for this region, in the parent UsageSummary's currency
+   * (EUR), with the same semantics as UsageSummary.egress_cost: delivery
+   * already billed at the rate it was billed at, delivery not billed yet
+   * (see hosting_estimated_from) estimated at your current rate for the
+   * region.
+   *
+   * @generated from field: double egress_cost = 4;
+   */
+  egressCost = 0;
+
+  constructor(data?: PartialMessage<RegionEgressUsage>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.RegionEgressUsage";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "region", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "egress_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "egress_gb", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 4, name: "egress_cost", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RegionEgressUsage {
+    return new RegionEgressUsage().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RegionEgressUsage {
+    return new RegionEgressUsage().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RegionEgressUsage {
+    return new RegionEgressUsage().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RegionEgressUsage | PlainMessage<RegionEgressUsage> | undefined, b: RegionEgressUsage | PlainMessage<RegionEgressUsage> | undefined): boolean {
+    return proto3.util.equals(RegionEgressUsage, a, b);
+  }
+}
+
+/**
+ * One delivery region's share of a day's delivery (DailyUsage).
+ *
+ * @generated from message transcodely.v1.RegionEgressBytes
+ */
+export class RegionEgressBytes extends Message<RegionEgressBytes> {
+  /**
+   * The delivery region that served the bytes, or empty for delivery metered
+   * before delivery was priced per region. See RegionEgressUsage.region.
+   *
+   * @generated from field: string region = 1;
+   */
+  region = "";
+
+  /**
+   * Bytes delivered from this region on the day.
+   *
+   * @generated from field: int64 egress_bytes = 2;
+   */
+  egressBytes = protoInt64.zero;
+
+  constructor(data?: PartialMessage<RegionEgressBytes>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "transcodely.v1.RegionEgressBytes";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "region", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "egress_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RegionEgressBytes {
+    return new RegionEgressBytes().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RegionEgressBytes {
+    return new RegionEgressBytes().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RegionEgressBytes {
+    return new RegionEgressBytes().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RegionEgressBytes | PlainMessage<RegionEgressBytes> | undefined, b: RegionEgressBytes | PlainMessage<RegionEgressBytes> | undefined): boolean {
+    return proto3.util.equals(RegionEgressBytes, a, b);
   }
 }
 
