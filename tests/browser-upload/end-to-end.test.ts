@@ -86,7 +86,12 @@ function world() {
   };
 }
 
-describe("end to end: createUpload through createUploadHandler", () => {
+// Three 16 MiB parts are the smallest multi-part file partSizeFor allows; copying
+// 33 MiB through the fakes takes ~300 ms idle but several seconds on a loaded
+// machine, past vitest's 5 s default.
+const BIG_FILE = { timeout: 30_000 };
+
+describe("end to end: createUpload through createUploadHandler", BIG_FILE, () => {
   it("uploads a three-part file and completes with the handler's defaults", async () => {
     const w = world();
     const file = makeFile(33 * MiB);
@@ -339,7 +344,7 @@ describe("stalled part PUTs", () => {
   });
 });
 
-describe("indexedDBStore", () => {
+describe("indexedDBStore", BIG_FILE, () => {
   const record = (key: string): UploadRecord => ({
     v: 1, key, ticket: "t", videoId: "vid_1", uploadId: "u", partSize: 4, totalParts: 2, size: 8,
     createdAt: 1, expiresAt: 2, parts: { 1: "e1" },
