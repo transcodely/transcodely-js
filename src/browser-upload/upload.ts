@@ -32,7 +32,7 @@ export type UploadState =
 export interface UploadProgress {
   loaded: number;
   total: number;
-  /** 0 to 100, rounded down, so 100 means every byte is in storage. */
+  /** 0 to 100, rounded down. Counts bytes still in flight, so 100 can show just before the last part is confirmed. */
   percent: number;
 }
 
@@ -58,7 +58,12 @@ export interface CreateUploadOptions {
   maxFileSize?: number;
   /** Parts in flight at once. Default 3, between 1 and 6. */
   concurrency?: number;
-  /** Retries per part and per endpoint call. Default 5. */
+  /**
+   * Retries per part and per endpoint call, after network errors, 5xx, 408 and
+   * 429. Default 5. `create` is retried only after 429: it opens a new video,
+   * and a retry after a lost answer could open a second one. Time spent paused
+   * or offline does not use up retries.
+   */
   retries?: number;
   /** First backoff step in ms; doubles per retry with jitter, capped at 30 s. Default 1000. */
   retryDelayMs?: number;
@@ -86,6 +91,8 @@ export interface Upload {
   subscribe(listener: () => void): () => void;
 }
 
+/** A part PUT with no upload progress for this long is abandoned and retried. */
+const STALL = 60_000;
 /** A record counts as gone this long before its ticket expires. */
 const EXPIRY_MARGIN = 600_000;
 /** Bytes hashed from each end of the file for the fingerprint. */
@@ -156,6 +163,14 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
     set(phase);
     wake();
   };
+  /** Waits while paused or offline (until `online`, or every 2 s while finishing). */
+  const hold = async () => {
+    while (!canceled) {
+      if (offlineNow() && !halted) halt("offline");
+      if (!(halted || offlineNow())) return;
+      await wait(2000);
+    }
+  };
   const save = async (r: UploadRecord) => {
     await store?.set(r.key, r).catch(() => undefined);
   };
@@ -163,9 +178,13 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
     await store?.delete(key).catch(() => undefined);
   };
 
-  /** One endpoint call, retried on network errors and 5xx. */
-  const call = async <T>(body: UploadRequest, tries = retries): Promise<T> => {
+  /** One endpoint call; `last` is the best-effort abort sent while canceling. */
+  const call = async <T>(body: UploadRequest, last = false): Promise<T> => {
     for (let i = 0; ; ) {
+      if (!last) {
+        await hold();
+        if (canceled) throw aborted();
+      }
       const h = typeof o.headers === "function" ? await o.headers() : o.headers;
       let err: E;
       try {
@@ -191,7 +210,11 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
       } catch {
         err = new E("network", "Could not reach the upload endpoint. Check your connection and try again.", undefined, true);
       }
-      if (!err.retryable || i >= tries || canceled) throw err;
+      // An attempt made while the browser is offline does not count.
+      if (err.retryable && !last && offlineNow()) continue;
+      if (!err.retryable || last || i >= retries || canceled || (body.action === "create" && err.status !== 429)) {
+        throw err;
+      }
       await wait(delay(i++));
     }
   };
@@ -200,20 +223,35 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
   const put = async (url: string, body: Blob, signal: AbortSignal, onBytes: (n: number) => void) => {
     let status: number;
     let etag: string | null;
+    // A stalled connection often never errors: abort it when XHR reports no
+    // progress for a minute, or when fetch takes longer than 8 KB/s would.
+    const c = new AbortController();
+    const kill = () => c.abort();
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const arm = (ms = STALL) => {
+      clearTimeout(t);
+      t = setTimeout(kill, ms);
+    };
+    signal.addEventListener("abort", kill);
     try {
       ({ status, etag } = await (typeof XMLHttpRequest !== "undefined"
         ? new Promise<{ status: number; etag: string | null }>((ok, no) => {
             const x = new XMLHttpRequest();
             x.open("PUT", url);
-            x.upload.onprogress = (e) => onBytes(e.loaded);
+            x.upload.onprogress = (e) => (arm(), onBytes(e.loaded));
             x.onload = () => ok({ status: x.status, etag: x.getResponseHeader("ETag") });
             x.onerror = x.onabort = x.ontimeout = no;
-            signal.addEventListener("abort", () => x.abort());
+            c.signal.addEventListener("abort", () => x.abort());
+            arm();
             x.send(body);
           })
-        : f(url, { method: "PUT", body, signal }).then((r) => ({ status: r.status, etag: r.headers.get("etag") }))));
+        : (arm(STALL + body.size / 8),
+          f(url, { method: "PUT", body, signal: c.signal }).then((r) => ({ status: r.status, etag: r.headers.get("etag") })))));
     } catch {
       throw new E("network", "The connection to storage was lost. Check your connection and try again.", undefined, true);
+    } finally {
+      clearTimeout(t);
+      signal.removeEventListener("abort", kill);
     }
     if (status < 200 || status > 299) {
       throw new E("storage_error", `Storage refused a part (HTTP ${String(status)}).`, status, status === 403 || retryable(status));
@@ -316,7 +354,7 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
     let failed: unknown;
     const part = async (n: number) => {
       for (let i = 0; ; ) {
-        while (halted && !canceled) await wait();
+        await hold();
         if (canceled) throw aborted();
         if (failed) throw failed;
         const href = await url(n);
@@ -338,10 +376,7 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
           const err = e as E;
           if (err.status === 403) urls.delete(n);
           if (!err.retryable) throw err;
-          if (offlineNow()) {
-            if (halted !== "paused") halt("offline");
-            continue;
-          }
+          if (offlineNow()) continue;
           if (i >= retries) throw err;
           await wait(delay(i++));
         } finally {
@@ -356,6 +391,7 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
       } catch (e) {
         failed ??= e;
         inflight.forEach((x) => x.c.abort());
+        wake();
         throw e;
       }
     };
@@ -364,7 +400,7 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
     if (failed) throw failed;
 
     completing = true;
-    set("completing");
+    set((phase = "completing"));
     try {
       const parts = Object.keys(r.parts).map((k) => ({ part_number: +k, etag: r.parts[+k]! }));
       const res = await call<CompleteUploadResponse>({ action: "complete", ticket: r.ticket, parts });
@@ -382,7 +418,7 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
     set(phase);
     const win = typeof window !== "undefined" && "addEventListener" in window ? window : undefined;
     const off = () => halted !== "paused" && halt("offline");
-    const on = () => halted === "offline" && go();
+    const on = () => (halted === "offline" ? go() : wake());
     win?.addEventListener("offline", off);
     win?.addEventListener("online", on);
     let key = "";
@@ -419,7 +455,7 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
       return { videoId: res.video_id || cur!.videoId, status: res.status, resumed };
     } catch (e) {
       if (canceled) {
-        if (cur) await call({ action: "abort", ticket: cur.ticket }, 0).catch(() => undefined);
+        if (cur) await call({ action: "abort", ticket: cur.ticket }, true).catch(() => undefined);
         await drop(key);
         set("canceled");
         throw aborted();
@@ -469,7 +505,7 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
       canceled = true;
       if (!run || state === "error") {
         if (cur) {
-          await call({ action: "abort", ticket: cur.ticket }, 0).catch(() => undefined);
+          await call({ action: "abort", ticket: cur.ticket }, true).catch(() => undefined);
           await drop(cur.key);
         }
         run = Promise.reject(aborted());

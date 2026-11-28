@@ -27,7 +27,7 @@
 import type { PartialMessage } from "@bufbuild/protobuf";
 
 import type { CreateMultipartUploadRequest } from "@transcodely/sdk";
-import { MAX_FILE_SIZE, acceptsFile, formatBytes, partSizeFor, partsFor } from "./index.js";
+import { MAX_FILE_SIZE, acceptsFile, formatBytes, partSizeFor, partsFor, videoTypeFor } from "./index.js";
 import type { UploadRequest, WireFile } from "./index.js";
 
 /** What `authorize` may set on every upload. The file's own facts are not among them. */
@@ -48,7 +48,15 @@ export type AuthorizeResult =
   | { allow: false; message?: string; status?: 401 | 403 }
   | {
       allow: true;
-      /** Who is uploading (a user id). Bound into the ticket; later calls must return the same one. */
+      /**
+       * Who is uploading (a user id). Strongly recommended. It is bound into the
+       * ticket, and every later call must return the same subject or is refused.
+       *
+       * Without it, tickets belong to no one: on a shared browser profile, if
+       * user A starts uploading a file, signs out, and user B signs in and picks
+       * the same file, B's browser resumes A's upload and completes A's video,
+       * created with A's `defaults`. Set `subject` and B starts a fresh upload.
+       */
       subject?: string;
       /** Applied on `create`, after the browser's title and description, so these always win. */
       defaults?: UploadDefaults;
@@ -76,12 +84,23 @@ export interface UploadHandlerClient {
       parts: { partNumber: number; etag: string }[];
     }): Promise<{ video?: { id: string; status: string } }>;
     abortMultipartUpload(req: { id: string; uploadId: string }): Promise<unknown>;
+    /** Used to tell a lost `complete` answer from a real failure. */
+    get(id: string): Promise<{ id: string; status: string }>;
   };
 }
 
 export interface UploadHandlerOptions {
   client: UploadHandlerClient;
-  /** Required. Runs on every call, before anything is created or signed. */
+  /**
+   * Required. Runs on every call (`create`, `sign_parts`, `complete`, `abort`),
+   * before anything is created or signed; check the user's session here and
+   * return their id as `subject`. A refusal creates nothing.
+   *
+   * The handler only accepts `Content-Type: application/json`, so a page on
+   * another site cannot post to it without a CORS preflight. Cookies with
+   * `SameSite=None` still reach it after one, so check `Origin` here too if
+   * your app answers cross-origin requests.
+   */
   authorize: (request: Request, ctx: AuthorizeContext) => AuthorizeResult | Promise<AuthorizeResult>;
   /** Signs tickets; at least 32 characters. Default `process.env.TRANSCODELY_UPLOAD_SECRET`. */
   secret?: string;
@@ -118,6 +137,11 @@ const isInt = (n: unknown, lo: number, hi: number): n is number =>
   Number.isInteger(n) && (n as number) >= lo && (n as number) <= hi;
 const isStr = (s: unknown, max: number): s is string => typeof s === "string" && [...s].length <= max;
 
+/** Video statuses that mean the bytes are in and `complete` already ran. */
+const COMPLETED = ["processing", "ready", "error", "archived"];
+/** Largest request body read; a 10,000-part `complete` is about 700 KB. */
+const MAX_BODY = 1 << 20;
+
 class Refusal {
   constructor(
     readonly status: number,
@@ -149,7 +173,34 @@ function apiError(e: unknown): Refusal | undefined {
   if (!c || typeof message !== "string" || !(http || (typeof type === "string" && Array.isArray(errors)))) {
     return undefined;
   }
+  // The server's own API key or app is the problem, not the visitor: do not
+  // tell the browser to sign in, and do not describe the key's state to it.
+  if (httpStatus === 401 || httpStatus === 403 || type === "unauthenticated" || type === "permission_denied") {
+    return new Refusal(500, "internal_error", "The upload service is not set up correctly. Try again later.");
+  }
   return new Refusal(http && httpStatus >= 400 && httpStatus <= 599 ? httpStatus : 502, c, message);
+}
+
+/** The body as text, refusing (413) as soon as it passes `MAX_BODY`, before it is all in memory. */
+async function readCapped(request: Request): Promise<string> {
+  const tooBig = () => new Refusal(413, "payload_too_large", "The request body is too large.");
+  if (Number(request.headers.get("content-length")) > MAX_BODY) throw tooBig();
+  const reader = request.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let n = 0;
+  for (;;) {
+    const r = await reader?.read();
+    if (!r || r.done) break;
+    n += r.value.length;
+    if (n > MAX_BODY) {
+      await reader!.cancel().catch(() => undefined);
+      throw tooBig();
+    }
+    chunks.push(r.value);
+  }
+  const all = new Uint8Array(n);
+  chunks.reduce((at, c) => (all.set(c, at), at + c.length), 0);
+  return new TextDecoder().decode(all);
 }
 
 /** Builds the `POST` handler the browser uploader talks to. */
@@ -219,7 +270,7 @@ export function createUploadHandler(opts: UploadHandlerOptions): (request: Reque
       ) {
         throw invalid("`file` must have a name (up to 255 characters), a size in bytes and a type.");
       }
-      file = { name: f.name, size: f.size, type: f.type, ...(f.last_modified !== undefined ? { last_modified: f.last_modified } : {}) };
+      file = { name: f.name, size: f.size, type: f.type || videoTypeFor(f.name), ...(f.last_modified !== undefined ? { last_modified: f.last_modified } : {}) };
     }
 
     const auth = await authorize(request, { action, ...(file ? { file } : {}) });
@@ -294,13 +345,24 @@ export function createUploadHandler(opts: UploadHandlerOptions): (request: Reque
       ) {
         throw invalid(`\`parts\` must list each of the ${String(t.tp)} parts exactly once, with its ETag.`);
       }
-      const res = await v.completeMultipartUpload({
-        ...ids,
-        parts: ps
-          .map((p) => ({ partNumber: p.part_number as number, etag: p.etag as string }))
-          .sort((a, c) => a.partNumber - c.partNumber),
-      });
-      return { video_id: res.video?.id || t.vid, status: res.video?.status ?? "" };
+      let video: { id: string; status: string } | undefined;
+      try {
+        video = (
+          await v.completeMultipartUpload({
+            ...ids,
+            parts: ps
+              .map((p) => ({ partNumber: p.part_number as number, etag: p.etag as string }))
+              .sort((a, c) => a.partNumber - c.partNumber),
+          })
+        ).video;
+      } catch (e) {
+        // A retry after a lost answer: the first complete went through, and
+        // the API no longer knows this upload id. The video says it is done.
+        const got = await v.get(t.vid).catch(() => undefined);
+        if (!got || !COMPLETED.includes(got.status)) throw e;
+        video = got;
+      }
+      return { video_id: video?.id || t.vid, status: video?.status ?? "" };
     }
     await v.abortMultipartUpload(ids);
     return {};
@@ -311,10 +373,14 @@ export function createUploadHandler(opts: UploadHandlerOptions): (request: Reque
       return json(405, { error: { code: "method_not_allowed", message: "Use POST." } }, { allow: "POST" });
     }
     try {
+      if (!/^application\/json\b/i.test(request.headers.get("content-type") ?? "")) {
+        throw new Refusal(415, "invalid_request", "Send the request as JSON, with Content-Type: application/json.");
+      }
       let body: unknown;
       try {
-        body = await request.json();
-      } catch {
+        body = JSON.parse(await readCapped(request));
+      } catch (e) {
+        if (e instanceof Refusal) throw e;
         throw invalid("The request body must be JSON.");
       }
       if (!body || typeof body !== "object" || Array.isArray(body)) throw invalid("The request body must be a JSON object.");

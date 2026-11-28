@@ -32,6 +32,7 @@ function fakeClient() {
     })),
     completeMultipartUpload: vi.fn(async (req: { id: string }) => ({ video: { id: req.id, status: "processing" } })),
     abortMultipartUpload: vi.fn(async () => ({})),
+    get: vi.fn(async (id: string) => ({ id, status: "uploading" })),
   };
   return { videos };
 }
@@ -329,7 +330,7 @@ describe("createUploadHandler", () => {
     expect(big.status).toBe(413);
     expect(big.body.error).toEqual({
       code: "file_too_large",
-      message: "This file is 41.9 MB. The largest file you can upload is 10.5 MB.",
+      message: "This file is 40 MB. The largest file you can upload is 10 MB.",
     });
     const txt = await call(h, { action: "create", file: { ...FILE, name: "a.txt", type: "text/plain", size: 10 } });
     expect(txt.status).toBe(415);
@@ -376,6 +377,138 @@ describe("createUploadHandler", () => {
     );
     const r2 = await call(h, { action: "sign_parts", ticket, part_numbers: [1] });
     expect(r2).toEqual({ status: 502, body: { error: { code: "not_found", message: "Video not found." } } });
+  });
+
+  it.each([
+    ["a 401", { httpStatus: 401, code: "unauthenticated", type: "unauthenticated" }],
+    ["a 403", { httpStatus: 403, code: "permission_denied", type: "permission_denied" }],
+    ["permission_denied without a status", { type: "permission_denied" }],
+  ])("the server's own API key or app being refused (%s) is not the visitor's 401/403", async (_what, fields) => {
+    const client = fakeClient();
+    client.videos.createMultipartUpload.mockRejectedValueOnce(
+      Object.assign(new InvalidRequestError({ message: "api key has been revoked" }), fields),
+    );
+    const res = await handler(client)(post({ action: "create", file: FILE }));
+    const text = await res.text();
+    expect(res.status).toBe(500);
+    expect(JSON.parse(text)).toEqual({
+      error: { code: "internal_error", message: "The upload service is not set up correctly. Try again later." },
+    });
+    expect(text).not.toContain("revoked");
+  });
+
+  it("an API error the visitor can act on keeps its wire code", async () => {
+    const client = fakeClient();
+    client.videos.createMultipartUpload.mockRejectedValueOnce(
+      new InvalidRequestError({ message: "This app only accepts files up to 1 GB.", code: "max_upload_size_exceeded", httpStatus: 400 }),
+    );
+    const r = await call(handler(client), { action: "create", file: FILE });
+    expect(r).toEqual({ status: 400, body: { error: { code: "max_upload_size_exceeded", message: "This app only accepts files up to 1 GB." } } });
+  });
+
+  describe("complete after a lost answer", () => {
+    const parts = [1, 2, 3].map((n) => ({ part_number: n, etag: "e" }));
+    const gone = () => new NotFoundError({ message: "multipart upload not found", code: "not_found", httpStatus: 404 });
+
+    it("succeeds when the video shows the first complete went through", async () => {
+      const client = fakeClient();
+      const h = handler(client);
+      const { ticket } = await create(h);
+      client.videos.completeMultipartUpload.mockRejectedValueOnce(gone());
+      client.videos.get.mockResolvedValueOnce({ id: "vid_1", status: "processing" });
+      const r = await call(h, { action: "complete", ticket, parts });
+      expect(r).toEqual({ status: 200, body: { video_id: "vid_1", status: "processing" } });
+      expect(client.videos.get).toHaveBeenCalledWith("vid_1");
+    });
+
+    it("passes the real error on when the video is still uploading, or cannot be read", async () => {
+      const client = fakeClient();
+      const h = handler(client);
+      const { ticket } = await create(h);
+      client.videos.completeMultipartUpload.mockRejectedValueOnce(gone());
+      const r = await call(h, { action: "complete", ticket, parts });
+      expect(r).toEqual({ status: 404, body: { error: { code: "not_found", message: "multipart upload not found" } } });
+      client.videos.completeMultipartUpload.mockRejectedValueOnce(gone());
+      client.videos.get.mockRejectedValueOnce(new Error("down"));
+      expect((await call(h, { action: "complete", ticket, parts })).status).toBe(404);
+    });
+  });
+
+  describe("request shape", () => {
+    it.each([undefined, "text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x"])(
+      "refuses content-type %j with 415 before authorize runs (a cross-site form needs a preflight)",
+      async (type) => {
+        const authorize = vi.fn(() => ({ allow: true }) as const);
+        const client = fakeClient();
+        const res = await handler(client, { authorize })(
+          new Request("https://app.test/api/upload", {
+            method: "POST",
+            ...(type ? { headers: { "content-type": type } } : {}),
+            body: JSON.stringify({ action: "create", file: FILE }),
+          }),
+        );
+        expect(res.status).toBe(415);
+        expect((await res.json()).error.code).toBe("invalid_request");
+        expect(authorize).not.toHaveBeenCalled();
+        expect(client.videos.createMultipartUpload).not.toHaveBeenCalled();
+      },
+    );
+
+    it("accepts application/json with parameters", async () => {
+      const res = await handler(fakeClient())(
+        new Request("https://app.test/api/upload", {
+          method: "POST",
+          headers: { "content-type": "Application/JSON; charset=utf-8" },
+          body: JSON.stringify({ action: "create", file: FILE }),
+        }),
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it("refuses a declared body over 1 MiB with 413 before reading it", async () => {
+      const authorize = vi.fn(() => ({ allow: true }) as const);
+      const res = await handler(fakeClient(), { authorize })(
+        new Request("https://app.test/api/upload", {
+          method: "POST",
+          headers: { "content-type": "application/json", "content-length": String(2 * MiB) },
+          body: "{}",
+        }),
+      );
+      expect(res.status).toBe(413);
+      expect((await res.json()).error.code).toBe("payload_too_large");
+      expect(authorize).not.toHaveBeenCalled();
+    });
+
+    it("stops reading a streamed body as soon as it passes 1 MiB", async () => {
+      const authorize = vi.fn(() => ({ allow: true }) as const);
+      let pulled = 0;
+      const chunk = new Uint8Array(64 * 1024).fill(32);
+      const body = new ReadableStream<Uint8Array>({
+        pull(c) {
+          pulled += chunk.length;
+          c.enqueue(chunk);
+          if (pulled >= 100 * MiB) c.close();
+        },
+      });
+      const res = await handler(fakeClient(), { authorize })(
+        new Request("https://app.test/api/upload", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+          duplex: "half",
+        } as RequestInit),
+      );
+      expect(res.status).toBe(413);
+      expect(pulled).toBeLessThan(2 * MiB);
+      expect(authorize).not.toHaveBeenCalled();
+    });
+
+    it("judges a file the browser could not type by its extension, and tells the API", async () => {
+      const client = fakeClient();
+      const r = await call(handler(client), { action: "create", file: { ...FILE, name: "lecture.mkv", type: "" } });
+      expect(r.status).toBe(200);
+      expect(client.videos.createMultipartUpload.mock.calls[0]![0]).toMatchObject({ contentType: "video/x-matroska" });
+    });
   });
 
   it("masks every other error as internal_error", async () => {

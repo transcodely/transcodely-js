@@ -141,20 +141,79 @@ describe("createUpload", () => {
 
   it("a failed PUT while navigator reports offline waits instead of burning retries", async () => {
     const win = new EventTarget();
-    const nav = { onLine: false };
+    const nav = { onLine: true };
     vi.stubGlobal("window", win);
     vi.stubGlobal("navigator", nav);
     // Two failures against a budget of one retry: this only succeeds if the
-    // attempt made while offline is not counted.
+    // attempt that failed as the connection dropped is not counted.
     const backend = fakeBackend({ failures: { 1: [500, 500] } });
-    const upload = createUpload(makeFile(4), setup(backend, { concurrency: 1, retries: 1 }).options);
+    let dropped = false;
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      const res = await backend.fetch(input, init);
+      if (!dropped && String(input).startsWith("https://storage.test")) {
+        dropped = true;
+        nav.onLine = false;
+      }
+      return res;
+    };
+    const upload = createUpload(makeFile(4), { ...setup(backend, { concurrency: 1, retries: 1 }).options, fetch });
     const done = upload.start();
     await until(() => upload.state === "offline", "offline state");
+    await new Promise((r) => setTimeout(r, 30));
     expect(backend.putParts()).toEqual([1]);
     nav.onLine = true;
     win.dispatchEvent(new Event("online"));
     await expect(done).resolves.toMatchObject({ status: "processing" });
     expect(backend.putParts()).toEqual([1, 1, 1]);
+  });
+
+  it("an endpoint call that fails while offline waits for the connection instead of burning retries", async () => {
+    const win = new EventTarget();
+    const nav = { onLine: true };
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("navigator", nav);
+    const backend = fakeBackend();
+    let offlineSigns = 0;
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      if (String(input) === ENDPOINT && String(init?.body).includes("sign_parts") && (offlineSigns === 0 || !nav.onLine)) {
+        offlineSigns++;
+        nav.onLine = false;
+        throw new TypeError("Failed to fetch");
+      }
+      return backend.fetch(input, init);
+    };
+    // Parts 1 and 2 come with create; part 3 needs sign_parts, which fails as the network drops.
+    // No retries at all: this only succeeds if the failure while offline is not counted.
+    const upload = createUpload(makeFile(12), { ...setup(backend, { concurrency: 1, retries: 0 }).options, fetch });
+    const done = upload.start();
+    await until(() => upload.state === "offline", "offline state");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(offlineSigns).toBe(1); // no retries spent while offline
+    nav.onLine = true;
+    win.dispatchEvent(new Event("online"));
+    await expect(done).resolves.toMatchObject({ status: "processing" });
+    expect(backend.putParts()).toEqual([1, 2, 3]);
+  });
+
+  it("pausing while the upload is being opened holds back create until resume", async () => {
+    const backend = fakeBackend();
+    const upload = createUpload(makeFile(8), setup(backend).options);
+    const done = upload.start();
+    upload.pause();
+    expect(upload.state).toBe("paused");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(backend.calls).toEqual([]);
+    upload.resume();
+    await expect(done).resolves.toMatchObject({ videoId: "vid_1" });
+  });
+
+  it("cancel before the upload is opened sends nothing", async () => {
+    const backend = fakeBackend();
+    const upload = createUpload(makeFile(8), setup(backend).options);
+    const done = upload.start();
+    await upload.cancel();
+    await expect(done).rejects.toMatchObject({ code: "aborted" });
+    expect(backend.calls).toEqual([]);
   });
 
   it("pause and resume: pausing aborts in-flight parts and resume finishes the rest", async () => {
@@ -360,7 +419,7 @@ describe("createUpload", () => {
     expect(again.actions()[0]).toBe("create");
   });
 
-  it("each finished part is persisted before it counts as done", async () => {
+  it("persists the record after each finished part", async () => {
     const writes: number[][] = [];
     const inner = memoryStore();
     const store: UploadStore = {
@@ -374,6 +433,74 @@ describe("createUpload", () => {
     const backend = fakeBackend();
     await createUpload(makeFile(12), setup(backend, { store, concurrency: 1 }).options).start();
     expect(writes).toEqual([[], [1], [1, 2], [1, 2, 3]]);
+  });
+
+  it("a finished part counts as done only once its record is saved", async () => {
+    const inner = memoryStore();
+    let release: (() => void) | undefined;
+    const store: UploadStore = {
+      get: (k) => inner.get(k),
+      delete: (k) => inner.delete(k),
+      set: async (k, r) => {
+        if (r.parts[1] && !r.parts[2]) await new Promise<void>((res) => (release = res));
+        await inner.set(k, r);
+      },
+    };
+    const backend = fakeBackend();
+    const upload = createUpload(makeFile(8), setup(backend, { store, concurrency: 1 }).options);
+    const done = upload.start();
+    await until(() => release !== undefined, "the write for part 1");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(upload.progress.loaded).toBe(0);
+    expect(backend.putParts()).toEqual([1]); // the next part waits for the write too
+    release!();
+    await done;
+    expect(upload.progress.loaded).toBe(8);
+  });
+
+  it.each([
+    ["a part size that does not slice this file into its part count", (r: { partSize: number }) => (r.partSize = 3)],
+    ["a different size", (r: { size: number }) => (r.size = 13)],
+  ])("a stored record with %s restarts instead of resuming", async (_what, corrupt) => {
+    const { store, live } = trackedStore();
+    const file = makeFile(18);
+    const first = fakeBackend({ failures: { 3: [400] } });
+    await expect(createUpload(file, setup(first, { store, concurrency: 1 }).options).start()).rejects.toThrow();
+    const [key] = [...live];
+    const rec = (await store.get(key!))!;
+    corrupt(rec as never);
+    await store.set(key!, rec);
+
+    const second = fakeBackend();
+    const result = await createUpload(file, setup(second, { store }).options).start();
+    expect(result.resumed).toBe(false);
+    expect(second.actions()[0]).toBe("create");
+    expect(second.putParts().sort()).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("cancel while completing waits for complete, even through a retry, and sends no abort", async () => {
+    const backend = fakeBackend();
+    let answer: (() => void) | undefined;
+    let completes = 0;
+    const upload = createUpload(makeFile(8), {
+      ...setup(backend).options,
+      fetch: async (input, init) => {
+        if (String(init?.body).includes('"complete"') && completes++ === 0) {
+          await new Promise<void>((r) => (answer = r));
+          return new Response("", { status: 502 });
+        }
+        return backend.fetch(input, init);
+      },
+    });
+    const done = upload.start();
+    await until(() => answer !== undefined, "complete in flight");
+    expect(upload.state).toBe("completing");
+    const canceled = upload.cancel();
+    answer!();
+    await canceled;
+    await expect(done).resolves.toMatchObject({ videoId: "vid_1" });
+    expect(upload.state).toBe("success");
+    expect(backend.actions()).not.toContain("abort");
   });
 
   it("start() is idempotent while running", async () => {
@@ -447,7 +574,7 @@ describe("createUpload", () => {
     const result = await createUpload(makeFile(4), {
       ...setup(backend).options,
       fetch: async (input, init) => {
-        if (String(input) === ENDPOINT && n++ < 2) {
+        if (String(input) === ENDPOINT && String(init?.body).includes('"complete"') && n++ < 2) {
           if (n === 1) throw new TypeError("Failed to fetch");
           return new Response("<html>bad gateway</html>", { status: 502 });
         }
@@ -455,6 +582,40 @@ describe("createUpload", () => {
       },
     }).start();
     expect(result.status).toBe("processing");
+    expect(n).toBe(3);
+  });
+
+  it.each([
+    ["a 503", () => new Response(JSON.stringify({ error: { code: "unavailable", message: "Busy." } }), { status: 503 })],
+    ["a network error", () => Promise.reject(new TypeError("Failed to fetch"))],
+  ])("create is not retried after %s: a second create could open a second video", async (_what, answer) => {
+    let creates = 0;
+    const upload = createUpload(makeFile(4), {
+      ...setup(fakeBackend()).options,
+      fetch: async () => {
+        creates++;
+        return answer();
+      },
+    });
+    const err = (await upload.start().catch((e: unknown) => e)) as TranscodelyUploadError;
+    expect(creates).toBe(1);
+    expect(err.retryable).toBe(true); // Retry is still offered to the person uploading
+  });
+
+  it("create is retried after a 429, which the handler refused before doing anything", async () => {
+    const backend = fakeBackend();
+    let first = true;
+    const result = await createUpload(makeFile(4), {
+      ...setup(backend).options,
+      fetch: async (input, init) => {
+        if (first && String(input) === ENDPOINT) {
+          first = false;
+          return new Response(JSON.stringify({ error: { code: "rate_limited", message: "Slow down." } }), { status: 429 });
+        }
+        return backend.fetch(input, init);
+      },
+    }).start();
+    expect(result.videoId).toBe("vid_1");
   });
 
   it("sends custom headers and credentials to the endpoint only", async () => {
@@ -514,8 +675,11 @@ describe("partSizeFor / acceptsFile", () => {
     expect(acceptsFile(mp4, "video/*")).toBe(true);
     expect(acceptsFile(mp4, "audio/*, .mp4")).toBe(true);
     expect(acceptsFile(mp4, "video/webm")).toBe(false);
-    expect(acceptsFile({ name: "a.mkv", type: "" }, "video/*")).toBe(false);
-    expect(acceptsFile({ name: "a.mkv", type: "" }, "video/*,.mkv")).toBe(true);
+    // A file the browser could not type is judged by its extension.
+    expect(acceptsFile({ name: "a.mkv", type: "" }, "video/*")).toBe(true);
+    expect(acceptsFile({ name: "a.M2TS", type: "" }, "video/mp2t")).toBe(true);
+    expect(acceptsFile({ name: "a.txt", type: "" }, "video/*")).toBe(false);
+    expect(acceptsFile({ name: "mkv", type: "" }, "video/*")).toBe(false);
   });
 });
 

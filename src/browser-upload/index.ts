@@ -27,6 +27,7 @@ export {
   formatBytes,
   partSizeFor,
   partsFor,
+  videoTypeFor,
 } from "./shared.js";
 export { indexedDBStore, memoryStore, type UploadRecord, type UploadStore } from "./store.js";
 export {

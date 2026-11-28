@@ -31,12 +31,13 @@ export const partsFor = (size: number, partSize: number): number =>
 /**
  * Whether a file matches an `accept` list, with the same rules as
  * `<input accept>`: `.ext`, `type/*` and `type/subtype`, comma separated.
- * An empty or missing list accepts everything.
+ * An empty or missing list accepts everything. A file with no type is judged
+ * by its extension, so `video/*` still takes an untyped `.mkv`.
  */
 export function acceptsFile(file: { name: string; type: string }, accept?: string): boolean {
   if (!accept?.trim()) return true;
   const name = file.name.toLowerCase();
-  const type = file.type.toLowerCase();
+  const type = (file.type || videoTypeFor(name)).toLowerCase();
   return accept.split(",").some((raw) => {
     const a = raw.trim().toLowerCase();
     if (!a) return false;
@@ -70,13 +71,25 @@ export class TranscodelyUploadError extends Error {
   }
 }
 
-/** "1.5 GB" style sizes for error messages (decimal units, like file managers). */
+const UNITS = ["bytes", "KB", "MB", "GB", "TB"];
+
+/** 12.3 MB, 100 MB, 5 GB: binary multiples, at most one decimal. */
 export function formatBytes(n: number): string {
-  const units = ["bytes", "KB", "MB", "GB"];
   let i = 0;
-  while (n >= 1000 && i < 3) {
-    n /= 1000;
+  while (n >= 1024 && i < 4) {
+    n /= 1024;
     i++;
   }
-  return `${i ? n.toFixed(1).replace(/\.0$/, "") : String(n)} ${units[i]!}`;
+  return `${String(i ? Math.round(n * 10) / 10 : n)} ${UNITS[i]!}`;
+}
+
+/**
+ * MIME type for a video file name, for files the browser could not type
+ * (Chrome on Windows reports `""` for some `.mkv` and `.m2ts` files).
+ */
+export function videoTypeFor(name: string): string {
+  const ext = /\.([^.]+)$/.exec(name)?.[1]!.toLowerCase() ?? "";
+  const sub = ({ m4v: "x-m4v", mov: "quicktime", mkv: "x-matroska", avi: "x-msvideo", wmv: "x-ms-wmv", flv: "x-flv",
+    mpg: "mpeg", ts: "mp2t", m2ts: "mp2t", mts: "mp2t", "3gp": "3gpp", ogv: "ogg" } as Record<string, string>)[ext];
+  return sub ? `video/${sub}` : ["mp4", "webm", "mpeg"].includes(ext) ? `video/${ext}` : "";
 }
