@@ -9,6 +9,8 @@
  * Sourced from `api/internal/connect/errors.go` (the code → wire-string map)
  * and `api/internal/domain/apierror.go`.
  */
+import { COMMAND } from "./version.js";
+
 const HINTS: Record<string, string> = {
   hosting_provisioning_failed:
     "Nothing was created. Managed hosting is set up on an app's first video, and that setup failed — the same command is safe to run again.",
@@ -26,8 +28,8 @@ const HINTS: Record<string, string> = {
   // maps to a bare `failed_precondition` with no domain ErrorCode
   // (internal/connect/errors.go:696), so there is no wire code to key on. Adding
   // one would be inert and would make this file's provenance claim false.
-  invalid_api_key: "Check the key, or run `transcodely login` again.",
-  unauthenticated: "Check the key, or run `transcodely login` again.",
+  invalid_api_key: `Check the key, or run \`${COMMAND} login\` again.`,
+  unauthenticated: `Check the key, or run \`${COMMAND} login\` again.`,
 };
 
 export function explain(code: string): string | undefined {

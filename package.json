@@ -36,6 +36,9 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "transcodely-sdk": "./dist/bin/transcodely.mjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -53,7 +56,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsup && pnpm --filter transcodely build",
+    "build": "tsup && tsup --config tsup.bin.config.ts && pnpm --filter transcodely build",
     "build:watch": "tsup --watch",
     "typecheck": "tsc -p tsconfig.typecheck.json && tsc -p packages/cli/tsconfig.json",
     "test": "vitest run",

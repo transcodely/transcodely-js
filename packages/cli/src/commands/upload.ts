@@ -28,7 +28,7 @@ import {
   type Video,
 } from "@transcodely/sdk";
 
-import { openSession, requireApp, type Ctx } from "../context.js";
+import { openSession, type Ctx } from "../context.js";
 import { EXIT_OK, UsageError } from "../errors.js";
 import { META_OPTIONS, meta } from "../meta.js";
 import { fields, formatBytes, printer, wire } from "../output.js";
@@ -149,12 +149,12 @@ async function uploadFile(
     throw new UsageError(`cannot read ${path}: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const appId = requireApp(session);
   out.note(`Uploading ${basename(path)} (${formatBytes(size)})…`);
 
   let lastPercent = -1;
   const video = await session.client.uploads.putFile(path, {
-    appId,
+    // Omitted, the API uses the key's own app.
+    ...(session.appId !== undefined ? { appId: session.appId } : {}),
     ...(flags.title !== undefined ? { title: flags.title as string } : {}),
     ...(flags.visibility !== undefined ? { visibility: flags.visibility as string } : {}),
     ...(flags.preset !== undefined ? { preset: flags.preset as string } : {}),
@@ -185,10 +185,10 @@ async function ingestUrl(
   url: string,
   out: Out,
 ): Promise<number> {
-  const appId = requireApp(session);
   out.note(`Ingesting ${url}…`);
   const video = await session.client.videos.createFromUrl({
-    appId,
+    // Omitted, the API uses the key's own app.
+    ...(session.appId !== undefined ? { appId: session.appId } : {}),
     url,
     ...(flags.title !== undefined ? { title: flags.title as string } : {}),
     ...(flags.visibility !== undefined ? { visibility: flags.visibility as string } : {}),

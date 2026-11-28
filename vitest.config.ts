@@ -14,6 +14,8 @@ export default defineConfig({
     },
   },
   test: {
+    // Builds dist/ once when it is missing, before any file runs; see the file.
+    globalSetup: ["tests/package/build.ts"],
     include: ["tests/**/*.test.ts", "packages/*/tests/**/*.test.ts"],
   },
 });

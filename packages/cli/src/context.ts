@@ -8,6 +8,7 @@ import { Transcodely } from "@transcodely/sdk";
 
 import type { CredentialStore, StoredCredentials } from "./credentials.js";
 import { UsageError } from "./errors.js";
+import { COMMAND } from "./version.js";
 
 export interface Ctx {
   argv: string[];
@@ -48,7 +49,7 @@ export async function openSession(
   const apiKey = flags.apiKey ?? ctx.env.TRANSCODELY_API_KEY ?? stored.apiKey;
   if (!apiKey) {
     throw new UsageError(
-      "no API key — run `transcodely login`, or set TRANSCODELY_API_KEY, or pass --api-key",
+      `no API key — run \`${COMMAND} login\`, or set TRANSCODELY_API_KEY, or pass --api-key`,
     );
   }
   const baseUrl = flags.baseUrl ?? ctx.env.TRANSCODELY_BASE_URL ?? stored.baseUrl;
@@ -61,14 +62,4 @@ export async function openSession(
     apiKey,
     appId: flags.app ?? ctx.env.TRANSCODELY_APP_ID ?? stored.appId,
   };
-}
-
-/** The app id for a call that cannot do without one. */
-export function requireApp(session: Session): string {
-  if (!session.appId) {
-    throw new UsageError(
-      "this command needs an app — pass --app app_…, set TRANSCODELY_APP_ID, or save one with `transcodely login --app app_…`",
-    );
-  }
-  return session.appId;
 }

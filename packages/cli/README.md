@@ -3,7 +3,7 @@
 Transcode, host and deliver a video from the command line.
 
 ```bash
-npx transcodely ./talk.mp4
+npx @transcodely/sdk upload ./talk.mp4
 ```
 
 That single command uploads the file, encodes it into an adaptive ladder, hosts
@@ -17,17 +17,26 @@ Node 20 or newer. The CLI sends no telemetry.
 
 ## Install
 
-Run it without installing:
+The CLI ships inside
+[`@transcodely/sdk`](https://www.npmjs.com/package/@transcodely/sdk), so it
+runs without installing anything:
 
 ```bash
-npx transcodely --help
+npx @transcodely/sdk upload ./talk.mp4
+npx @transcodely/sdk --help
 ```
 
-Or keep it around:
+In a project that depends on the SDK, the same command is `npx transcodely-sdk`
+(the SDK's bin is named that so it never collides with the standalone package
+below).
 
-```bash
-npm install -g transcodely
-```
+The short package name `transcodely` (`npx transcodely ./talk.mp4`, or
+`npm install -g transcodely` to keep a `transcodely` command on your `PATH`) is
+the same CLI published on its own. It is not on npm yet; until it is, use the
+commands above.
+
+`upload` is optional: `transcodely upload ./talk.mp4` and
+`transcodely ./talk.mp4` are the same command.
 
 ## Authenticate
 
@@ -142,10 +151,10 @@ use one, comes first.
 
 ## Which app?
 
-Uploads and URL ingest are scoped to an app. The CLI resolves it from `--app
-app_…`, then `TRANSCODELY_APP_ID`, then whatever `transcodely login --app
-app_…` saved. `--own-bucket` and the format flags go through the job API, which
-infers the app from the key itself and needs none of this.
+None, usually: an API key belongs to one app, and every command acts in that
+app when you name none. To be explicit, the CLI takes `--app app_…`, then
+`TRANSCODELY_APP_ID`, then whatever `transcodely login --app app_…` saved; an
+app other than the key's own is refused by the API with `permission_denied`.
 
 ## Environment
 
@@ -168,10 +177,17 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
 node packages/cli/dist/index.mjs --help
 ```
 
-**Published as `transcodely` on npm** since cli 0.1.1, pinned to a released
-`@transcodely/sdk` (the version in `package.json`). Bump that pin when the CLI
-needs a newer SDK feature; the release workflow's `publish-cli` job publishes
-with npm provenance.
+**How it reaches npm.** Two ways, from this one source:
+
+- As the `transcodely-sdk` bin of `@transcodely/sdk`. The SDK's build bundles this
+  package's `src/` into `dist/bin/transcodely.mjs` (`tsup.bin.config.ts` at the
+  repo root) and the SDK's automated release publishes it. Nothing else to do.
+- As the standalone `transcodely` package, pinned to a released
+  `@transcodely/sdk` (the version in `package.json`). npm's trusted publishing
+  cannot create a package, so the first publish is a one-time manual step;
+  after it, the release workflow's `publish-cli` job publishes each CLI
+  release with npm provenance. Until that first publish, `npx transcodely`
+  does not resolve.
 
 ## License
 

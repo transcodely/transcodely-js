@@ -576,6 +576,43 @@ describe("transcodely <file>", () => {
     expect(res.stdout).toContain(VIDEO_ID);
   });
 
+  // The docs' quick start is `npx @transcodely/sdk upload ./video.mp4`. Before
+  // `upload` was a verb, the word was taken as a second input and refused with
+  // "one input at a time".
+  it("takes an explicit `upload` verb before the file", async () => {
+    const env = await withApi();
+    const path = await fixture("clip.mp4", 2048);
+    const res = await cli(["upload", path, "--title", "Clip"], { env });
+    expect(res.code).toBe(0);
+    expect(api!.puts).toEqual([{ url: "/s3/single", size: 2048 }]);
+    expect(api!.calls.map((c) => c.method)).toEqual(["CreateUpload", "CompleteUpload"]);
+    expect(api!.calls[0]!.body).toMatchObject({ filename: "clip.mp4", title: "Clip" });
+  });
+
+  it("takes an explicit `upload` verb before a URL", async () => {
+    const env = await withApi();
+    const res = await cli(["upload", "https://example.com/talk.mp4", "--json"], { env });
+    expect(res.code).toBe(0);
+    expect(JSON.parse(res.stdout).id).toBe(VIDEO_ID);
+    expect(api!.calls.map((c) => c.method)).toEqual(["CreateFromUrl"]);
+  });
+
+  it("asks for an input when `upload` has none", async () => {
+    const env = await withApi();
+    const res = await cli(["upload"], { env });
+    expect(res.code).toBe(2);
+    expect(res.stderr).toContain("give me a file path");
+    expect(api!.calls).toHaveLength(0);
+  });
+
+  it("uploads a file literally named `upload` when given as a path", async () => {
+    const env = await withApi();
+    const path = await fixture("upload", 2048);
+    const res = await cli([path], { env });
+    expect(res.code).toBe(0);
+    expect(api!.calls[0]!.body).toMatchObject({ filename: "upload" });
+  });
+
   it("refuses --own-bucket for an uploaded file and explains why", async () => {
     const env = await withApi();
     const path = await fixture("clip.mp4", 2048);
@@ -600,14 +637,39 @@ describe("transcodely <file>", () => {
     expect(res.stderr).not.toContain("cannot read");
   });
 
-  it("exits 2 when no app is known", async () => {
+  // The API takes an API-key caller's own app when app_id is omitted (api
+  // video.proto, CreateUploadRequest / CreateMultipartUploadRequest /
+  // CreateVideoFromUrlRequest `app_id`). The CLI used to refuse first with
+  // "this command needs an app", so the docs' one-liner
+  // `npx @transcodely/sdk upload ./video.mp4` failed for anyone who had only
+  // exported a key.
+  it("uploads under the key's own app when no app is known", async () => {
     const env = await withApi();
     const path = await fixture("clip.mp4", 2048);
-    const res = await cli([path], {
+    const res = await cli(["upload", path], {
       env: { ...env, TRANSCODELY_APP_ID: undefined },
     });
-    expect(res.code).toBe(2);
-    expect(res.stderr).toContain("--app");
+    expect(res.code).toBe(0);
+    expect(api!.calls.map((c) => c.method)).toEqual(["CreateUpload", "CompleteUpload"]);
+    expect(api!.calls[0]!.body.app_id ?? "").toBe(""); // "" is "omitted" to the API (IGNORE_IF_ZERO_VALUE)
+  });
+
+  it("ingests a URL under the key's own app when no app is known", async () => {
+    const env = await withApi();
+    const res = await cli(["https://example.com/talk.mp4", "--json"], {
+      env: { ...env, TRANSCODELY_APP_ID: undefined },
+    });
+    expect(res.code).toBe(0);
+    expect(api!.calls.map((c) => c.method)).toEqual(["CreateFromUrl"]);
+    expect(api!.calls[0]!.body.app_id ?? "").toBe(""); // "" is "omitted" to the API (IGNORE_IF_ZERO_VALUE)
+  });
+
+  it("still sends the app when one is known", async () => {
+    const env = await withApi();
+    const path = await fixture("clip.mp4", 2048);
+    const res = await cli([path, "--app", "app_zzzzzzzzzz"], { env });
+    expect(res.code).toBe(0);
+    expect(api!.calls[0]!.body.app_id).toBe("app_zzzzzzzzzz");
   });
 });
 

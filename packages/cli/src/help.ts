@@ -1,9 +1,20 @@
-import { CLI_VERSION } from "./version.js";
+import { COMMAND, VERSION_LINE } from "./version.js";
 
-export const HELP = `transcodely ${CLI_VERSION} — transcode, host and deliver video
+/** Shown only in the copy bundled into @transcodely/sdk, whose command differs. */
+const SDK_NOTE =
+  COMMAND === "transcodely"
+    ? ""
+    : `
+Running from @transcodely/sdk: type \`npx @transcodely/sdk\` (or
+\`npx transcodely-sdk\` in a project that depends on the SDK) where this
+text says \`transcodely\`.
+`;
 
+export const HELP = `transcodely ${VERSION_LINE} — transcode, host and deliver video
+${SDK_NOTE}
 USAGE
   transcodely <file|url> [options]     encode and host one video
+  transcodely upload <file|url> [...]  the same, spelled out
   transcodely login [options]          save an API key
   transcodely logout                   forget the saved API key
   transcodely jobs ls [options]        list recent jobs
@@ -12,6 +23,7 @@ USAGE
 
 ENCODE AND HOST
   transcodely ./talk.mp4
+  npx @transcodely/sdk upload ./talk.mp4   (the same, with nothing installed)
   transcodely https://example.com/talk.mp4 --wait
   transcodely https://example.com/talk.mp4 --own-bucket ori_a1b2c3d4e5f6 --hls
 
@@ -33,7 +45,8 @@ LOGIN
   transcodely login --app app_…        also save a default app
 
 GLOBAL  (flags may go before or after the input)
-  --app <app_…>          app to act in (else TRANSCODELY_APP_ID, else saved)
+  --app <app_…>          app to act in (else TRANSCODELY_APP_ID, else saved,
+                         else the API key's own app)
   --api-key <ak_…>       key for this command only (lands in shell history + ps)
   --base-url <url>       API base URL (staging or a local stack)
   --json                 print one JSON document instead of human output,
