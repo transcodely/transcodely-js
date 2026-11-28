@@ -15,7 +15,7 @@ import { uploadCommand } from "./commands/upload.js";
 import { explain } from "./explain.js";
 import { EXIT_API_ERROR, EXIT_OK, EXIT_USAGE, UsageError } from "./errors.js";
 import { HELP } from "./help.js";
-import { VERSION_LINE } from "./version.js";
+import { COMMAND, VERSION_LINE } from "./version.js";
 
 // `upload` is the default command spelled out: `transcodely upload ./talk.mp4`
 // and `transcodely ./talk.mp4` are the same call. A file literally named
@@ -76,7 +76,7 @@ function report(ctx: Ctx, err: unknown): number {
       );
     }
     ctx.stderr(`transcodely: ${err.message}\n`);
-    ctx.stderr("Run `transcodely --help` for usage.\n");
+    ctx.stderr(`Run \`${COMMAND} --help\` for usage.\n`);
     return EXIT_USAGE;
   }
 

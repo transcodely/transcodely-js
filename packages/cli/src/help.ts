@@ -1,7 +1,17 @@
-import { VERSION_LINE } from "./version.js";
+import { COMMAND, VERSION_LINE } from "./version.js";
+
+/** Shown only in the copy bundled into @transcodely/sdk, whose command differs. */
+const SDK_NOTE =
+  COMMAND === "transcodely"
+    ? ""
+    : `
+Running from @transcodely/sdk: type \`npx @transcodely/sdk\` (or
+\`npx transcodely-sdk\` in a project that depends on the SDK) where this
+text says \`transcodely\`.
+`;
 
 export const HELP = `transcodely ${VERSION_LINE} — transcode, host and deliver video
-
+${SDK_NOTE}
 USAGE
   transcodely <file|url> [options]     encode and host one video
   transcodely upload <file|url> [...]  the same, spelled out

@@ -8,6 +8,7 @@ import { Transcodely } from "@transcodely/sdk";
 
 import type { CredentialStore, StoredCredentials } from "./credentials.js";
 import { UsageError } from "./errors.js";
+import { COMMAND } from "./version.js";
 
 export interface Ctx {
   argv: string[];
@@ -48,7 +49,7 @@ export async function openSession(
   const apiKey = flags.apiKey ?? ctx.env.TRANSCODELY_API_KEY ?? stored.apiKey;
   if (!apiKey) {
     throw new UsageError(
-      "no API key — run `transcodely login`, or set TRANSCODELY_API_KEY, or pass --api-key",
+      `no API key — run \`${COMMAND} login\`, or set TRANSCODELY_API_KEY, or pass --api-key`,
     );
   }
   const baseUrl = flags.baseUrl ?? ctx.env.TRANSCODELY_BASE_URL ?? stored.baseUrl;

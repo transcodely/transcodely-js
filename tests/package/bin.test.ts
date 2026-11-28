@@ -135,6 +135,17 @@ describe("npx @transcodely/sdk", () => {
     expect(res.stdout).toContain("npx @transcodely/sdk upload");
   });
 
+  it("tells the user how to run it from the SDK, not as `transcodely`", async () => {
+    const help = await npxSdk(["--help"]);
+    expect(help.stdout).toContain("Running from @transcodely/sdk");
+    const usage = await npxSdk(["--definitely-not-a-flag", "x.mp4"]);
+    expect(usage.code).toBe(2);
+    expect(usage.stderr).toContain("Run `npx @transcodely/sdk --help` for usage.");
+    const noKey = await npxSdk(["upload", "https://example.com/talk.mp4"]);
+    expect(noKey.code).toBe(2);
+    expect(noKey.stderr).toContain("run `npx @transcodely/sdk login`");
+  });
+
   // The docs' quick start, exactly: an exported key and nothing else.
   it("uploads a file with `upload` against the API", async () => {
     api = await startMockApi();
