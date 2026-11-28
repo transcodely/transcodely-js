@@ -24,6 +24,10 @@ export const ARTIFACTS = [
   join(ROOT, "dist", "index.mjs"),
   join(ROOT, "dist", "index.cjs"),
   join(ROOT, "dist", "bin", "transcodely.mjs"),
+  ...["upload/index", "upload/server", "react/index"].flatMap((entry) =>
+    ["mjs", "cjs", "d.ts", "d.cts"].map((ext) => join(ROOT, "dist", `${entry}.${ext}`)),
+  ),
+  join(ROOT, "dist", "react", "styles.css"),
   join(ROOT, "packages", "cli", "dist", "index.mjs"),
 ];
 
@@ -35,6 +39,9 @@ const INPUTS = [
   "packages/cli/package.json",
   "tsup.config.ts",
   "tsup.bin.config.ts",
+  "tsup.subpaths.config.ts",
+  "scripts/subpath-dts.mjs",
+  "tsconfig.json",
   "packages/cli/tsup.config.ts",
 ];
 

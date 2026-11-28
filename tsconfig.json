@@ -14,6 +14,14 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    // The subpath entries import the SDK and its upload core by their published
+    // names (kept external by tsup.subpaths.config.ts); these resolve them to
+    // source for type-checking.
+    "paths": {
+      "@transcodely/sdk": ["./src/index.ts"],
+      "@transcodely/sdk/upload": ["./src/browser-upload/index.ts"]
+    },
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,

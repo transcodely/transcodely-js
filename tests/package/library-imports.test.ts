@@ -66,6 +66,82 @@ describe.each(["index.mjs", "index.cjs"])("dist/%s", (file) => {
     // The help text is the CLI's largest string and appears nowhere else.
     expect(code).not.toContain("The CLI sends no telemetry");
   });
+
+  it("contains no browser-upload or React source", async () => {
+    const map = JSON.parse(await readFile(join(ROOT, "dist", `${file}.map`), "utf8")) as {
+      sources: string[];
+    };
+    expect(map.sources.filter((s) => /browser-upload|src\/react\/|node_modules\/react/.test(s))).toEqual([]);
+  });
+});
+
+/**
+ * The browser-upload subpaths (tsup.subpaths.config.ts). The core may import
+ * nothing at all: it runs in any browser bundle, with no React and no Node.
+ * The server handler and the React layer reach the core only through the
+ * published `@transcodely/sdk/upload` specifier, so the package carries one
+ * copy of it; React is a peer, never bundled.
+ */
+const SUBPATH_IMPORTS: Record<string, string[]> = {
+  "upload/index": [],
+  "upload/server": ["@transcodely/sdk/upload"],
+  "react/index": ["@transcodely/sdk/upload", "react", "react/jsx-runtime"],
+};
+
+describe.each(Object.keys(SUBPATH_IMPORTS))("dist/%s", (entry) => {
+  it.each(["mjs", "cjs"])("imports exactly its allowed modules (.%s)", async (ext) => {
+    const code = await readFile(join(ROOT, "dist", `${entry}.${ext}`), "utf8");
+    expect(moduleSpecifiers(code)).toEqual(SUBPATH_IMPORTS[entry]);
+  });
+
+  it.each(["d.ts", "d.cts"])("declares types against the published core (.%s)", async (ext) => {
+    const code = await readFile(join(ROOT, "dist", `${entry}.${ext}`), "utf8");
+    // Nothing reaches back into src/ or a sibling file.
+    expect(moduleSpecifiers(code).filter((s) => s.startsWith("."))).toEqual([]);
+    if (entry !== "upload/index") {
+      // The core's declarations live once, in dist/upload/index.d.ts.
+      expect(code).not.toMatch(/declare class TranscodelyUploadError|interface UploadRecord\b/);
+      for (const s of moduleSpecifiers(code)) {
+        expect(["@bufbuild/protobuf", "@transcodely/sdk", "@transcodely/sdk/upload", "react", "react/jsx-runtime"]).toContain(s);
+      }
+    }
+  });
+});
+
+describe("the React and server bundles", () => {
+  it.each(["react/index", "upload/server"])("carry no copy of the core (%s)", async (entry) => {
+    for (const ext of ["mjs", "cjs"]) {
+      const code = await readFile(join(ROOT, "dist", `${entry}.${ext}`), "utf8");
+      // MAX_FILE_SIZE is the core's own constant; a bundled core would inline it.
+      expect(code).not.toContain("5368709120");
+      expect(code).not.toMatch(/react\.(transitional\.)?element|__SECRET_INTERNALS|__CLIENT_INTERNALS/);
+    }
+  });
+
+  it.each(["mjs", "cjs", "d.ts", "d.cts"])("carry nothing from src/gen (upload/server.%s)", async (ext) => {
+    const code = await readFile(join(ROOT, "dist", "upload", `server.${ext}`), "utf8");
+    // Generated messages name their proto type; the d.ts would declare the class.
+    expect(code).not.toMatch(/transcodely\.v1\.|declare class CreateMultipartUploadRequest|setEnumType/);
+  });
+
+  it.each(["mjs", "cjs"])("marks the React entry as a client module (.%s)", async (ext) => {
+    const code = await readFile(join(ROOT, "dist", "react", `index.${ext}`), "utf8");
+    expect(code.startsWith('"use client";')).toBe(true);
+  });
+
+  it("ships the optional stylesheet, keyed only on the component's data attributes", async () => {
+    const css = await readFile(join(ROOT, "dist", "react", "styles.css"), "utf8");
+    expect(css).toBe(await readFile(join(ROOT, "src", "react", "styles.css"), "utf8"));
+    const selectors = css
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("}")
+      .map((rule) => rule.split("{")[0]!.trim())
+      .filter((sel) => sel && !sel.startsWith("@"));
+    expect(selectors.length).toBeGreaterThan(0);
+    for (const sel of selectors.flatMap((s) => s.split(","))) {
+      expect(sel.trim()).toMatch(/^\[data-transcodely-uploader\]/);
+    }
+  });
 });
 
 describe("the import-graph check itself", () => {
@@ -80,6 +156,7 @@ describe("the import-graph check itself", () => {
     ['const y = require("node:child_process");', ["child_process"]],
     ['const z = await import("node:readline");', ["readline"]],
     ['const msg = "moved from \\"pending\\" to done";', []],
+    ['"use client";import{useRef as a}from"react";import{jsx as b}from"react/jsx-runtime";', ["react", "react/jsx-runtime"]],
   ])("reads %s", (code, expected) => {
     expect(moduleSpecifiers(code)).toEqual(expected);
   });
@@ -98,6 +175,35 @@ describe("the import-graph check itself", () => {
 });
 
 describe("package.json", () => {
+  it("exports the browser-upload subpaths, types first", async () => {
+    const pkg = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as {
+      exports: Record<string, unknown>;
+    };
+    const entry = (dir: string, name: string) => ({
+      types: `./dist/${dir}/${name}.d.ts`,
+      import: `./dist/${dir}/${name}.mjs`,
+      require: `./dist/${dir}/${name}.cjs`,
+    });
+    expect(pkg.exports["./upload"]).toEqual(entry("upload", "index"));
+    expect(pkg.exports["./upload/server"]).toEqual(entry("upload", "server"));
+    expect(pkg.exports["./react"]).toEqual(entry("react", "index"));
+    expect(pkg.exports["./react/styles.css"]).toBe("./dist/react/styles.css");
+    for (const key of ["./upload", "./upload/server", "./react"]) {
+      expect(Object.keys(pkg.exports[key] as object)[0]).toBe("types");
+    }
+  });
+
+  it("takes React as an optional peer, never a dependency", async () => {
+    const pkg = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as {
+      dependencies: Record<string, string>;
+      peerDependencies: Record<string, string>;
+      peerDependenciesMeta: Record<string, { optional?: boolean }>;
+    };
+    expect(Object.keys(pkg.dependencies)).toEqual(["@bufbuild/protobuf"]);
+    expect(pkg.peerDependencies).toEqual({ react: ">=18", "react-dom": ">=18" });
+    expect(pkg.peerDependenciesMeta).toEqual({ react: { optional: true }, "react-dom": { optional: true } });
+  });
+
   it("exposes the bin without naming it in the exports map", async () => {
     const pkg = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as {
       bin: Record<string, string>;
