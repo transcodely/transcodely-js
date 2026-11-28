@@ -93,7 +93,16 @@ export class NotFoundError extends TranscodelyError {}
 /** 409 — already exists, idempotency conflict, slug taken. */
 export class ConflictError extends TranscodelyError {}
 
-/** 429 — rate-limited. {@link retryAfterMs} reflects the `Retry-After` header. */
+/**
+ * 429 — rate-limited, or refused by a quota. {@link retryAfterMs} reflects the
+ * `Retry-After` header.
+ *
+ * The SDK retries a rate limit on its own (no `code`, `resource_exhausted`, or
+ * a code containing `rate_limit`). A quota refusal — `code` is
+ * `limit_exceeded` (the app's spend limit), `queue_limit_exceeded` or
+ * `free_trial_unavailable_today` — is thrown on the first answer, since
+ * waiting a few seconds does not clear it.
+ */
 export class RateLimitError extends TranscodelyError {
   readonly retryAfterMs: number | undefined;
   constructor(opts: TranscodelyErrorOptions & { retryAfterMs?: number }) {

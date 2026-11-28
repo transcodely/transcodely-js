@@ -63,7 +63,11 @@ export function mapHttpError({ status, body, headers }: MapArgs): TranscodelyErr
   const parsed = parseBody(body);
   const message = parsed.message ?? `HTTP ${status}`;
   const detail = parsed.details?.find(isErrorDetails)?.debug;
-  const code = detail?.code;
+  // The ErrorDetails code when the body carries one; otherwise the `error-code`
+  // discriminator the API stamps on every error, which a unary call receives
+  // as a response header. Many refusals (a spend cap among them) carry only
+  // the header.
+  const code = detail?.code || headers.get("error-code") || undefined;
   const violations = detail?.field_violations ?? detail?.fieldViolations ?? [];
   const opts = {
     message,

@@ -333,9 +333,21 @@ export class Transport {
 function isRetryable(err: unknown): boolean {
   if (!(err instanceof TranscodelyError)) return false;
   if (err.constructor.name === "APIConnectionError") return true;
-  if (err.constructor.name === "RateLimitError") return true;
+  if (err.constructor.name === "RateLimitError") return isRateLimitCode(err.code);
   if (err.httpStatus !== undefined && err.httpStatus >= 500) return true;
   return false;
+}
+
+/**
+ * Whether a 429's error code names a rate limit, which clears by itself and is
+ * worth a retry, rather than a quota refusal (`limit_exceeded`,
+ * `queue_limit_exceeded`, `free_trial_unavailable_today`), which waiting does
+ * not clear. A code this SDK does not recognize is treated as a quota refusal,
+ * so a new one is never retried by default.
+ */
+function isRateLimitCode(code: string | undefined): boolean {
+  if (!code || code === "resource_exhausted") return true;
+  return code.includes("rate_limit");
 }
 
 async function sleepBackoff(attempt: number, err: unknown): Promise<void> {
