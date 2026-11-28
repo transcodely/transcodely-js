@@ -153,10 +153,10 @@ use one, comes first.
 
 ## Which app?
 
-Uploads and URL ingest are scoped to an app. The CLI resolves it from `--app
-app_…`, then `TRANSCODELY_APP_ID`, then whatever `transcodely login --app
-app_…` saved. `--own-bucket` and the format flags go through the job API, which
-infers the app from the key itself and needs none of this.
+None, usually: an API key belongs to one app, and every command acts in that
+app when you name none. To be explicit, the CLI takes `--app app_…`, then
+`TRANSCODELY_APP_ID`, then whatever `transcodely login --app app_…` saved; an
+app other than the key's own is refused by the API with `permission_denied`.
 
 ## Environment
 

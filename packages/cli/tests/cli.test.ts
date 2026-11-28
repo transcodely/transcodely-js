@@ -637,14 +637,39 @@ describe("transcodely <file>", () => {
     expect(res.stderr).not.toContain("cannot read");
   });
 
-  it("exits 2 when no app is known", async () => {
+  // The API takes an API-key caller's own app when app_id is omitted (api
+  // video.proto, CreateUploadRequest / CreateMultipartUploadRequest /
+  // CreateVideoFromUrlRequest `app_id`). The CLI used to refuse first with
+  // "this command needs an app", so the docs' one-liner
+  // `npx @transcodely/sdk upload ./video.mp4` failed for anyone who had only
+  // exported a key.
+  it("uploads under the key's own app when no app is known", async () => {
     const env = await withApi();
     const path = await fixture("clip.mp4", 2048);
-    const res = await cli([path], {
+    const res = await cli(["upload", path], {
       env: { ...env, TRANSCODELY_APP_ID: undefined },
     });
-    expect(res.code).toBe(2);
-    expect(res.stderr).toContain("--app");
+    expect(res.code).toBe(0);
+    expect(api!.calls.map((c) => c.method)).toEqual(["CreateUpload", "CompleteUpload"]);
+    expect(api!.calls[0]!.body.app_id ?? "").toBe(""); // "" is "omitted" to the API (IGNORE_IF_ZERO_VALUE)
+  });
+
+  it("ingests a URL under the key's own app when no app is known", async () => {
+    const env = await withApi();
+    const res = await cli(["https://example.com/talk.mp4", "--json"], {
+      env: { ...env, TRANSCODELY_APP_ID: undefined },
+    });
+    expect(res.code).toBe(0);
+    expect(api!.calls.map((c) => c.method)).toEqual(["CreateFromUrl"]);
+    expect(api!.calls[0]!.body.app_id ?? "").toBe(""); // "" is "omitted" to the API (IGNORE_IF_ZERO_VALUE)
+  });
+
+  it("still sends the app when one is known", async () => {
+    const env = await withApi();
+    const path = await fixture("clip.mp4", 2048);
+    const res = await cli([path, "--app", "app_zzzzzzzzzz"], { env });
+    expect(res.code).toBe(0);
+    expect(api!.calls[0]!.body.app_id).toBe("app_zzzzzzzzzz");
   });
 });
 

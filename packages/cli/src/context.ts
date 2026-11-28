@@ -62,13 +62,3 @@ export async function openSession(
     appId: flags.app ?? ctx.env.TRANSCODELY_APP_ID ?? stored.appId,
   };
 }
-
-/** The app id for a call that cannot do without one. */
-export function requireApp(session: Session): string {
-  if (!session.appId) {
-    throw new UsageError(
-      "this command needs an app — pass --app app_…, set TRANSCODELY_APP_ID, or save one with `transcodely login --app app_…`",
-    );
-  }
-  return session.appId;
-}

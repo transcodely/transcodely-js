@@ -123,13 +123,13 @@ describe("npx @transcodely/sdk", () => {
     expect(res.stdout).toContain("npx @transcodely/sdk upload");
   });
 
+  // The docs' quick start, exactly: an exported key and nothing else.
   it("uploads a file with `upload` against the API", async () => {
     api = await startMockApi();
     const path = join(tmp, "video.mp4");
     await writeFile(path, Buffer.alloc(4096, 5));
     const res = await npxSdk(["upload", path, "--json"], {
       TRANSCODELY_API_KEY: "ak_test",
-      TRANSCODELY_APP_ID: "app_k1l2m3n4o5",
       TRANSCODELY_BASE_URL: api.baseUrl,
     });
     expect(res.stderr).toBe("");
