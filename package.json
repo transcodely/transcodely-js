@@ -44,7 +44,23 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./upload": {
+      "types": "./dist/upload/index.d.ts",
+      "import": "./dist/upload/index.mjs",
+      "require": "./dist/upload/index.cjs"
+    },
+    "./upload/server": {
+      "types": "./dist/upload/server.d.ts",
+      "import": "./dist/upload/server.mjs",
+      "require": "./dist/upload/server.cjs"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.mjs",
+      "require": "./dist/react/index.cjs"
+    },
+    "./react/styles.css": "./dist/react/styles.css"
   },
   "files": [
     "dist",
@@ -56,24 +72,44 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsup && tsup --config tsup.bin.config.ts && pnpm --filter transcodely build",
+    "build": "tsup && tsup --config tsup.bin.config.ts && tsup --config tsup.subpaths.config.ts && node scripts/subpath-dts.mjs && pnpm --filter transcodely build",
     "build:watch": "tsup --watch",
     "typecheck": "tsc -p tsconfig.typecheck.json && tsc -p packages/cli/tsconfig.json",
     "test": "vitest run",
-    "lint": "eslint src packages/cli/src packages/cli/tests",
+    "lint": "eslint src packages/cli/src packages/cli/tests tests/react tests/package tsup.subpaths.config.ts scripts",
     "format": "prettier --write src",
     "prepare": "husky"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^1.10.0"
   },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@commitlint/cli": "^19.5.0",
     "@commitlint/config-conventional": "^19.5.0",
     "@eslint/js": "^9.39.5",
     "@types/node": "^20.0.0",
+    "@types/react": "^19.3.3",
+    "@types/react-18": "npm:@types/react@^18.3.32",
+    "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
+    "happy-dom": "^21.0.4",
     "husky": "^9.1.7",
+    "react": "^19.3.1",
+    "react-18": "npm:react@18.3.1",
+    "react-dom": "^19.3.1",
+    "react-dom-18": "npm:react-dom@18.3.1",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.64.0",
