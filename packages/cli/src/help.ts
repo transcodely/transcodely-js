@@ -4,6 +4,7 @@ export const HELP = `transcodely ${CLI_VERSION} — transcode, host and deliver 
 
 USAGE
   transcodely <file|url> [options]     encode and host one video
+  transcodely upload <file|url> [...]  the same, spelled out
   transcodely login [options]          save an API key
   transcodely logout                   forget the saved API key
   transcodely jobs ls [options]        list recent jobs
@@ -12,6 +13,7 @@ USAGE
 
 ENCODE AND HOST
   transcodely ./talk.mp4
+  npx @transcodely/sdk upload ./talk.mp4   (no install; same CLI)
   transcodely https://example.com/talk.mp4 --wait
   transcodely https://example.com/talk.mp4 --own-bucket ori_a1b2c3d4e5f6 --hls
 

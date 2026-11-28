@@ -576,6 +576,43 @@ describe("transcodely <file>", () => {
     expect(res.stdout).toContain(VIDEO_ID);
   });
 
+  // The docs' quick start is `npx @transcodely/sdk upload ./video.mp4`. Before
+  // `upload` was a verb, the word was taken as a second input and refused with
+  // "one input at a time".
+  it("takes an explicit `upload` verb before the file", async () => {
+    const env = await withApi();
+    const path = await fixture("clip.mp4", 2048);
+    const res = await cli(["upload", path, "--title", "Clip"], { env });
+    expect(res.code).toBe(0);
+    expect(api!.puts).toEqual([{ url: "/s3/single", size: 2048 }]);
+    expect(api!.calls.map((c) => c.method)).toEqual(["CreateUpload", "CompleteUpload"]);
+    expect(api!.calls[0]!.body).toMatchObject({ filename: "clip.mp4", title: "Clip" });
+  });
+
+  it("takes an explicit `upload` verb before a URL", async () => {
+    const env = await withApi();
+    const res = await cli(["upload", "https://example.com/talk.mp4", "--json"], { env });
+    expect(res.code).toBe(0);
+    expect(JSON.parse(res.stdout).id).toBe(VIDEO_ID);
+    expect(api!.calls.map((c) => c.method)).toEqual(["CreateFromUrl"]);
+  });
+
+  it("asks for an input when `upload` has none", async () => {
+    const env = await withApi();
+    const res = await cli(["upload"], { env });
+    expect(res.code).toBe(2);
+    expect(res.stderr).toContain("give me a file path");
+    expect(api!.calls).toHaveLength(0);
+  });
+
+  it("uploads a file literally named `upload` when given as a path", async () => {
+    const env = await withApi();
+    const path = await fixture("upload", 2048);
+    const res = await cli([path], { env });
+    expect(res.code).toBe(0);
+    expect(api!.calls[0]!.body).toMatchObject({ filename: "upload" });
+  });
+
   it("refuses --own-bucket for an uploaded file and explains why", async () => {
     const env = await withApi();
     const path = await fixture("clip.mp4", 2048);

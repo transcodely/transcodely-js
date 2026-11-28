@@ -17,7 +17,10 @@ import { EXIT_API_ERROR, EXIT_OK, EXIT_USAGE, UsageError } from "./errors.js";
 import { HELP } from "./help.js";
 import { CLI_VERSION } from "./version.js";
 
-const SUBCOMMANDS = new Set(["login", "logout", "jobs", "videos"]);
+// `upload` is the default command spelled out: `transcodely upload ./talk.mp4`
+// and `transcodely ./talk.mp4` are the same call. A file literally named
+// `upload` is still reachable as `./upload`.
+const SUBCOMMANDS = new Set(["upload", "login", "logout", "jobs", "videos"]);
 
 export async function run(ctx: Ctx): Promise<number> {
   // Only the BARE words are handled here. The `--help` / `--version` flags are
@@ -37,6 +40,8 @@ export async function run(ctx: Ctx): Promise<number> {
     if (SUBCOMMANDS.has(head)) {
       const rest = ctx.argv.slice(1);
       switch (head) {
+        case "upload":
+          return await uploadCommand(ctx, rest);
         case "login":
           return await loginCommand(ctx, rest);
         case "logout":

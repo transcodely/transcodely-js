@@ -54,6 +54,8 @@ jobs:
           test -f dist/index.d.cts
           test -f packages/cli/dist/index.mjs
           head -1 packages/cli/dist/index.mjs | grep -q '^#!/usr/bin/env node'
+          test -f dist/bin/transcodely.mjs
+          head -1 dist/bin/transcodely.mjs | grep -q '^#!/usr/bin/env node'
 
   ci:
     name: Typecheck, Test, Build

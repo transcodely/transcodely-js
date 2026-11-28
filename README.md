@@ -128,15 +128,16 @@ Need finer control? The individual RPCs are still there on `client.videos`
 The same flows from a shell, with no code:
 
 ```bash
-npx transcodely ./talk.mp4
-npx transcodely https://example.com/talk.mp4 --wait
+npx @transcodely/sdk upload ./talk.mp4
+npx @transcodely/sdk upload https://example.com/talk.mp4 --wait
+npx @transcodely/sdk --help
 ```
 
-**Not published yet.** The `transcodely` CLI lives in this repository under
-[`packages/cli`](packages/cli/README.md) and ships once this SDK releases the
-version it pins. Until then the commands above do not resolve on npm; build it
-from the repo instead (`pnpm install && pnpm build`, then
-`node packages/cli/dist/index.mjs --help`).
+The CLI ships inside this package as its `transcodely` bin, so installing the
+SDK also puts `transcodely` on your project's `node_modules/.bin`. It is a
+separate build (`dist/bin/`) that the library entry never imports: importing
+`@transcodely/sdk`, in Node or a browser bundle, does not load any of it. The
+source and full reference live in [`packages/cli`](packages/cli/README.md).
 
 ## Read the output report
 
