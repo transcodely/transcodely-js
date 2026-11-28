@@ -4,13 +4,13 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { JobStatus, VideoStatus } from "@transcodely/sdk";
+import { ImportSourceType, JobStatus, VideoStatus } from "@transcodely/sdk";
 
 import { TERMINAL_JOB, TERMINAL_VIDEO } from "../src/commands/upload.js";
 import { fileStore, type CredentialStore } from "../src/credentials.js";
 import { run } from "../src/main.js";
 import { CLI_VERSION } from "../src/version.js";
-import { parseImportCsv } from "../src/commands/import.js";
+import { SOURCE_TYPE_URLS, parseImportCsv } from "../src/commands/import.js";
 import {
   IMPORT_ID,
   JOB_ID,
@@ -900,6 +900,12 @@ describe("transcodely import urls", () => {
     expect((await cli(["import"], { env: { TRANSCODELY_API_KEY: "ak_x" } })).code).toBe(2);
     expect((await cli(["import", "csv", "x.csv"], { env: { TRANSCODELY_API_KEY: "ak_x" } })).code).toBe(2);
     expect((await cli(["import", "urls", "--max-spend", "5"], { env: { TRANSCODELY_API_KEY: "ak_x" } })).code).toBe(2);
+  });
+});
+
+describe("the inlined import source type", () => {
+  it("is ImportSourceType.URLS", () => {
+    expect(SOURCE_TYPE_URLS).toBe(ImportSourceType.URLS);
   });
 });
 

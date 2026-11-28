@@ -15,7 +15,7 @@
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 
-import { ImportSourceType, ImportStatus, type Import } from "@transcodely/sdk";
+import type { Import, ImportSourceType } from "@transcodely/sdk";
 
 import { openSession, type Ctx } from "../context.js";
 import { EXIT_OK, UsageError } from "../errors.js";
@@ -37,6 +37,16 @@ const BATCH = 1000;
 const MAX_ITEMS = 10_000;
 /** CreateImportRequest.max_spend_eur's upper bound. */
 const MAX_SPEND_EUR = 99_999_999;
+
+/**
+ * `ImportSourceType.URLS`, inlined. The standalone `transcodely` package
+ * depends on a published @transcodely/sdk by semver range, and an ES module
+ * that imports a named export the installed SDK lacks fails to load at all —
+ * every command, not just this one. Importing only types from the SDK here
+ * keeps the rest of the CLI working on an SDK that predates imports; the
+ * tests pin this value to the enum.
+ */
+export const SOURCE_TYPE_URLS = 1 as ImportSourceType;
 
 const COLUMNS = new Set(["url", "external_id", "title", "description", "visibility", "duration_seconds"]);
 
@@ -89,10 +99,17 @@ export async function importCommand(ctx: Ctx, argv: string[]): Promise<number> {
     ...(flags["base-url"] !== undefined ? { baseUrl: flags["base-url"] } : {}),
   });
   const appId = session.appId !== undefined ? { appId: session.appId } : {};
+  // Typed as always present, but undefined on an installed SDK that predates
+  // imports (see SOURCE_TYPE_URLS).
+  if ((session.client as { imports?: unknown }).imports === undefined) {
+    throw new Error(
+      "this @transcodely/sdk has no imports API; reinstall the CLI to pick up a newer SDK",
+    );
+  }
 
   let imp = await session.client.imports.create({
     ...appId,
-    source: { type: ImportSourceType.URLS },
+    source: { type: SOURCE_TYPE_URLS },
     items: rows.slice(0, BATCH),
     maxSpendEur,
   });
@@ -104,7 +121,7 @@ export async function importCommand(ctx: Ctx, argv: string[]): Promise<number> {
   out.line(describeImport(imp));
   if (flags.start) {
     imp = await session.client.imports.start({ ...appId, id: imp.id, maxSpendEur });
-    out.line(`Started: ${imp.id} is ${statusName(imp.status)}.`);
+    out.line(`Started: ${imp.id} is ${statusName(imp)}.`);
   } else {
     out.line("Draft only: nothing is fetched or encoded until it is started. Run with --start to start it.");
   }
@@ -127,7 +144,7 @@ function describeImport(imp: Import): string {
   const q = imp.quote;
   const eur = (n: number | undefined) => (n === undefined ? undefined : `EUR ${n.toFixed(2)}`);
   return [
-    `Import ${imp.id} (${statusName(imp.status)})`,
+    `Import ${imp.id} (${statusName(imp)})`,
     fields([
       ["items", q ? String(q.itemCount) : undefined],
       ["known minutes", q ? (q.knownDurationSeconds / 60).toFixed(1) : undefined],
@@ -139,8 +156,9 @@ function describeImport(imp: Import): string {
   ].join("\n");
 }
 
-function statusName(status: ImportStatus): string {
-  return (ImportStatus[status] ?? "unknown").toLowerCase();
+/** The status as the API spells it ("draft", "running"), via the wire codec. */
+function statusName(imp: Import): string {
+  return (wire(imp) as { status?: string }).status ?? "unknown";
 }
 
 /**
