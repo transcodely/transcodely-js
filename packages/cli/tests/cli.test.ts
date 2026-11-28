@@ -795,7 +795,8 @@ describe("transcodely import urls", () => {
         "https://example.com/b.mp4,b-1,,\n",
     );
     const res = await cli(["import", "urls", file, "--max-spend", "25"], { env });
-    expect(res.stderr).toBe("");
+    // The id is named as soon as the draft exists.
+    expect(res.stderr).toBe(`created draft import ${IMPORT_ID}\n`);
     expect(res.code).toBe(0);
     const calls = importCalls();
     expect(calls.map((c) => c.method)).toEqual(["Create"]);
@@ -896,6 +897,50 @@ describe("transcodely import urls", () => {
     expect(res.stdout).toContain(`Import ${IMPORT_ID} (draft)`);
   });
 
+  it.each([[false], [true]])(
+    "names the draft when an AddItems batch fails (--json %s)",
+    async (json) => {
+      const env = await withApi({
+        errors: { AddItems: { status: 400, code: "failed_precondition", errorCode: "import_invalid_state", message: "import is not a draft" } },
+      });
+      const lines = Array.from({ length: 1500 }, (_, i) => `https://example.com/${String(i)}.mp4`);
+      const file = await csv("big.csv", lines.join("\n"));
+      const res = await cli(["import", "urls", file, "--max-spend", "5", ...(json ? ["--json"] : [])], { env });
+      expect(res.code).toBe(1);
+      expect(importCalls().map((c) => c.method)).toEqual(["Create", "AddItems"]);
+      expect(res.stderr).toContain(
+        `adding items 1001-1500 failed; draft import ${IMPORT_ID} holds the first 1000 of 1500 items`,
+      );
+      expect(res.stderr).toContain("import_invalid_state: import is not a draft");
+      if (json) expect(JSON.parse(res.stdout).error.code).toBe("import_invalid_state");
+    },
+  );
+
+  it("sends an Idempotency-Key on every ImportService write, and none on reads", async () => {
+    const seen: Record<string, string | null> = {};
+    const fetchImpl = (async (u: string | URL | Request, init?: RequestInit) => {
+      seen[String(u).split("/").pop()!] = (init!.headers as Headers).get("idempotency-key");
+      const body = String(u).endsWith("/List") || String(u).endsWith("/ListItems") ? {} : { import: { id: IMPORT_ID } };
+      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    const { Transcodely } = await import("@transcodely/sdk");
+    const c = new Transcodely({ apiKey: "ak_x", baseUrl: "https://example.invalid", fetchImpl });
+    await c.imports.create({ items: [{ url: "https://x/a.mp4" }] });
+    await c.imports.addItems({ id: IMPORT_ID, items: [{ url: "https://x/b.mp4" }] });
+    await c.imports.start({ id: IMPORT_ID, maxSpendEur: 5 });
+    await c.imports.update({ id: IMPORT_ID, maxSpendEur: 6 });
+    await c.imports.pause(IMPORT_ID);
+    await c.imports.resume(IMPORT_ID);
+    await c.imports.cancel(IMPORT_ID);
+    await c.imports.get(IMPORT_ID);
+    await c.imports.list().fetch();
+    await c.imports.listItems({ id: IMPORT_ID }).fetch();
+    for (const m of ["Create", "AddItems", "Start", "Update", "Pause", "Resume", "Cancel"]) {
+      expect(seen[m], m).toMatch(/^[0-9a-f-]{36}$/);
+    }
+    for (const m of ["Get", "List", "ListItems"]) expect(seen[m], m).toBeNull();
+  });
+
   it("names a missing subcommand or file as a usage error", async () => {
     expect((await cli(["import"], { env: { TRANSCODELY_API_KEY: "ak_x" } })).code).toBe(2);
     expect((await cli(["import", "csv", "x.csv"], { env: { TRANSCODELY_API_KEY: "ak_x" } })).code).toBe(2);
@@ -938,6 +983,18 @@ describe("parseImportCsv", () => {
   it("refuses a row with no url and a non-numeric duration", () => {
     expect(() => parseImportCsv("url,title\n,Hello\n")).toThrow(/row 2 has no url/);
     expect(() => parseImportCsv("url,duration_seconds\nhttps://x/a.mp4,long\n")).toThrow(/duration_seconds/);
+  });
+
+  it("refuses a header that names a column twice", () => {
+    expect(() => parseImportCsv("url,title,Title\nhttps://x/a.mp4,A,B\n")).toThrow(/names "title" twice/);
+  });
+
+  it("refuses text after a closing quote, naming the row", () => {
+    expect(() => parseImportCsv('url,title\nhttps://x/a.mp4,"Hello" world\n')).toThrow(
+      /row 2: text after a closing quote/,
+    );
+    // A closing quote followed by a separator, a line break or the end is fine.
+    expect(parseImportCsv('url,title\r\n"https://x/a.mp4","Hi"')).toEqual([{ url: "https://x/a.mp4", title: "Hi" }]);
   });
 
   it("refuses an unterminated quote", () => {

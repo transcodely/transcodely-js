@@ -113,9 +113,21 @@ export async function importCommand(ctx: Ctx, argv: string[]): Promise<number> {
     items: rows.slice(0, BATCH),
     maxSpendEur,
   });
+  out.note(`created draft import ${imp.id}`);
   for (let i = BATCH; i < rows.length; i += BATCH) {
     out.note(`adding items ${String(i + 1)}-${String(Math.min(i + BATCH, rows.length))}`);
-    imp = await session.client.imports.addItems({ ...appId, id: imp.id, items: rows.slice(i, i + BATCH) });
+    try {
+      imp = await session.client.imports.addItems({ ...appId, id: imp.id, items: rows.slice(i, i + BATCH) });
+    } catch (err) {
+      // Written in --json mode too: the error document names only the refusal,
+      // and without the id the draft is invisible and a rerun makes a second one.
+      ctx.stderr(
+        `transcodely: adding items ${String(i + 1)}-${String(Math.min(i + BATCH, rows.length))} failed; ` +
+          `draft import ${imp.id} holds the first ${String(i)} of ${String(rows.length)} items and nothing ` +
+          "was started. Running the command again creates a new import.\n",
+      );
+      throw err;
+    }
   }
 
   out.line(describeImport(imp));
@@ -175,6 +187,8 @@ export function parseImportCsv(text: string): ImportRow[] {
   const headerless = /^https?:\/\//i.test(first[0]?.trim() ?? "");
   const header = headerless ? ["url"] : first.map((h) => h.trim().toLowerCase());
   if (!headerless) {
+    const duplicate = header.find((h, i) => header.indexOf(h) !== i);
+    if (duplicate !== undefined) throw new UsageError(`the CSV header names "${duplicate}" twice`);
     const unknown = header.filter((h) => !COLUMNS.has(h));
     if (unknown.length > 0) {
       throw new UsageError(
@@ -225,14 +239,23 @@ function csvRecords(text: string): string[][] {
   let record: string[] = [];
   let field = "";
   let quoted = false;
+  // Just closed a quoted field: only a separator or the end may follow.
+  let closed = false;
   for (let i = 0; i < text.length; i++) {
     const c = text[i]!;
+    if (closed && c !== "," && c !== "\n" && c !== "\r") {
+      throw new UsageError(
+        `row ${String(records.length + 1)}: text after a closing quote — quote the whole field`,
+      );
+    }
+    closed = false;
     if (quoted) {
       if (c === '"' && text[i + 1] === '"') {
         field += '"';
         i++;
       } else if (c === '"') {
         quoted = false;
+        closed = true;
       } else {
         field += c;
       }
