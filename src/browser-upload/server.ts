@@ -26,7 +26,7 @@
 
 import type { PartialMessage } from "@bufbuild/protobuf";
 
-import type { CreateMultipartUploadRequest } from "../gen/transcodely/v1/video_pb.js";
+import type { CreateMultipartUploadRequest } from "@transcodely/sdk";
 import { MAX_FILE_SIZE, acceptsFile, formatBytes, partSizeFor, partsFor } from "./index.js";
 import type { UploadRequest, WireFile } from "./index.js";
 

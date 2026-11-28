@@ -14,12 +14,14 @@ const FILES = [
 
 for (const file of FILES) {
   const code = await readFile(file, "utf8");
-  const fixed = code.replace(
-    /(["'])(?:\.\.?\/)+(?:src\/)?browser-upload\/index(?:\.[jt]s)?\1/g,
-    '"@transcodely/sdk/upload"',
-  );
-  if (/["'](?:\.\.?\/)+(?:src|browser-upload|react)\//.test(fixed)) {
-    throw new Error(`${file} still imports a source path`);
-  }
+  // dist/upload/server.* sits beside the core, so rollup may write "./index.ts"
+  // there; from dist/react/ the core is "../browser-upload/index.ts" or similar.
+  const core = file.startsWith("dist/upload/")
+    ? /(["'])(?:\.\.?\/)+(?:(?:src\/)?browser-upload\/)?index(?:\.d)?(?:\.[cm]?[jt]s)?\1/g
+    : /(["'])(?:\.\.?\/)+(?:src\/)?browser-upload\/index(?:\.d)?(?:\.[cm]?[jt]s)?\1/g;
+  const fixed = code.replace(core, '"@transcodely/sdk/upload"');
+  // Any relative specifier left is a path that exists only in this repo.
+  const relative = fixed.match(/\bfrom\s*["']\.{1,2}\/[^"']*["']|\bimport\(\s*["']\.{1,2}\/[^"']*["']\s*\)/);
+  if (relative) throw new Error(`${file} still has a relative import: ${relative[0]}`);
   if (fixed !== code) await writeFile(file, fixed);
 }

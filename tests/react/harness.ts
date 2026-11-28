@@ -8,21 +8,11 @@
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
-import { memoryStore, partSizeFor } from "../../src/browser-upload/index.js";
+import { partSizeFor } from "../../src/browser-upload/index.js";
 
 export const ENDPOINT = "/api/transcodely/upload";
 export const VIDEO_ID = "vid_a1b2c3d4e5f6g7";
 const STORAGE = "https://storage.test/part/";
-
-/** True once the real core replaced the type-level stub (whose functions throw). */
-export const CORE_READY = (() => {
-  try {
-    memoryStore();
-    return true;
-  } catch {
-    return false;
-  }
-})();
 
 export interface Call {
   action: string;

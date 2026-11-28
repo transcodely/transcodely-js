@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TranscodelyUploader, formatBytes, type TranscodelyUploaderProps } from "../../src/react/index.js";
 import {
-  CORE_READY,
   ENDPOINT,
   MiB,
   VIDEO_ID,
@@ -105,9 +104,8 @@ describe("formatBytes", () => {
 });
 
 // Everything below drives the real upload core (src/browser-upload) through a
-// fake backend. Until the core replaces its type-level stub these are
-// skipped, and say so in the test name.
-describe.skipIf(!CORE_READY)(`<TranscodelyUploader> uploading${CORE_READY ? "" : " (waits on the real core)"}`, () => {
+// fake backend.
+describe("<TranscodelyUploader> uploading", () => {
   it("starts uploading when a file is chosen, then reports success", async () => {
     const backend = fakeBackend();
     const onSuccess = vi.fn();

@@ -2,7 +2,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTranscodelyUpload, type TranscodelyUploadControls } from "../../src/react/index.js";
-import { CORE_READY, ENDPOINT, VIDEO_ID, cleanup, fakeBackend, render, video, waitFor } from "./harness.js";
+import { ENDPOINT, VIDEO_ID, cleanup, fakeBackend, render, video, waitFor } from "./harness.js";
 
 beforeEach(() => vi.stubGlobal("XMLHttpRequest", undefined));
 afterEach(async () => {
@@ -27,7 +27,7 @@ describe("useTranscodelyUpload", () => {
   });
 });
 
-describe.skipIf(!CORE_READY)(`useTranscodelyUpload uploading${CORE_READY ? "" : " (waits on the real core)"}`, () => {
+describe("useTranscodelyUpload uploading", () => {
   it("resolves start() with the result and exposes the video id", async () => {
     const backend = fakeBackend();
     const view = await render(<Probe endpoint={ENDPOINT} fetch={backend.fetch} store={false} />);

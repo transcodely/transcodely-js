@@ -153,6 +153,60 @@ export const POST = createUploadHandler({
 });
 `;
 
+// A Next.js route handler, as the docs show it: a real client, and authorize
+// returning defaults that are fields of CreateMultipartUploadRequest.
+const SERVER_USAGE = `import { Transcodely } from "@transcodely/sdk";
+import { createUploadHandler, type AuthorizeResult, type UploadDefaults } from "@transcodely/sdk/upload/server";
+
+const client = new Transcodely({ apiKey: "ak_test" });
+const defaults: UploadDefaults = { visibility: "private", tags: ["user:42"] };
+
+export const POST: (request: Request) => Promise<Response> = createUploadHandler({
+  client,
+  secret: "a".repeat(32),
+  maxFileSize: 2 * 1024 ** 3,
+  accept: "video/*",
+  ticketTtlSeconds: 3600,
+  authorize: async (request, ctx): Promise<AuthorizeResult> => {
+    if (!request.headers.get("cookie")) return { allow: false, status: 401, message: "Sign in to upload." };
+    if (ctx.action === "create" && ctx.file && ctx.file.size > 0) return { allow: true, subject: "user_42", defaults };
+    return { allow: true, subject: "user_42" };
+  },
+});
+`;
+
+// A plain-fetch app with no React, using the core directly.
+const CORE_USAGE = `import {
+  MAX_FILE_SIZE, acceptsFile, createUpload, indexedDBStore, memoryStore, partSizeFor,
+  TranscodelyUploadError, type Upload, type UploadProgress, type UploadState,
+} from "@transcodely/sdk/upload";
+
+export async function send(file: File): Promise<string | undefined> {
+  if (!acceptsFile(file, "video/*") || file.size > MAX_FILE_SIZE) return undefined;
+  const upload: Upload = createUpload(file, {
+    endpoint: "/api/transcodely/upload",
+    headers: async () => ({ "x-csrf": "token" }),
+    metadata: { title: file.name },
+    concurrency: 4,
+    store: indexedDBStore("my-app"),
+    onProgress: (p: UploadProgress) => p.percent,
+    onStateChange: (s: UploadState) => s,
+  });
+  const unsubscribe = upload.subscribe(() => upload.state);
+  try {
+    const { videoId, resumed } = await upload.start();
+    return resumed ? videoId : videoId.toUpperCase();
+  } catch (err) {
+    if (err instanceof TranscodelyUploadError) return err.code;
+    throw err;
+  } finally {
+    unsubscribe();
+  }
+}
+export const fallback = memoryStore();
+export const part: number = partSizeFor(1024);
+`;
+
 /**
  * Type-checks `source` as a page in the unpacked app, with `reactTypes` (an
  * entry of this repo's node_modules/@types) linked as the app's @types/react.
@@ -194,6 +248,56 @@ async function typecheck(reactTypes: string, source: string): Promise<{ ok: bool
     return { ok: false, out: (err as { stdout?: string }).stdout ?? String(err) };
   }
 }
+
+describe("@transcodely/sdk/upload/server and /upload in a TypeScript project", () => {
+  it("type-checks a route handler with a real client and authorize defaults", async () => {
+    const res = await typecheck("react", SERVER_USAGE);
+    expect(res.out).toBe("");
+    expect(res.ok).toBe(true);
+  }, 60_000);
+
+  it("rejects a defaults field CreateMultipartUploadRequest does not have", async () => {
+    const res = await typecheck(
+      "react",
+      `import { createUploadHandler } from "@transcodely/sdk/upload/server";
+export const POST = createUploadHandler({
+  client: null as never,
+  authorize: () => ({ allow: true, defaults: { visibilty: "private" } }),
+});
+`,
+    );
+    expect(res.ok).toBe(false);
+    expect(res.out).toContain("visibilty");
+  }, 60_000);
+
+  it("rejects defaults that set the file's own facts", async () => {
+    const res = await typecheck(
+      "react",
+      `import type { UploadDefaults } from "@transcodely/sdk/upload/server";
+export const d: UploadDefaults = { sizeBytes: 1n };
+`,
+    );
+    expect(res.ok).toBe(false);
+    expect(res.out).toContain("sizeBytes");
+  }, 60_000);
+
+  it("type-checks a plain-fetch app using the core", async () => {
+    const res = await typecheck("react", CORE_USAGE);
+    expect(res.out).toBe("");
+    expect(res.ok).toBe(true);
+  }, 60_000);
+
+  it("rejects a wrongly typed core option", async () => {
+    const res = await typecheck(
+      "react",
+      `import { createUpload } from "@transcodely/sdk/upload";
+export const u = createUpload(new File([], "a.mp4"), { endpoint: "/x", concurrency: "3" });
+`,
+    );
+    expect(res.ok).toBe(false);
+    expect(res.out).toMatch(/page\.tsx\(2,\d+\): error TS2322: Type 'string' is not assignable to type 'number'/);
+  }, 60_000);
+});
 
 describe.each([
   ["@types/react 18", "react-18", "18."],

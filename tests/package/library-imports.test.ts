@@ -118,6 +118,12 @@ describe("the React and server bundles", () => {
     }
   });
 
+  it.each(["mjs", "cjs", "d.ts", "d.cts"])("carry nothing from src/gen (upload/server.%s)", async (ext) => {
+    const code = await readFile(join(ROOT, "dist", "upload", `server.${ext}`), "utf8");
+    // Generated messages name their proto type; the d.ts would declare the class.
+    expect(code).not.toMatch(/transcodely\.v1\.|declare class CreateMultipartUploadRequest|setEnumType/);
+  });
+
   it.each(["mjs", "cjs"])("marks the React entry as a client module (.%s)", async (ext) => {
     const code = await readFile(join(ROOT, "dist", "react", `index.${ext}`), "utf8");
     expect(code.startsWith('"use client";')).toBe(true);
