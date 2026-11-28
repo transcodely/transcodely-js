@@ -588,6 +588,10 @@ describe("createUpload", () => {
   it.each([
     ["a 503", () => new Response(JSON.stringify({ error: { code: "unavailable", message: "Busy." } }), { status: 503 })],
     ["a network error", () => Promise.reject(new TypeError("Failed to fetch"))],
+    [
+      "a 429 (a spend or queue limit)",
+      () => new Response(JSON.stringify({ error: { code: "limit_exceeded", message: "Monthly spend limit reached." } }), { status: 429 }),
+    ],
   ])("create is not retried after %s: a second create could open a second video", async (_what, answer) => {
     let creates = 0;
     const upload = createUpload(makeFile(4), {
@@ -600,22 +604,6 @@ describe("createUpload", () => {
     const err = (await upload.start().catch((e: unknown) => e)) as TranscodelyUploadError;
     expect(creates).toBe(1);
     expect(err.retryable).toBe(true); // Retry is still offered to the person uploading
-  });
-
-  it("create is retried after a 429, which the handler refused before doing anything", async () => {
-    const backend = fakeBackend();
-    let first = true;
-    const result = await createUpload(makeFile(4), {
-      ...setup(backend).options,
-      fetch: async (input, init) => {
-        if (first && String(input) === ENDPOINT) {
-          first = false;
-          return new Response(JSON.stringify({ error: { code: "rate_limited", message: "Slow down." } }), { status: 429 });
-        }
-        return backend.fetch(input, init);
-      },
-    }).start();
-    expect(result.videoId).toBe("vid_1");
   });
 
   it("sends custom headers and credentials to the endpoint only", async () => {

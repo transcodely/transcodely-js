@@ -84,8 +84,13 @@ export interface UploadHandlerClient {
       parts: { partNumber: number; etag: string }[];
     }): Promise<{ video?: { id: string; status: string } }>;
     abortMultipartUpload(req: { id: string; uploadId: string }): Promise<unknown>;
-    /** Used to tell a lost `complete` answer from a real failure. */
-    get(id: string): Promise<{ id: string; status: string }>;
+    /**
+     * Optional; a `Transcodely` client has it. Used to tell a lost `complete`
+     * answer from a real failure: when a retried complete fails but the video
+     * is already past `uploading`, the handler answers success. Without it, a
+     * failed complete passes the API's error through, as before.
+     */
+    get?(id: string): Promise<{ id: string; status: string }>;
   };
 }
 
@@ -358,7 +363,7 @@ export function createUploadHandler(opts: UploadHandlerOptions): (request: Reque
       } catch (e) {
         // A retry after a lost answer: the first complete went through, and
         // the API no longer knows this upload id. The video says it is done.
-        const got = await v.get(t.vid).catch(() => undefined);
+        const got = await v.get?.(t.vid).catch(() => undefined);
         if (!got || !COMPLETED.includes(got.status)) throw e;
         video = got;
       }

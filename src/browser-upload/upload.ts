@@ -60,9 +60,11 @@ export interface CreateUploadOptions {
   concurrency?: number;
   /**
    * Retries per part and per endpoint call, after network errors, 5xx, 408 and
-   * 429. Default 5. `create` is retried only after 429: it opens a new video,
-   * and a retry after a lost answer could open a second one. Time spent paused
-   * or offline does not use up retries.
+   * 429. Default 5. `create` is never retried on an answer or a network error:
+   * it opens a new video, a retry after a lost answer could open a second one,
+   * and a 429 there is usually a spend or queue limit that waiting will not
+   * lift. It only waits while the browser is offline. Time spent paused or
+   * offline does not use up retries.
    */
   retries?: number;
   /** First backoff step in ms; doubles per retry with jitter, capped at 30 s. Default 1000. */
@@ -212,7 +214,7 @@ export function createUpload(file: File, o: CreateUploadOptions): Upload {
       }
       // An attempt made while the browser is offline does not count.
       if (err.retryable && !last && offlineNow()) continue;
-      if (!err.retryable || last || i >= retries || canceled || (body.action === "create" && err.status !== 429)) {
+      if (!err.retryable || last || i >= retries || canceled || body.action === "create") {
         throw err;
       }
       await wait(delay(i++));

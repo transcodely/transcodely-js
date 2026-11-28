@@ -421,6 +421,16 @@ describe("createUploadHandler", () => {
       expect(client.videos.get).toHaveBeenCalledWith("vid_1");
     });
 
+    it("passes the API error through when the client has no get()", async () => {
+      const { get: _get, ...videos } = fakeClient().videos;
+      const client = { videos };
+      const h = createUploadHandler({ client, secret: SECRET, authorize: () => ({ allow: true }) });
+      const { ticket } = await create(h);
+      videos.completeMultipartUpload.mockRejectedValueOnce(gone());
+      const r = await call(h, { action: "complete", ticket, parts });
+      expect(r).toEqual({ status: 404, body: { error: { code: "not_found", message: "multipart upload not found" } } });
+    });
+
     it("passes the real error on when the video is still uploading, or cannot be read", async () => {
       const client = fakeClient();
       const h = handler(client);
