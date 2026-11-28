@@ -20,6 +20,7 @@ USAGE
   transcodely jobs ls [options]        list recent jobs
   transcodely jobs get <job_id>        show one job
   transcodely videos get <video_id>    show one hosted video
+  transcodely import urls <file.csv>   bulk-import a list of source URLs
 
 ENCODE AND HOST
   transcodely ./talk.mp4
@@ -38,6 +39,20 @@ ENCODE AND HOST
   --wait                 stay attached until the job reaches a final state
   --part-size <bytes>    upload part size (default 25 MiB, minimum 5 MiB)
   --concurrency <n>      parts uploaded at once (default 4)
+
+IMPORT
+  transcodely import urls ./library.csv --max-spend 50
+  transcodely import urls ./library.csv --max-spend 50 --start
+
+  The file is one URL per line, or a CSV whose first row names its columns:
+  url, and optionally external_id, title, description, visibility,
+  duration_seconds. Prints the quote. Without --start the import is left as a
+  draft and nothing is encoded or charged. An external_id makes a re-run
+  safe: a row whose external_id an earlier item still holds (pending,
+  running or succeeded) is skipped.
+
+  --max-spend <eur>      the most the import may spend (required)
+  --start                start the import right away
 
 LOGIN
   transcodely login --api-key ak_…     save a key non-interactively

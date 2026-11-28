@@ -6,8 +6,9 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateUploadRequest, CreateUploadResponse, DeleteCaptionStyleRequest, DeleteCaptionStyleResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetFreeTrialRequest, GetFreeTrialResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, RestyleCaptionsRequest, RestyleCaptionsResponse, SetDefaultCaptionStyleRequest, SetDefaultCaptionStyleResponse, TranslateCaptionsRequest, TranslateCaptionsResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
+import { AbortMultipartUploadRequest, AbortMultipartUploadResponse, CompleteMultipartUploadRequest, CompleteMultipartUploadResponse, CompleteTextTrackUploadResponse, CompleteUploadRequest, CompleteUploadResponse, CreateFromUrlRequest, CreateFromUrlResponse, CreateMultipartUploadRequest, CreateMultipartUploadResponse, CreateTextTrackResponse, CreateUploadRequest, CreateUploadResponse, DeleteCaptionStyleRequest, DeleteCaptionStyleResponse, DeleteTextTrackResponse, DeleteVideoRequest, DeleteVideoResponse, GenerateHighlightsRequest, GenerateHighlightsResponse, GenerateInsightsRequest, GenerateInsightsResponse, GetFreeTrialRequest, GetFreeTrialResponse, GetSeoMarkupRequest, GetSeoMarkupResponse, GetStatsRequest, GetStatsResponse, GetUploadPartUrlsRequest, GetUploadPartUrlsResponse, GetUsageRequest, GetUsageResponse, GetVideoRequest, GetVideoResponse, ListTopVideosRequest, ListTopVideosResponse, ListVideosRequest, ListVideosResponse, RestyleCaptionsRequest, RestyleCaptionsResponse, SetDefaultCaptionStyleRequest, SetDefaultCaptionStyleResponse, TranslateCaptionsRequest, TranslateCaptionsResponse, UpdateVideoRequest, UpdateVideoResponse, WatchVideoRequest, WatchVideoResponse } from "./video_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
+import { CompleteTextTrackUploadRequest, CreateTextTrackRequest, DeleteTextTrackRequest } from "./video_text_track_pb.js";
 
 /**
  * VideoService manages hosted video assets with upload, playback, and usage tracking.
@@ -217,7 +218,8 @@ export const VideoService = {
     /**
      * Generate AI insights (title suggestions, summary, key points, chapters,
      * questions, key terms, highlights, topics) from a hosted video's existing
-     * AI captions, without transcribing again. Billed EUR 0.05 per video plus
+     * captions (AI captions, or a track attached with CreateTextTrack), without
+     * transcribing again. Billed EUR 0.05 per video plus
      * EUR 0.005 per minute of source, charged only when the insights become
      * ready. Returns the entry in "pending"; it also appears on Video.insights,
      * and video.insights.ready or video.insights.failed fires when it finishes.
@@ -227,8 +229,11 @@ export const VideoService = {
      * new call generates (and bills) a new entry; it replaces the ready one
      * only when it becomes ready itself.
      *
+     * When a language has both AI captions and a track attached with
+     * CreateTextTrack, the attached track is read.
+     *
      * Refused with failed_precondition and code captions_required when the
-     * video has no AI captions, and insights_transcript_unavailable when the
+     * video has no captions, and insights_transcript_unavailable when the
      * caption track has no transcript.
      *
      * @generated from rpc transcodely.v1.VideoService.GenerateInsights
@@ -280,14 +285,18 @@ export const VideoService = {
       kind: MethodKind.Unary,
     },
     /**
-     * Translate a hosted video's existing AI captions into other languages,
+     * Translate a hosted video's existing captions into other languages,
      * without transcribing again. Creates one captions-only job on the video
      * (input_video_id = the video) that reads the transcript of the source
-     * language's default caption style (VideoTextTrack.is_default) and
+     * language's track: a ready track attached with CreateTextTrack when the
+     * language has one (subtitles before captions), else its AI captions'
+     * default caption style (VideoTextTrack.is_default), and
      * writes, per target language: a caption track (replacing any existing
      * auto-generated track of that language on completion), its transcript
-     * renditions and, when the video streams as HLS, a caption rendition in
-     * the manifest. With include_insights (default true) and ready insights in
+     * renditions and, when the video streams as HLS and its stream carries the
+     * source language's AI captions, a caption rendition in the manifest
+     * (otherwise the translations are attached as sidecar files, in_manifest
+     * false). With include_insights (default true) and ready insights in
      * the source language, the insights are translated too and appear as one
      * more Video.insights entry per language (video.insights.ready fires).
      *
@@ -303,7 +312,8 @@ export const VideoService = {
      * translates (and bills) again and replaces the tracks.
      *
      * Refused with failed_precondition and code captions_required when the
-     * video has no AI captions, insights_transcript_unavailable when the
+     * video has no AI captions and no attached track, or the source language
+     * only has translations, insights_transcript_unavailable when the
      * source track has no transcript, and with invalid_argument
      * (parameter_invalid) when a target equals the source language or is not a
      * supported translation language (the violation lists the supported codes).
@@ -448,6 +458,90 @@ export const VideoService = {
       name: "GetFreeTrial",
       I: GetFreeTrialRequest,
       O: GetFreeTrialResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Attaches a caption file you already have (SubRip or WebVTT) to a hosted
+     * video, by URL or by direct upload, as a text track with auto_generated
+     * false. Free. The video may be ready or still processing; the app's
+     * managed hosting must be on.
+     *
+     * With source.url the file is downloaded, checked and attached during the
+     * call: the track is "ready" in the response. With source.upload (giving
+     * the file's size_bytes) the track is "processing" and the response
+     * carries upload_url, signed for exactly that length; PUT the file there,
+     * then call CompleteTextTrackUpload.
+     *
+     * A ready track is listed in Video.text_tracks with its url and its
+     * transcript renditions (json, txt, md), shown in the hosted player, and,
+     * when the video streams as HLS, added to its master playlist as a
+     * subtitles rendition (in_manifest true; the playlist is purged from the
+     * CDN). While a video is still processing, or streams only as DASH, the
+     * track is attached as a sidecar file (in_manifest false); a video that
+     * finishes processing later gets it in its HLS playlist too. An uploaded
+     * track can be the source of TranslateCaptions and GenerateInsights.
+     *
+     * Refused with invalid_argument and code text_track_invalid when the file
+     * is not valid (the message says what is wrong and where), and
+     * text_track_too_large when it is over 5 MB; with already_exists when the
+     * video already has an uploaded track of that language and kind and
+     * replace is false; with failed_precondition when the app's managed
+     * hosting is off or the video is not ready or processing (still
+     * uploading, failed, archived); with not_found (video_not_found) for a
+     * video of another app; with failed_precondition and code
+     * captions_job_in_flight when replace would remove a track that a running
+     * translation job or a pending GenerateInsights pass is reading (the
+     * message names it); and with unavailable (caption_manifest_busy,
+     * translation_busy) when the video's captions were being changed at the
+     * same moment: nothing was attached, retry in a few seconds.
+     *
+     * @generated from rpc transcodely.v1.VideoService.CreateTextTrack
+     */
+    createTextTrack: {
+      name: "CreateTextTrack",
+      I: CreateTextTrackRequest,
+      O: CreateTextTrackResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Finishes a track created with source.upload once its file has been PUT
+     * to upload_url: the file is read, checked and attached exactly as a
+     * source.url file is, and the track is returned "ready". A file that is
+     * refused marks the track "failed" with a failure_message and returns the
+     * same text_track_invalid or text_track_too_large error; a file that was
+     * never uploaded is refused with failed_precondition and code
+     * text_track_upload_missing, and the track stays "processing", so the
+     * upload can be retried. Calling it again on a ready
+     * track returns the track unchanged; on a failed one, the refusal again. A
+     * track superseded by a later CreateTextTrack of the same language and
+     * kind is not_found (text_track_not_found).
+     *
+     * @generated from rpc transcodely.v1.VideoService.CompleteTextTrackUpload
+     */
+    completeTextTrackUpload: {
+      name: "CompleteTextTrackUpload",
+      I: CompleteTextTrackUploadRequest,
+      O: CompleteTextTrackUploadResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Removes a track attached with CreateTextTrack: its entry in the video's
+     * HLS master playlist (purged from the CDN), the track and its files.
+     * Free. Only uploaded tracks can be removed here; AI caption styles are
+     * removed with DeleteCaptionStyle. Refused with not_found
+     * (text_track_not_found) for a track that is not an uploaded track of this
+     * video, with failed_precondition and code captions_job_in_flight while a
+     * running translation job or a pending GenerateInsights pass reads the
+     * track (the message names it), and with unavailable (caption_manifest_busy, translation_busy)
+     * when the video's captions were being changed at the same moment: nothing
+     * was changed, retry in a few seconds.
+     *
+     * @generated from rpc transcodely.v1.VideoService.DeleteTextTrack
+     */
+    deleteTextTrack: {
+      name: "DeleteTextTrack",
+      I: DeleteTextTrackRequest,
+      O: DeleteTextTrackResponse,
       kind: MethodKind.Unary,
     },
   }

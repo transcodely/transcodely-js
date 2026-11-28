@@ -10,6 +10,8 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 export interface RpcCall {
+  /** Service name, e.g. "transcodely.v1.ImportService". */
+  service: string;
   method: string;
   body: any;
   authorization: string | undefined;
@@ -21,7 +23,7 @@ export interface MockApiOptions {
   /** Sequence of statuses a Watch stream emits, ending the stream after the last. */
   watchStatuses?: string[];
   /** Answer this method with a Connect error instead of a result. */
-  errors?: Record<string, { status: number; code: string; message: string }>;
+  errors?: Record<string, { status: number; code: string; message: string; errorCode?: string }>;
   /** Jobs returned by JobService/List. */
   jobs?: Record<string, unknown>[];
 }
@@ -60,6 +62,31 @@ export function jobJson(status: string, extra: Record<string, unknown> = {}): Re
   };
 }
 
+export const IMPORT_ID = "imp_a1b2c3d4e5f6";
+
+export function importJson(status: string, items: number, maxSpendEur?: number): Record<string, unknown> {
+  return {
+    object: "import",
+    id: IMPORT_ID,
+    app_id: "app_k1l2m3n4o5",
+    status,
+    source: { type: "urls" },
+    ...(maxSpendEur !== undefined ? { max_spend_eur: maxSpendEur } : {}),
+    spent_eur: 0,
+    reserved_eur: 0,
+    quote: {
+      item_count: items,
+      known_duration_seconds: 600,
+      unknown_duration_items: 1,
+      estimated_encode_eur: 1.25,
+      estimated_storage_eur_per_month: 0.04,
+      currency: "EUR",
+      free_encode_seconds_applied: 0,
+    },
+    counts: { pending: items },
+  };
+}
+
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -82,6 +109,8 @@ export async function startMockApi(opts: MockApiOptions = {}): Promise<MockApi> 
   const calls: RpcCall[] = [];
   const puts: { url: string; size: number }[] = [];
   let base = "";
+  let importItems = 0;
+  let importCap: number | undefined;
 
   const server: Server = createServer((req, res) => {
     void (async () => {
@@ -96,15 +125,21 @@ export async function startMockApi(opts: MockApiOptions = {}): Promise<MockApi> 
       }
 
       const method = path.split("/").pop() ?? "";
+      const service = path.split("/").slice(-2)[0] ?? "";
       const parsed: any =
         req.headers["content-type"] === "application/connect+json"
           ? JSON.parse(body.subarray(5).toString("utf8") || "{}")
           : JSON.parse(body.toString("utf8") || "{}");
-      calls.push({ method, body: parsed, authorization: req.headers.authorization });
+      calls.push({ service, method, body: parsed, authorization: req.headers.authorization });
 
       const scripted = opts.errors?.[method];
       if (scripted) {
-        res.writeHead(scripted.status, { "content-type": "application/json" });
+        // errorCode rides in the `error-code` header, as the API sends its
+        // discriminator on a refusal that carries no ErrorDetails.
+        res.writeHead(scripted.status, {
+          "content-type": "application/json",
+          ...(scripted.errorCode ? { "error-code": scripted.errorCode } : {}),
+        });
         res.end(JSON.stringify({ code: scripted.code, message: scripted.message }));
         return;
       }
@@ -121,6 +156,17 @@ export async function startMockApi(opts: MockApiOptions = {}): Promise<MockApi> 
       };
 
       const created = opts.createdStatus ?? "processing";
+
+      // Bulk imports: the import grows with each AddItems, and its quote counts
+      // every item sent so far.
+      if (service === "transcodely.v1.ImportService") {
+        if (method === "Create") importItems = 0;
+        importItems += Array.isArray(parsed.items) ? parsed.items.length : 0;
+        if (method === "Create") importCap = parsed.max_spend_eur;
+        if (method === "Start" && parsed.max_spend_eur !== undefined) importCap = parsed.max_spend_eur;
+        send({ import: importJson(method === "Start" ? "running" : "draft", importItems, importCap) });
+        return;
+      }
 
       switch (method) {
         case "CreateFromUrl":

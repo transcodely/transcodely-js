@@ -8,6 +8,7 @@ import type { JsonValue } from "@bufbuild/protobuf";
 
 import { fromJson } from "../codec/json.js";
 import { App } from "../gen/transcodely/v1/app_pb.js";
+import { Import } from "../gen/transcodely/v1/import_pb.js";
 import { Job, JobOutput } from "../gen/transcodely/v1/job_pb.js";
 import { TranscriptInsights } from "../gen/transcodely/v1/subtitles_pb.js";
 import { Video } from "../gen/transcodely/v1/video_pb.js";
@@ -69,7 +70,9 @@ export type KnownWebhookEvent =
   | (EventBase & { type: "app.created";     data: App })
   | (EventBase & { type: "app.updated";     data: App })
   | (EventBase & { type: "app.spend_limit_warning";  data: SpendLimitNotification })
-  | (EventBase & { type: "app.spend_limit_exceeded"; data: SpendLimitNotification });
+  | (EventBase & { type: "app.spend_limit_exceeded"; data: SpendLimitNotification })
+  | (EventBase & { type: "import.completed"; data: Import })
+  | (EventBase & { type: "import.paused";    data: Import });
 
 /**
  * Forward-compat arm: an event whose `type` this SDK version does not know
@@ -121,7 +124,7 @@ export interface SpendLimitNotification {
 }
 
 /**
- * The 22 concrete webhook event types the API can emit. Mirrors the source of
+ * The 26 concrete webhook event types the API can emit. Mirrors the source of
  * truth in `domain.WebhookEventTypes()` (api/internal/domain/webhook.go). The
  * `"*"` wildcard is a subscription-only value and is intentionally absent.
  *
@@ -154,6 +157,8 @@ export const WEBHOOK_EVENT_TYPES = [
   "app.updated",
   "app.spend_limit_warning",
   "app.spend_limit_exceeded",
+  "import.completed",
+  "import.paused",
 ] as const;
 
 /** A concrete event type the API can emit (excludes the `"*"` wildcard). */
@@ -208,7 +213,7 @@ export function isEventType<T extends WebhookEventType>(
 /** A resource decoder for a given event-type prefix. */
 interface DecoderEntry {
   prefix: string;
-  decode: (json: unknown) => Job | JobOutput | Video | App | TranscriptInsights;
+  decode: (json: unknown) => Job | JobOutput | Video | App | TranscriptInsights | Import;
 }
 
 /**
@@ -232,6 +237,7 @@ export const RESOURCE_DECODERS: readonly DecoderEntry[] = [
   { prefix: "job.",    decode: (json) => fromJson(json as JsonValue, Job) },
   { prefix: "video.",  decode: (json) => fromJson(json as JsonValue, Video) },
   { prefix: "app.",    decode: (json) => fromJson(json as JsonValue, App) },
+  { prefix: "import.", decode: (json) => fromJson(json as JsonValue, Import) },
 ];
 
 /**

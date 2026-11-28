@@ -4,13 +4,22 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { JobStatus, VideoStatus } from "@transcodely/sdk";
+import { ImportSourceType, JobStatus, VideoStatus } from "@transcodely/sdk";
 
 import { TERMINAL_JOB, TERMINAL_VIDEO } from "../src/commands/upload.js";
 import { fileStore, type CredentialStore } from "../src/credentials.js";
 import { run } from "../src/main.js";
 import { CLI_VERSION } from "../src/version.js";
-import { JOB_ID, VIDEO_ID, jobJson, startMockApi, type MockApi, type MockApiOptions } from "./mock-api.js";
+import { SOURCE_TYPE_URLS, parseImportCsv } from "../src/commands/import.js";
+import {
+  IMPORT_ID,
+  JOB_ID,
+  VIDEO_ID,
+  jobJson,
+  startMockApi,
+  type MockApi,
+  type MockApiOptions,
+} from "./mock-api.js";
 
 let tmp: string;
 let api: MockApi | undefined;
@@ -765,5 +774,230 @@ describe("API errors", () => {
     const res = await cli(["jobs", "get", JOB_ID], { env });
     expect(res.code).toBe(1);
     expect(res.stderr).toContain("no such job");
+  });
+});
+
+describe("transcodely import urls", () => {
+  const importCalls = () => api!.calls.filter((c) => c.service === "transcodely.v1.ImportService");
+
+  async function csv(name: string, text: string): Promise<string> {
+    const path = join(tmp, name);
+    await writeFile(path, text);
+    return path;
+  }
+
+  it("creates a draft import from a CSV, sends each column, and prints the quote", async () => {
+    const env = await withApi();
+    const file = await csv(
+      "library.csv",
+      'url,external_id,title,duration_seconds\n' +
+        'https://example.com/a.mp4,a-1,"Talk, part one",600\n' +
+        "https://example.com/b.mp4,b-1,,\n",
+    );
+    const res = await cli(["import", "urls", file, "--max-spend", "25"], { env });
+    // The id is named as soon as the draft exists.
+    expect(res.stderr).toBe(`created draft import ${IMPORT_ID}\n`);
+    expect(res.code).toBe(0);
+    const calls = importCalls();
+    expect(calls.map((c) => c.method)).toEqual(["Create"]);
+    expect(calls[0]!.body).toMatchObject({
+      app_id: "app_k1l2m3n4o5",
+      source: { type: "urls" },
+      max_spend_eur: 25,
+      items: [
+        { url: "https://example.com/a.mp4", external_id: "a-1", title: "Talk, part one", duration_seconds: 600 },
+        { url: "https://example.com/b.mp4", external_id: "b-1" },
+      ],
+    });
+    expect(calls[0]!.body.items[1].title).toBe("");
+    expect(res.stdout).toContain(`Import ${IMPORT_ID} (draft)`);
+    expect(res.stdout).toMatch(/items\s+2/);
+    expect(res.stdout).toMatch(/est\. encode\s+EUR 1\.25/);
+    expect(res.stdout).toMatch(/spend cap\s+EUR 25\.00/);
+    expect(res.stdout).toContain("1 items, not in the estimate");
+    expect(res.stdout).toContain("Run with --start");
+  });
+
+  it("--start starts it under the same cap", async () => {
+    const env = await withApi();
+    const file = await csv("urls.txt", "https://example.com/a.mp4\nhttps://example.com/b.mp4\n");
+    const res = await cli(["import", "urls", file, "--max-spend", "10", "--start", "--json"], { env });
+    expect(res.code).toBe(0);
+    const calls = importCalls();
+    expect(calls.map((c) => c.method)).toEqual(["Create", "Start"]);
+    expect(calls[1]!.body).toMatchObject({ id: IMPORT_ID, max_spend_eur: 10, app_id: "app_k1l2m3n4o5" });
+    const doc: any = JSON.parse(res.stdout);
+    expect(doc.import.status).toBe("running");
+    expect(doc.import.quote.item_count).toBe(2);
+  });
+
+  it("sends more than 1,000 rows as Create plus AddItems batches of at most 1,000", async () => {
+    const env = await withApi();
+    const lines = Array.from({ length: 2500 }, (_, i) => `https://example.com/${String(i)}.mp4`);
+    const file = await csv("big.csv", `${lines.join("\n")}\n`);
+    const res = await cli(["import", "urls", file, "--max-spend", "100", "--json"], { env });
+    expect(res.code).toBe(0);
+    const calls = importCalls();
+    expect(calls.map((c) => [c.method, c.body.items.length])).toEqual([
+      ["Create", 1000],
+      ["AddItems", 1000],
+      ["AddItems", 500],
+    ]);
+    expect(calls[1]!.body.id).toBe(IMPORT_ID);
+    expect(calls[2]!.body.items[499].url).toBe("https://example.com/2499.mp4");
+    expect(JSON.parse(res.stdout).import.quote.item_count).toBe(2500);
+  });
+
+  it("requires --max-spend and calls nothing without it", async () => {
+    const env = await withApi();
+    const file = await csv("a.csv", "https://example.com/a.mp4\n");
+    const res = await cli(["import", "urls", file], { env });
+    expect(res.code).toBe(2);
+    expect(res.stderr).toContain("--max-spend");
+    expect(api!.calls).toEqual([]);
+  });
+
+  it.each(["0", "-5", "ten", ""])("refuses --max-spend %j", async (cap) => {
+    const env = await withApi();
+    const file = await csv("a.csv", "https://example.com/a.mp4\n");
+    const res = await cli(["import", "urls", file, `--max-spend=${cap}`], { env });
+    expect(res.code).toBe(2);
+    expect(api!.calls).toEqual([]);
+  });
+
+  it("refuses a file over 10,000 URLs before creating anything", async () => {
+    const env = await withApi();
+    const lines = Array.from({ length: 10_001 }, (_, i) => `https://example.com/${String(i)}.mp4`);
+    const file = await csv("huge.csv", lines.join("\n"));
+    const res = await cli(["import", "urls", file, "--max-spend", "5"], { env });
+    expect(res.code).toBe(2);
+    expect(res.stderr).toContain("at most 10000");
+    expect(api!.calls).toEqual([]);
+  });
+
+  it("surfaces a refused start with the API's code and its hint", async () => {
+    const env = await withApi({
+      errors: {
+        Start: {
+          status: 429,
+          code: "resource_exhausted",
+          errorCode: "limit_exceeded",
+          message: "app monthly spend limit reached",
+        },
+      },
+    });
+    const file = await csv("a.csv", "https://example.com/a.mp4\n");
+    const res = await cli(["import", "urls", file, "--max-spend", "5", "--start"], { env });
+    expect(res.code).toBe(1);
+    // Exactly one Start: a quota refusal is not retried.
+    expect(importCalls().map((c) => c.method)).toEqual(["Create", "Start"]);
+    expect(res.stderr).toContain("limit_exceeded: app monthly spend limit reached");
+    expect(res.stderr).toContain("over its monthly spend limit");
+    // The draft it did create is named before the refusal.
+    expect(res.stdout).toContain(`Import ${IMPORT_ID} (draft)`);
+  });
+
+  it.each([[false], [true]])(
+    "names the draft when an AddItems batch fails (--json %s)",
+    async (json) => {
+      const env = await withApi({
+        errors: { AddItems: { status: 400, code: "failed_precondition", errorCode: "import_invalid_state", message: "import is not a draft" } },
+      });
+      const lines = Array.from({ length: 1500 }, (_, i) => `https://example.com/${String(i)}.mp4`);
+      const file = await csv("big.csv", lines.join("\n"));
+      const res = await cli(["import", "urls", file, "--max-spend", "5", ...(json ? ["--json"] : [])], { env });
+      expect(res.code).toBe(1);
+      expect(importCalls().map((c) => c.method)).toEqual(["Create", "AddItems"]);
+      expect(res.stderr).toContain(
+        `adding items 1001-1500 failed; draft import ${IMPORT_ID} holds the first 1000 of 1500 items`,
+      );
+      expect(res.stderr).toContain("import_invalid_state: import is not a draft");
+      if (json) expect(JSON.parse(res.stdout).error.code).toBe("import_invalid_state");
+    },
+  );
+
+  it("sends an Idempotency-Key on every ImportService write, and none on reads", async () => {
+    const seen: Record<string, string | null> = {};
+    const fetchImpl = (async (u: string | URL | Request, init?: RequestInit) => {
+      seen[String(u).split("/").pop()!] = (init!.headers as Headers).get("idempotency-key");
+      const body = String(u).endsWith("/List") || String(u).endsWith("/ListItems") ? {} : { import: { id: IMPORT_ID } };
+      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    const { Transcodely } = await import("@transcodely/sdk");
+    const c = new Transcodely({ apiKey: "ak_x", baseUrl: "https://example.invalid", fetchImpl });
+    await c.imports.create({ items: [{ url: "https://x/a.mp4" }] });
+    await c.imports.addItems({ id: IMPORT_ID, items: [{ url: "https://x/b.mp4" }] });
+    await c.imports.start({ id: IMPORT_ID, maxSpendEur: 5 });
+    await c.imports.update({ id: IMPORT_ID, maxSpendEur: 6 });
+    await c.imports.pause(IMPORT_ID);
+    await c.imports.resume(IMPORT_ID);
+    await c.imports.cancel(IMPORT_ID);
+    await c.imports.get(IMPORT_ID);
+    await c.imports.list().fetch();
+    await c.imports.listItems({ id: IMPORT_ID }).fetch();
+    for (const m of ["Create", "AddItems", "Start", "Update", "Pause", "Resume", "Cancel"]) {
+      expect(seen[m], m).toMatch(/^[0-9a-f-]{36}$/);
+    }
+    for (const m of ["Get", "List", "ListItems"]) expect(seen[m], m).toBeNull();
+  });
+
+  it("names a missing subcommand or file as a usage error", async () => {
+    expect((await cli(["import"], { env: { TRANSCODELY_API_KEY: "ak_x" } })).code).toBe(2);
+    expect((await cli(["import", "csv", "x.csv"], { env: { TRANSCODELY_API_KEY: "ak_x" } })).code).toBe(2);
+    expect((await cli(["import", "urls", "--max-spend", "5"], { env: { TRANSCODELY_API_KEY: "ak_x" } })).code).toBe(2);
+  });
+});
+
+describe("the inlined import source type", () => {
+  it("is ImportSourceType.URLS", () => {
+    expect(SOURCE_TYPE_URLS).toBe(ImportSourceType.URLS);
+  });
+});
+
+describe("parseImportCsv", () => {
+  it("reads quoted fields with commas, quotes, line breaks and CRLF", () => {
+    const rows = parseImportCsv(
+      '\uFEFFurl,title,description\r\nhttps://x/a.mp4,"He said ""hi""","line one\nline two"\r\n\r\n',
+    );
+    expect(rows).toEqual([{ url: "https://x/a.mp4", title: 'He said "hi"', description: "line one\nline two" }]);
+  });
+
+  it("takes a header in any case and column order", () => {
+    expect(parseImportCsv("Visibility,URL\nprivate,https://x/a.mp4\n")).toEqual([
+      { url: "https://x/a.mp4", visibility: "private" },
+    ]);
+  });
+
+  it("refuses an unknown column instead of dropping it", () => {
+    expect(() => parseImportCsv("url,titel\nhttps://x/a.mp4,Hello\n")).toThrow(/unknown CSV column "titel"/);
+  });
+
+  it("refuses a header with no url column", () => {
+    expect(() => parseImportCsv("title\nHello\n")).toThrow(/"url" column/);
+  });
+
+  it("refuses a row with more fields than the header, naming the line", () => {
+    expect(() => parseImportCsv("https://x/a.mp4\nhttps://x/b.mp4,extra\n")).toThrow(/row 2 has 2 fields/);
+  });
+
+  it("refuses a row with no url and a non-numeric duration", () => {
+    expect(() => parseImportCsv("url,title\n,Hello\n")).toThrow(/row 2 has no url/);
+    expect(() => parseImportCsv("url,duration_seconds\nhttps://x/a.mp4,long\n")).toThrow(/duration_seconds/);
+  });
+
+  it("refuses a header that names a column twice", () => {
+    expect(() => parseImportCsv("url,title,Title\nhttps://x/a.mp4,A,B\n")).toThrow(/names "title" twice/);
+  });
+
+  it("refuses text after a closing quote, naming the row", () => {
+    expect(() => parseImportCsv('url,title\nhttps://x/a.mp4,"Hello" world\n')).toThrow(
+      /row 2: text after a closing quote/,
+    );
+    // A closing quote followed by a separator, a line break or the end is fine.
+    expect(parseImportCsv('url,title\r\n"https://x/a.mp4","Hi"')).toEqual([{ url: "https://x/a.mp4", title: "Hi" }]);
+  });
+
+  it("refuses an unterminated quote", () => {
+    expect(() => parseImportCsv('url,title\nhttps://x/a.mp4,"open\n')).toThrow(/quoted field/);
   });
 });

@@ -159,8 +159,10 @@ export class App extends Message<App> {
   /**
    * Monthly spend limit in EUR for transcoding charges. Unset = unlimited (the
    * default). Once the app's spend for the current period reaches this limit,
-   * new jobs are rejected with `limit_exceeded`; in-flight jobs are never
-   * stopped. A warning webhook (`app.spend_limit_warning`) fires once at 80% of
+   * new jobs are refused with `limit_exceeded`: at create, or, for a job that
+   * was accepted but has not started encoding, when its input is first read
+   * (the job fails with `error_code: limit_exceeded`, nothing is charged and
+   * `job.failed` fires). Jobs already encoding are never stopped. A warning webhook (`app.spend_limit_warning`) fires once at 80% of
    * the limit and `app.spend_limit_exceeded` fires once on breach. The period
    * follows the app's billing anchor day in UTC. Set or clear via
    * AppService.UpdateSpendLimit; read current spend via AppService.GetSpend.

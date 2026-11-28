@@ -7,6 +7,7 @@ package transcodely.v1;
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 import "transcodely/v1/subtitles.proto";
+import "transcodely/v1/video_text_track.proto";
 
 // VideoService manages hosted video assets with upload, playback, and usage tracking.
 service VideoService {
@@ -81,7 +82,8 @@ service VideoService {
 
   // Generate AI insights (title suggestions, summary, key points, chapters,
   // questions, key terms, highlights, topics) from a hosted video's existing
-  // AI captions, without transcribing again. Billed EUR 0.05 per video plus
+  // captions (AI captions, or a track attached with CreateTextTrack), without
+  // transcribing again. Billed EUR 0.05 per video plus
   // EUR 0.005 per minute of source, charged only when the insights become
   // ready. Returns the entry in "pending"; it also appears on Video.insights,
   // and video.insights.ready or video.insights.failed fires when it finishes.
@@ -91,8 +93,11 @@ service VideoService {
   // new call generates (and bills) a new entry; it replaces the ready one
   // only when it becomes ready itself.
   //
+  // When a language has both AI captions and a track attached with
+  // CreateTextTrack, the attached track is read.
+  //
   // Refused with failed_precondition and code captions_required when the
-  // video has no AI captions, and insights_transcript_unavailable when the
+  // video has no captions, and insights_transcript_unavailable when the
   // caption track has no transcript.
   rpc GenerateInsights(GenerateInsightsRequest) returns (GenerateInsightsResponse);
 
@@ -128,14 +133,18 @@ service VideoService {
   // CreateJob's.
   rpc GenerateHighlights(GenerateHighlightsRequest) returns (GenerateHighlightsResponse);
 
-  // Translate a hosted video's existing AI captions into other languages,
+  // Translate a hosted video's existing captions into other languages,
   // without transcribing again. Creates one captions-only job on the video
   // (input_video_id = the video) that reads the transcript of the source
-  // language's default caption style (VideoTextTrack.is_default) and
+  // language's track: a ready track attached with CreateTextTrack when the
+  // language has one (subtitles before captions), else its AI captions'
+  // default caption style (VideoTextTrack.is_default), and
   // writes, per target language: a caption track (replacing any existing
   // auto-generated track of that language on completion), its transcript
-  // renditions and, when the video streams as HLS, a caption rendition in
-  // the manifest. With include_insights (default true) and ready insights in
+  // renditions and, when the video streams as HLS and its stream carries the
+  // source language's AI captions, a caption rendition in the manifest
+  // (otherwise the translations are attached as sidecar files, in_manifest
+  // false). With include_insights (default true) and ready insights in
   // the source language, the insights are translated too and appear as one
   // more Video.insights entry per language (video.insights.ready fires).
   //
@@ -151,7 +160,8 @@ service VideoService {
   // translates (and bills) again and replaces the tracks.
   //
   // Refused with failed_precondition and code captions_required when the
-  // video has no AI captions, insights_transcript_unavailable when the
+  // video has no AI captions and no attached track, or the source language
+  // only has translations, insights_transcript_unavailable when the
   // source track has no transcript, and with invalid_argument
   // (parameter_invalid) when a target equals the source language or is not a
   // supported translation language (the violation lists the supported codes).
@@ -258,6 +268,66 @@ service VideoService {
   // "unavailable" with reason "user_required": the trial is for signed-in
   // dashboard users.
   rpc GetFreeTrial(GetFreeTrialRequest) returns (GetFreeTrialResponse);
+
+  // Attaches a caption file you already have (SubRip or WebVTT) to a hosted
+  // video, by URL or by direct upload, as a text track with auto_generated
+  // false. Free. The video may be ready or still processing; the app's
+  // managed hosting must be on.
+  //
+  // With source.url the file is downloaded, checked and attached during the
+  // call: the track is "ready" in the response. With source.upload (giving
+  // the file's size_bytes) the track is "processing" and the response
+  // carries upload_url, signed for exactly that length; PUT the file there,
+  // then call CompleteTextTrackUpload.
+  //
+  // A ready track is listed in Video.text_tracks with its url and its
+  // transcript renditions (json, txt, md), shown in the hosted player, and,
+  // when the video streams as HLS, added to its master playlist as a
+  // subtitles rendition (in_manifest true; the playlist is purged from the
+  // CDN). While a video is still processing, or streams only as DASH, the
+  // track is attached as a sidecar file (in_manifest false); a video that
+  // finishes processing later gets it in its HLS playlist too. An uploaded
+  // track can be the source of TranslateCaptions and GenerateInsights.
+  //
+  // Refused with invalid_argument and code text_track_invalid when the file
+  // is not valid (the message says what is wrong and where), and
+  // text_track_too_large when it is over 5 MB; with already_exists when the
+  // video already has an uploaded track of that language and kind and
+  // replace is false; with failed_precondition when the app's managed
+  // hosting is off or the video is not ready or processing (still
+  // uploading, failed, archived); with not_found (video_not_found) for a
+  // video of another app; with failed_precondition and code
+  // captions_job_in_flight when replace would remove a track that a running
+  // translation job or a pending GenerateInsights pass is reading (the
+  // message names it); and with unavailable (caption_manifest_busy,
+  // translation_busy) when the video's captions were being changed at the
+  // same moment: nothing was attached, retry in a few seconds.
+  rpc CreateTextTrack(CreateTextTrackRequest) returns (CreateTextTrackResponse);
+
+  // Finishes a track created with source.upload once its file has been PUT
+  // to upload_url: the file is read, checked and attached exactly as a
+  // source.url file is, and the track is returned "ready". A file that is
+  // refused marks the track "failed" with a failure_message and returns the
+  // same text_track_invalid or text_track_too_large error; a file that was
+  // never uploaded is refused with failed_precondition and code
+  // text_track_upload_missing, and the track stays "processing", so the
+  // upload can be retried. Calling it again on a ready
+  // track returns the track unchanged; on a failed one, the refusal again. A
+  // track superseded by a later CreateTextTrack of the same language and
+  // kind is not_found (text_track_not_found).
+  rpc CompleteTextTrackUpload(CompleteTextTrackUploadRequest) returns (CompleteTextTrackUploadResponse);
+
+  // Removes a track attached with CreateTextTrack: its entry in the video's
+  // HLS master playlist (purged from the CDN), the track and its files.
+  // Free. Only uploaded tracks can be removed here; AI caption styles are
+  // removed with DeleteCaptionStyle. Refused with not_found
+  // (text_track_not_found) for a track that is not an uploaded track of this
+  // video, with failed_precondition and code captions_job_in_flight while a
+  // running translation job or a pending GenerateInsights pass reads the
+  // track (the message names it), and with unavailable (caption_manifest_busy, translation_busy)
+  // when the video's captions were being changed at the same moment: nothing
+  // was changed, retry in a few seconds.
+  rpc DeleteTextTrack(DeleteTextTrackRequest) returns (DeleteTextTrackResponse);
 }
 
 // =============================================================================
@@ -640,9 +710,11 @@ message VideoTextTrack {
   // name of its language, followed by its style in parentheses when the
   // track is not the language's default style: "Bulgarian" for the
   // default, "Bulgarian (compact)" for another style (see style_variant). A
-  // language with one style is labelled without a style. For a
-  // customer-supplied track it is the label that was supplied, empty when
-  // none was. The player's caption menu shows the
+  // language with one style is labelled without a style. For a track
+  // attached with CreateTextTrack it is the label that was supplied, else
+  // the English name of its language ("English", "English (CC)" for
+  // captions). For a track supplied on a transcode job it is the label that
+  // was supplied, empty when none was. The player's caption menu shows the
   // HLS rendition name, which follows the same rule with the language's own
   // name ("Български", "Български (compact)").
   string label = 4;
@@ -651,14 +723,18 @@ message VideoTextTrack {
   string format = 5;
 
   // Whether the track was produced by speech recognition (a subtitle track with
-  // the "generate" operation) rather than supplied or extracted from the source.
+  // the "generate" operation) or translated from such a track, rather than
+  // supplied (on a job or with CreateTextTrack) or extracted from the source.
   bool auto_generated = 6;
 
   // Whether the track is already listed inside the video's HLS/DASH manifest.
   // When true, players discover it from the manifest during normal playback and
   // must NOT also attach it as a separate track — doing so lists the language
   // twice. False for tracks produced by a captions-only job that ran after the
-  // transcode, which are attached as sidecar files instead.
+  // transcode, which are attached as sidecar files instead, and for tracks
+  // attached with CreateTextTrack while the video had no HLS stream yet
+  // (still processing; they are added to the stream when it finishes) or
+  // streams only as DASH.
   bool in_manifest = 7;
 
   // URL of the caption file. Computed per-request and never stored: on apps with
@@ -667,22 +743,25 @@ message VideoTextTrack {
   // than caching it. On apps not yet migrated to token auth it is unsigned and
   // access control comes from the managed-storage bucket policy; unsigned URLs
   // are never issued for private videos. Absent when no URL may be issued —
-  // same rules as poster_url.
+  // same rules as poster_url — and while an uploaded track is not ready.
   optional string url = 8;
 
   // When the track was attached to the video.
   google.protobuf.Timestamp created_at = 9;
 
-  // Transcript renditions of an auto-generated track, one per format (json,
-  // txt, md). Empty for tracks that were not generated by speech recognition
-  // and for tracks generated before renditions existed. Each signed_url is
-  // computed per request under exactly the same rules as url and is never
-  // stored.
+  // Transcript renditions of the track, one per format (json, txt, md):
+  // written for auto-generated tracks and for tracks attached with
+  // CreateTextTrack (built from their cues, markup removed). Empty for
+  // tracks supplied on a transcode job, for tracks generated before
+  // renditions existed, and while an uploaded track is not ready. Each
+  // signed_url is computed per request under exactly the same rules as url
+  // and is never stored.
   repeated TranscriptRendition transcript_renditions = 10;
 
-  // ISO 639-2 language of the auto-generated track this one was translated
-  // from (SubtitleTrack.translations or VideoService.TranslateCaptions).
-  // Empty for recognized and customer-supplied tracks.
+  // ISO 639-2 language of the track this one was translated from: an
+  // auto-generated track, or a track attached with CreateTextTrack
+  // (SubtitleTrack.translations or VideoService.TranslateCaptions). Empty for
+  // recognized and customer-supplied tracks.
   string translated_from = 11;
 
   // When the track last changed. Regenerating an auto-generated track
@@ -723,8 +802,27 @@ message VideoTextTrack {
   // captions are generated again (they are kept, but cut from the previous
   // transcript: restyle them again to bring them up to date), and on
   // translations when their source track's default style changes or its
-  // captions change (translate again). False for customer-supplied tracks.
+  // captions change (translate again), including when a track attached with
+  // CreateTextTrack becomes, or stops being, the track their language is
+  // translated from. False for customer-supplied tracks.
   bool stale = 16;
+
+  // Lifecycle: "ready" for every track that is served. Only a track
+  // attached with CreateTextTrack is ever "processing" (source.upload: its
+  // file is awaited) or "failed" (its file was refused, or, attached while
+  // the video was processing, its cues turned out to end more than 5
+  // seconds after the video once its duration was known; see
+  // failure_message).
+  VideoTextTrackStatus status = 17;
+
+  // Whether the track was attached with CreateTextTrack (a caption file you
+  // supplied after the video was created). Only these tracks can be removed
+  // with DeleteTextTrack.
+  bool uploaded = 18;
+
+  // Why an uploaded file was refused, in plain words, when status is
+  // "failed"; empty otherwise.
+  string failure_message = 19;
 }
 
 // =============================================================================
@@ -2025,8 +2123,9 @@ message GenerateInsightsRequest {
     (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
   ];
 
-  // ISO 639-2 language of the AI caption track to use (e.g. "eng"). Optional
-  // when the video has exactly one AI caption track; required when it has
+  // ISO 639-2 language of the caption track to use (e.g. "eng"): AI
+  // captions or a track attached with CreateTextTrack. Optional when the
+  // video's captions are in exactly one language; required when they are in
   // several (refused with code parameter_required, listing the available
   // languages).
   optional string language = 2 [
@@ -2074,9 +2173,10 @@ message TranslateCaptionsRequest {
     (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
   ];
 
-  // ISO 639-2 language of the AI caption track to translate FROM. Optional
-  // when the video has exactly one AI caption track that was not itself a
-  // translation; required when it has several (refused with
+  // ISO 639-2 language of the caption track to translate FROM (AI captions
+  // or a track attached with CreateTextTrack). Optional when the video's
+  // captions that are not themselves translations are in exactly one
+  // language; required when they are in several (refused with
   // parameter_required, listing the available languages).
   optional string source_language = 2 [
     (buf.validate.field).string.pattern = "^[a-z]{3}$"
@@ -2406,4 +2506,35 @@ message GenerateHighlightsResponse {
   // VideoService.Get (or Watch) or subscribe to video.highlights.ready /
   // video.highlights.failed.
   repeated VideoHighlight highlights = 1;
+}
+
+// =============================================================================
+// Uploaded caption files (CreateTextTrack, CompleteTextTrackUpload,
+// DeleteTextTrack). The requests live in video_text_track.proto.
+// =============================================================================
+
+// Response from CreateTextTrack.
+message CreateTextTrackResponse {
+  // The new track: "ready" for source.url, "processing" for source.upload.
+  VideoTextTrack text_track = 1;
+
+  // source.upload only: presigned URL to PUT the caption file's bytes to
+  // (any Content-Type; a Content-Length of exactly
+  // source.upload.size_bytes). Absent for source.url.
+  optional string upload_url = 2;
+
+  // When upload_url stops working. Absent for source.url.
+  google.protobuf.Timestamp upload_url_expires_at = 3;
+}
+
+// Response from CompleteTextTrackUpload.
+message CompleteTextTrackUploadResponse {
+  // The track, "ready".
+  VideoTextTrack text_track = 1;
+}
+
+// Response from DeleteTextTrack.
+message DeleteTextTrackResponse {
+  // The video, with its text tracks as they are now.
+  Video video = 1;
 }

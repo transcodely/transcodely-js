@@ -112,6 +112,23 @@ input itself with managed output forced. There is no honest mapping from
 of quietly writing somewhere you did not ask for. Shape an uploaded file's
 encode with `--preset`.
 
+## Bulk import
+
+```bash
+# Create a draft import and print its quote. Nothing is encoded or charged yet.
+transcodely import urls ./library.csv --max-spend 50
+
+# Create it and start it, capped at EUR 50.
+transcodely import urls ./library.csv --max-spend 50 --start
+```
+
+The file is one URL per line, or a CSV whose first row names its columns: `url`,
+and optionally `external_id`, `title`, `description`, `visibility` and
+`duration_seconds`. A column the CLI does not know is refused rather than
+dropped. Give each row an `external_id` to make a re-run safe: a row whose id an
+earlier item still holds (pending, running or succeeded) is skipped. Up to
+10,000 rows per import.
+
 ## Inspect
 
 ```bash

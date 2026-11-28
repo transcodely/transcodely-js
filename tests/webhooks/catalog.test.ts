@@ -19,7 +19,7 @@ import {
 } from "../../src/webhooks/types.js";
 
 /**
- * The 22 concrete event types from `domain.WebhookEventTypes()`. The "*"
+ * The 26 concrete event types from `domain.WebhookEventTypes()`. The "*"
  * wildcard is intentionally NOT in this list: per the API contract it is only
  * valid as an `enabled_events` subscription value, never as the `type` of an
  * actually-emitted event.
@@ -49,6 +49,8 @@ const EXPECTED_CATALOG = [
   "app.updated",
   "app.spend_limit_warning",
   "app.spend_limit_exceeded",
+  "import.completed",
+  "import.paused",
 ] as const;
 
 describe("webhook event catalog", () => {

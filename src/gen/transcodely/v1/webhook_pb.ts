@@ -54,7 +54,7 @@ export class WebhookEndpoint extends Message<WebhookEndpoint> {
    * "video.insights.ready", "video.insights.failed",
    * "video.highlights.ready", "video.highlights.failed", "app.created",
    * "app.updated", "app.spend_limit_warning",
-   * "app.spend_limit_exceeded", or "*".
+   * "app.spend_limit_exceeded", "import.completed", "import.paused", or "*".
    * Keep in sync with domain.WebhookEventTypes() ("job.updated" does not exist).
    *
    * @generated from field: repeated string enabled_events = 5;
