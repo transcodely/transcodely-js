@@ -1,5 +1,5 @@
 /** CLI version. Bumped by release-please from packages/cli/package.json. */
-export const CLI_VERSION = "0.1.1"; // x-release-please-version
+export const CLI_VERSION = "0.1.2"; // x-release-please-version
 
 /**
  * Set at build time by the root `tsup.bin.config.ts` to the version of the
