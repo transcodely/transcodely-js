@@ -10,6 +10,7 @@ import { TranscodelyError } from "@transcodely/sdk";
 
 import type { Ctx } from "./context.js";
 import { loginCommand, logoutCommand } from "./commands/login.js";
+import { importCommand } from "./commands/import.js";
 import { jobsCommand, videosCommand } from "./commands/read.js";
 import { uploadCommand } from "./commands/upload.js";
 import { explain } from "./explain.js";
@@ -20,7 +21,7 @@ import { COMMAND, VERSION_LINE } from "./version.js";
 // `upload` is the default command spelled out: `transcodely upload ./talk.mp4`
 // and `transcodely ./talk.mp4` are the same call. A file literally named
 // `upload` is still reachable as `./upload`.
-const SUBCOMMANDS = new Set(["upload", "login", "logout", "jobs", "videos"]);
+const SUBCOMMANDS = new Set(["upload", "login", "logout", "jobs", "videos", "import"]);
 
 export async function run(ctx: Ctx): Promise<number> {
   // Only the BARE words are handled here. The `--help` / `--version` flags are
@@ -48,6 +49,8 @@ export async function run(ctx: Ctx): Promise<number> {
           return await logoutCommand(ctx, rest);
         case "jobs":
           return await jobsCommand(ctx, rest);
+        case "import":
+          return await importCommand(ctx, rest);
         default:
           return await videosCommand(ctx, rest);
       }
