@@ -10,6 +10,7 @@
  * Keep every assertion type-only.
  */
 import { App } from "../../src/gen/transcodely/v1/app_pb.js";
+import { Import } from "../../src/gen/transcodely/v1/import_pb.js";
 import { Job, JobOutput } from "../../src/gen/transcodely/v1/job_pb.js";
 import { TranscriptInsights } from "../../src/gen/transcodely/v1/subtitles_pb.js";
 import { Video } from "../../src/gen/transcodely/v1/video_pb.js";
@@ -76,6 +77,10 @@ if (isKnownEvent(event)) {
     case "app.spend_limit_warning":
     case "app.spend_limit_exceeded":
       expectType<Equal<typeof event.data, SpendLimitNotification>>();
+      break;
+    case "import.completed":
+    case "import.paused":
+      expectType<Equal<typeof event.data, Import>>();
       break;
     default: {
       // Exhaustiveness: with every KnownWebhookEvent arm handled, the residue

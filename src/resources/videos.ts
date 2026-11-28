@@ -30,12 +30,19 @@ import {
   TranslateCaptionsRequest,
   type TranslateCaptionsResponse,
   UpdateVideoRequest,
+  type CreateTextTrackResponse,
   type Video,
   type VideoHighlight,
+  type VideoTextTrack,
   WatchVideoRequest,
   type WatchVideoResponse,
 } from "../gen/transcodely/v1/video_pb.js";
 import type { TranscriptInsights } from "../gen/transcodely/v1/subtitles_pb.js";
+import {
+  CompleteTextTrackUploadRequest,
+  CreateTextTrackRequest,
+  DeleteTextTrackRequest,
+} from "../gen/transcodely/v1/video_text_track_pb.js";
 
 import { Page } from "../pagination.js";
 import { watch } from "../streaming.js";
@@ -434,5 +441,77 @@ export class Videos {
       opts,
     );
     return res.freeTrial!;
+  }
+
+  /**
+   * Attach a caption file you already have (SubRip or WebVTT, at most 5 MB) to
+   * a hosted video as a text track. Free. The app's managed hosting must be on.
+   *
+   * With `source: { source: { case: "url", value } }` the file is downloaded
+   * and attached during the call, and the track comes back "ready". With
+   * `source: { source: { case: "upload", value: { sizeBytes } } }` the track
+   * is "processing" and the response carries `uploadUrl`, signed for exactly
+   * that many bytes: PUT the file there, then call
+   * {@link Videos.completeTextTrackUpload}. The full response is returned
+   * because `uploadUrl` and `uploadUrlExpiresAt` ride on it.
+   *
+   * Refused with invalid_argument (code text_track_invalid, or
+   * text_track_too_large over 5 MB); with already_exists when the video has an
+   * uploaded track of that language and kind and `replace` is false; with
+   * failed_precondition when hosting is off or the video is not ready or
+   * processing.
+   */
+  createTextTrack(
+    req: PartialMessage<CreateTextTrackRequest>,
+    opts?: CallOptions,
+  ): Promise<CreateTextTrackResponse> {
+    return this.transport.unary(
+      VideoService,
+      VideoService.methods.createTextTrack,
+      new CreateTextTrackRequest(req),
+      opts,
+    );
+  }
+
+  /**
+   * Finish a track created with an upload source once its file has been PUT
+   * to `uploadUrl`: the file is checked and attached, and the track is
+   * returned "ready". A refused file marks the track "failed" and returns the
+   * same text_track_invalid or text_track_too_large error; a file that was
+   * never uploaded is refused with failed_precondition (code
+   * text_track_upload_missing) and the track stays "processing", so the upload
+   * can be retried.
+   */
+  async completeTextTrackUpload(
+    req: PartialMessage<CompleteTextTrackUploadRequest>,
+    opts?: CallOptions,
+  ): Promise<VideoTextTrack> {
+    const res = await this.transport.unary(
+      VideoService,
+      VideoService.methods.completeTextTrackUpload,
+      new CompleteTextTrackUploadRequest(req),
+      opts,
+    );
+    return res.textTrack!;
+  }
+
+  /**
+   * Remove a track attached with {@link Videos.createTextTrack}: its entry in
+   * the video's HLS master playlist (purged from the CDN), the track and its
+   * files. Free. AI caption styles are removed with `deleteCaptionStyle`
+   * instead; any other track is not_found (code text_track_not_found).
+   * Returns the video with its text tracks as they are now.
+   */
+  async deleteTextTrack(
+    req: PartialMessage<DeleteTextTrackRequest>,
+    opts?: CallOptions,
+  ): Promise<Video> {
+    const res = await this.transport.unary(
+      VideoService,
+      VideoService.methods.deleteTextTrack,
+      new DeleteTextTrackRequest(req),
+      opts,
+    );
+    return res.video!;
   }
 }

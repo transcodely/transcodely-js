@@ -9,6 +9,7 @@ import { Apps } from "./resources/apps.js";
 import { Billing } from "./resources/billing.js";
 import { Events } from "./resources/events.js";
 import { Health } from "./resources/health.js";
+import { Imports } from "./resources/imports.js";
 import { IngestRules } from "./resources/ingest-rules.js";
 import { Jobs } from "./resources/jobs.js";
 import { Memberships } from "./resources/memberships.js";
@@ -35,6 +36,7 @@ export class Transcodely {
   private _presets: Presets | undefined;
   private _origins: Origins | undefined;
   private _ingestRules: IngestRules | undefined;
+  private _imports: Imports | undefined;
   private _apps: Apps | undefined;
   private _apiKeys: ApiKeys | undefined;
   private _organizations: Organizations | undefined;
@@ -80,6 +82,13 @@ export class Transcodely {
    */
   get ingestRules(): IngestRules {
     return (this._ingestRules ??= new IngestRules(this.transport));
+  }
+  /**
+   * Bulk imports: a list of source URLs, quoted, then encoded into hosted
+   * videos under a spend cap. See {@link Imports}.
+   */
+  get imports(): Imports {
+    return (this._imports ??= new Imports(this.transport));
   }
   get apps(): Apps {
     return (this._apps ??= new Apps(this.transport));

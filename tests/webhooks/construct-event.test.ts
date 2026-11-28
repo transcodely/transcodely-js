@@ -8,6 +8,12 @@ import {
   WebhookTimestampError,
 } from "../../src/errors.js";
 import { App, AppStatus } from "../../src/gen/transcodely/v1/app_pb.js";
+import {
+  Import,
+  ImportPauseReason,
+  ImportSourceType,
+  ImportStatus,
+} from "../../src/gen/transcodely/v1/import_pb.js";
 import { Job, JobOutput, JobStatus, OutputStatus } from "../../src/gen/transcodely/v1/job_pb.js";
 import {
   InsightsSource,
@@ -104,6 +110,43 @@ describe("constructEvent — happy paths", () => {
     // Video.status/visibility are plain string fields on the proto (not enums),
     // so they pass through verbatim and are unaffected by enum expansion.
     expect((event.data as Video).status).toBe("ready");
+  });
+
+  // The import events carry the Import as ImportService.Get returns it; this
+  // payload is the API's own test fixture for import.paused
+  // (internal/services/webhooks/test_fixtures.go).
+  it.each([
+    ["import.paused", "paused", ImportStatus.PAUSED],
+    ["import.completed", "completed", ImportStatus.COMPLETED],
+  ])("decodes an %s event with Import data", (type, status, expected) => {
+    const body = envelope({
+      type,
+      data: {
+        object: "import",
+        id: "imp_test_abc123",
+        app_id: "app_test_demo",
+        status,
+        pause_reason: status === "paused" ? "spend_cap_reached" : undefined,
+        source: { type: "urls" },
+        max_spend_eur: 10.0,
+        spent_eur: 6.2,
+        reserved_eur: 3.25,
+        quote: { item_count: 30, estimated_encode_eur: 19.5, currency: "EUR" },
+        counts: { pending: 15, running: 5, succeeded: 10 },
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    });
+    const event = constructEvent(body, header(body), SECRET, { now: NOW });
+    expect(event.type).toBe(type);
+    expect(event.data).toBeInstanceOf(Import);
+    const imp = event.data as Import;
+    expect(imp.id).toBe("imp_test_abc123");
+    expect(imp.status).toBe(expected);
+    expect(imp.pauseReason).toBe(status === "paused" ? ImportPauseReason.SPEND_CAP_REACHED : undefined);
+    expect(imp.source?.type).toBe(ImportSourceType.URLS);
+    expect(imp.maxSpendEur).toBe(10);
+    expect(imp.quote?.itemCount).toBe(30);
+    expect(imp.counts?.running).toBe(5);
   });
 
   it("decodes an app.created event with App data", () => {

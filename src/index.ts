@@ -219,12 +219,27 @@ export {
   type VideoFreeTrial,
   type GetFreeTrialRequest,
   type GetFreeTrialResponse,
+  // Uploaded caption files: videos.createTextTrack / completeTextTrackUpload /
+  // deleteTextTrack. The requests live in video_text_track.proto (below).
+  type CreateTextTrackResponse,
+  type CompleteTextTrackUploadResponse,
+  type DeleteTextTrackResponse,
   FreeTrialStatus,
   FreeTrialUnavailableReason,
   GuidePageSetting,
   VideoStatus,
   VideoVisibility,
 } from "./gen/transcodely/v1/video_pb.js";
+
+// Uploaded caption files (VideoTextTrack.status, uploaded, failureMessage).
+export {
+  type TextTrackSource,
+  type TextTrackUploadSource,
+  type CreateTextTrackRequest,
+  type CompleteTextTrackUploadRequest,
+  type DeleteTextTrackRequest,
+  VideoTextTrackStatus,
+} from "./gen/transcodely/v1/video_text_track_pb.js";
 
 // Presets.
 export {
@@ -301,6 +316,44 @@ export {
   StorageEventSource,
   StorageEventStatus,
 } from "./gen/transcodely/v1/ingest_rule_pb.js";
+
+// Bulk imports: client.imports.
+export {
+  type ImportSource,
+  type ImportDefaults,
+  type ImportTextTrackInput,
+  type ImportItemInput,
+  type ImportQuote,
+  type ImportCounts,
+  type Import,
+  type ImportItemError,
+  type ImportItemWarning,
+  type ImportItem,
+  type CreateImportRequest,
+  type CreateImportResponse,
+  type AddImportItemsRequest,
+  type AddImportItemsResponse,
+  type GetImportRequest,
+  type GetImportResponse,
+  type ListImportsRequest,
+  type ListImportsResponse,
+  type StartImportRequest,
+  type StartImportResponse,
+  type UpdateImportRequest,
+  type UpdateImportResponse,
+  type PauseImportRequest,
+  type PauseImportResponse,
+  type ResumeImportRequest,
+  type ResumeImportResponse,
+  type CancelImportRequest,
+  type CancelImportResponse,
+  type ListImportItemsRequest,
+  type ListImportItemsResponse,
+  ImportStatus,
+  ImportPauseReason,
+  ImportItemStatus,
+  ImportSourceType,
+} from "./gen/transcodely/v1/import_pb.js";
 
 // Apps.
 export {
