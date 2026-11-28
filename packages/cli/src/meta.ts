@@ -18,7 +18,7 @@
 import type { Ctx } from "./context.js";
 import { EXIT_OK } from "./errors.js";
 import { HELP } from "./help.js";
-import { CLI_VERSION } from "./version.js";
+import { VERSION_LINE } from "./version.js";
 
 export const META_OPTIONS = {
   help: { type: "boolean", short: "h" },
@@ -37,7 +37,7 @@ export function meta(ctx: Ctx, values: MetaFlags): number | undefined {
     return EXIT_OK;
   }
   if (values.version) {
-    ctx.stdout(`${CLI_VERSION}\n`);
+    ctx.stdout(`${VERSION_LINE}\n`);
     return EXIT_OK;
   }
   return undefined;

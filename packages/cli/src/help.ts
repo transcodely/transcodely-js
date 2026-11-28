@@ -1,6 +1,6 @@
-import { CLI_VERSION } from "./version.js";
+import { VERSION_LINE } from "./version.js";
 
-export const HELP = `transcodely ${CLI_VERSION} — transcode, host and deliver video
+export const HELP = `transcodely ${VERSION_LINE} — transcode, host and deliver video
 
 USAGE
   transcodely <file|url> [options]     encode and host one video
@@ -13,7 +13,7 @@ USAGE
 
 ENCODE AND HOST
   transcodely ./talk.mp4
-  npx @transcodely/sdk upload ./talk.mp4   (no install; same CLI)
+  npx @transcodely/sdk upload ./talk.mp4   (the same, with nothing installed)
   transcodely https://example.com/talk.mp4 --wait
   transcodely https://example.com/talk.mp4 --own-bucket ori_a1b2c3d4e5f6 --hls
 
@@ -35,7 +35,8 @@ LOGIN
   transcodely login --app app_…        also save a default app
 
 GLOBAL  (flags may go before or after the input)
-  --app <app_…>          app to act in (else TRANSCODELY_APP_ID, else saved)
+  --app <app_…>          app to act in (else TRANSCODELY_APP_ID, else saved,
+                         else the API key's own app)
   --api-key <ak_…>       key for this command only (lands in shell history + ps)
   --base-url <url>       API base URL (staging or a local stack)
   --json                 print one JSON document instead of human output,

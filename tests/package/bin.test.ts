@@ -58,7 +58,7 @@ beforeAll(async () => {
   const manifest = JSON.parse(await readFile(join(pkgDir, "package.json"), "utf8")) as {
     bin: Record<string, string>;
   };
-  bin = join(pkgDir, manifest.bin.transcodely!);
+  bin = join(pkgDir, manifest.bin["transcodely-sdk"]!);
 }, 240_000);
 
 afterEach(async () => {
@@ -116,6 +116,18 @@ describe("the packed @transcodely/sdk tarball", () => {
 });
 
 describe("npx @transcodely/sdk", () => {
+  it("names both the CLI and the SDK release in --version", async () => {
+    const sdk = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as {
+      version: string;
+    };
+    const cli = JSON.parse(
+      await readFile(join(ROOT, "packages", "cli", "package.json"), "utf8"),
+    ) as { version: string };
+    const res = await npxSdk(["--version"]);
+    expect(res.code).toBe(0);
+    expect(res.stdout.trim()).toBe(`${cli.version} (@transcodely/sdk ${sdk.version})`);
+  });
+
   it("prints help and exits 0", async () => {
     const res = await npxSdk(["--help"]);
     expect(res.code).toBe(0);

@@ -17,7 +17,7 @@ Node 20 or newer. The CLI sends no telemetry.
 
 ## Install
 
-The CLI ships as the `transcodely` bin of
+The CLI ships inside
 [`@transcodely/sdk`](https://www.npmjs.com/package/@transcodely/sdk), so it
 runs without installing anything:
 
@@ -26,19 +26,17 @@ npx @transcodely/sdk upload ./talk.mp4
 npx @transcodely/sdk --help
 ```
 
-Or keep it around, which puts `transcodely` on your `PATH`:
+In a project that depends on the SDK, the same command is `npx transcodely-sdk`
+(the SDK's bin is named that so it never collides with the standalone package
+below).
 
-```bash
-npm install -g @transcodely/sdk
-transcodely ./talk.mp4
-```
+The short package name `transcodely` (`npx transcodely ./talk.mp4`, or
+`npm install -g transcodely` to keep a `transcodely` command on your `PATH`) is
+the same CLI published on its own. It is not on npm yet; until it is, use the
+commands above.
 
 `upload` is optional: `transcodely upload ./talk.mp4` and
 `transcodely ./talk.mp4` are the same command.
-
-The short package name `transcodely` (`npx transcodely ./talk.mp4`) is the
-same CLI published on its own. It is not on npm yet; until it is, use the
-commands above.
 
 ## Authenticate
 
@@ -181,7 +179,7 @@ node packages/cli/dist/index.mjs --help
 
 **How it reaches npm.** Two ways, from this one source:
 
-- As the `transcodely` bin of `@transcodely/sdk`. The SDK's build bundles this
+- As the `transcodely-sdk` bin of `@transcodely/sdk`. The SDK's build bundles this
   package's `src/` into `dist/bin/transcodely.mjs` (`tsup.bin.config.ts` at the
   repo root) and the SDK's automated release publishes it. Nothing else to do.
 - As the standalone `transcodely` package, pinned to a released

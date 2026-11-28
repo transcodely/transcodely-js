@@ -133,9 +133,9 @@ npx @transcodely/sdk upload https://example.com/talk.mp4 --wait
 npx @transcodely/sdk --help
 ```
 
-The CLI ships inside this package as its `transcodely` bin, so installing the
-SDK also puts `transcodely` on your project's `node_modules/.bin`. It is a
-separate build (`dist/bin/`) that the library entry never imports: importing
+The CLI ships inside this package as its `transcodely-sdk` bin, so in a project
+that depends on the SDK it is also `npx transcodely-sdk`. It is a separate
+build (`dist/bin/`) that the library entry never imports: importing
 `@transcodely/sdk`, in Node or a browser bundle, does not load any of it. The
 source and full reference live in [`packages/cli`](packages/cli/README.md).
 
