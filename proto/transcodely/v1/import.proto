@@ -1,0 +1,783 @@
+// Bulk import — bring a whole video library in with one request.
+//
+// An import is a list of source URLs, each of which becomes a hosted video
+// through the same path as VideoService.CreateFromUrl: the same SSRF checks,
+// the same admission probe, the same hosted ABR ladder, the same pricing.
+//
+// The lifecycle is:
+//
+//   1. Create (status `draft`) with up to 1,000 items, and AddItems to append
+//      more, up to 10,000 per import. Nothing is fetched or encoded yet. Every
+//      Create and AddItems returns a quote: how many items will be imported,
+//      the source minutes we know about, the estimated encode cost and the
+//      estimated monthly storage cost.
+//   2. Start with a spend cap (`max_spend_eur`, status `running`). Items are
+//      dispatched in submission order at a bounded rate that leaves room in
+//      your queue for your own uploads.
+//   3. If the next item would take the import over its cap, the import pauses
+//      (`paused`, pause_reason `spend_cap_reached`). Nothing is lost: raising
+//      the cap with Update resumes it.
+//   4. When every item has succeeded, failed or been skipped, the import is
+//      `completed` and the `import.completed` webhook fires once.
+//
+// Re-running an import is safe: an item whose `external_id` is already held by
+// another item of the same app that is pending, running or succeeded is
+// recorded as `skipped` and creates no video. Items that failed or were
+// canceled do not hold their external_id, so submitting the same list again
+// retries exactly those.
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "transcodely/v1/common.proto";
+
+// ImportService creates and runs bulk imports of source URLs into hosted
+// videos.
+service ImportService {
+  // Create an import in `draft` with its first batch of items (1 to 1,000).
+  // Nothing is fetched or encoded until Start. The response carries the quote.
+  //
+  // Every item URL is checked up front: a URL that is not http(s), or that
+  // points at a private or internal address, fails the whole request with
+  // `invalid_argument`, error code `invalid_input_url`, naming the item. URLs
+  // are not fetched at this point; an unreachable URL fails its item later.
+  rpc Create(CreateImportRequest) returns (CreateImportResponse);
+
+  // Append items (1 to 1,000 per call) to a `draft` import, up to 10,000 items
+  // per import. Refused with `failed_precondition`, error code
+  // `import_invalid_state`, once the import has been started or canceled.
+  // Returns the import with its recomputed quote.
+  rpc AddItems(AddImportItemsRequest) returns (AddImportItemsResponse);
+
+  // Get an import by ID, with its quote, spend and per-status item counts.
+  rpc Get(GetImportRequest) returns (GetImportResponse);
+
+  // List imports, newest first.
+  rpc List(ListImportsRequest) returns (ListImportsResponse);
+
+  // Start a `draft` import. A spend cap is required: pass `max_spend_eur`
+  // here, or set it at Create or with Update. Enables managed hosting on the
+  // app if it is not enabled yet, exactly as CreateFromUrl does, and refuses
+  // with the same errors when it cannot. Refused with `invalid_argument` when
+  // the import has no pending items.
+  rpc Start(StartImportRequest) returns (StartImportResponse);
+
+  // Change an import's spend cap. Allowed while the import is `draft`,
+  // `running` or `paused`. When the import is paused with pause_reason
+  // `spend_cap_reached`, setting a cap resumes it (status `running`); the
+  // dispatcher pauses it again if the new cap still leaves no room for the
+  // next item.
+  rpc Update(UpdateImportRequest) returns (UpdateImportResponse);
+
+  // Pause a `running` import (pause_reason `manual`). Items already
+  // dispatched keep encoding; no new items are dispatched.
+  rpc Pause(PauseImportRequest) returns (PauseImportResponse);
+
+  // Resume a `paused` import, whatever paused it. If the cause is still
+  // there (the cap is still too low, the app spend limit is still reached),
+  // the import pauses again with the same reason on the next dispatch.
+  rpc Resume(ResumeImportRequest) returns (ResumeImportResponse);
+
+  // Cancel a `draft`, `running` or `paused` import. Items not yet dispatched
+  // become `canceled`. Videos already being encoded finish, and their cost is
+  // still added to spent_eur. Refused with `failed_precondition`, error code
+  // `import_invalid_state`, for a completed or already canceled import.
+  rpc Cancel(CancelImportRequest) returns (CancelImportResponse);
+
+  // List an import's items in submission order, optionally filtered by
+  // status. Each item carries the video it created (video_id), and failed
+  // items carry the standard error code and message.
+  rpc ListItems(ListImportItemsRequest) returns (ListImportItemsResponse);
+}
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+// Lifecycle state of an import.
+enum ImportStatus {
+  IMPORT_STATUS_UNSPECIFIED = 0;
+
+  // Created, not started. Items can be added; nothing is fetched or encoded.
+  IMPORT_STATUS_DRAFT = 1;
+
+  // Items are being dispatched and encoded.
+  IMPORT_STATUS_RUNNING = 2;
+
+  // No new items are dispatched; items already dispatched keep encoding.
+  // pause_reason says why.
+  IMPORT_STATUS_PAUSED = 3;
+
+  // Every item has succeeded, failed, been skipped or been canceled. Final.
+  IMPORT_STATUS_COMPLETED = 4;
+
+  // Canceled by you. Items not yet dispatched were canceled. Final.
+  IMPORT_STATUS_CANCELED = 5;
+}
+
+// Why an import is paused. Set only while the import is `paused`.
+enum ImportPauseReason {
+  IMPORT_PAUSE_REASON_UNSPECIFIED = 0;
+
+  // The next item would take spent_eur + reserved_eur over max_spend_eur.
+  // Raise the cap with Update to resume.
+  IMPORT_PAUSE_REASON_SPEND_CAP_REACHED = 1;
+
+  // The app's monthly spend limit refused an item (error code
+  // `limit_exceeded`). Raise the spend limit (or the plan ceiling, when that
+  // is the binding limit), then Resume. Resume continues only the items
+  // still `pending`, which includes an item refused when its video was
+  // created. An item whose job was already accepted and was refused when its
+  // input was first read is `failed` with `limit_exceeded` (nothing charged)
+  // and is not retried: import it again in a new import (its external_id is
+  // free again), and delete its errored video if you do not want it.
+  IMPORT_PAUSE_REASON_SPEND_LIMIT_REACHED = 2;
+
+  // The account cannot start new work: a payment is past due, the
+  // outstanding balance is over its limit, or the account standing refuses
+  // new jobs. Settle the account, then Resume.
+  IMPORT_PAUSE_REASON_BILLING = 3;
+
+  // Managed hosting was turned off, or could not be provisioned, for the app
+  // after the import started. Enable hosting, then Resume.
+  IMPORT_PAUSE_REASON_HOSTING_UNAVAILABLE = 4;
+
+  // Paused with Pause.
+  IMPORT_PAUSE_REASON_MANUAL = 5;
+}
+
+// State of one import item.
+enum ImportItemStatus {
+  IMPORT_ITEM_STATUS_UNSPECIFIED = 0;
+
+  // Not dispatched yet.
+  IMPORT_ITEM_STATUS_PENDING = 1;
+
+  // Dispatched: its video is being created or encoded.
+  IMPORT_ITEM_STATUS_RUNNING = 2;
+
+  // Its video is ready. Final.
+  IMPORT_ITEM_STATUS_SUCCEEDED = 3;
+
+  // Its video could not be created or encoded; `error` says why. Final.
+  // A failed item does not hold its external_id, so it can be retried by
+  // submitting it again in a new import.
+  IMPORT_ITEM_STATUS_FAILED = 4;
+
+  // Not imported because another item of the same app with the same
+  // external_id is pending, running or succeeded; duplicate_of_item_id names
+  // it. No video is created. Final.
+  IMPORT_ITEM_STATUS_SKIPPED = 5;
+
+  // Not dispatched because the import was canceled. Final.
+  IMPORT_ITEM_STATUS_CANCELED = 6;
+}
+
+// Where an import's items come from.
+enum ImportSourceType {
+  IMPORT_SOURCE_TYPE_UNSPECIFIED = 0;
+
+  // A list of source URLs submitted in the request.
+  IMPORT_SOURCE_TYPE_URLS = 1;
+}
+
+// =============================================================================
+// Core messages
+// =============================================================================
+
+// Where an import's items come from.
+message ImportSource {
+  // Source type. Only `urls` is supported.
+  ImportSourceType type = 1 [
+    (buf.validate.field).enum = {defined_only: true, not_in: [0]}
+  ];
+}
+
+// Settings applied to every item of an import unless the item overrides them.
+message ImportDefaults {
+  // Visibility of the created videos: "public", "unlisted" or "private".
+  // Empty: the app's hosting default_visibility, else "unlisted" — the same
+  // rule as CreateFromUrl.
+  string visibility = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string = {
+      in: ["public", "unlisted", "private"]
+    }
+  ];
+
+  // Preset ID (e.g. "pst_abc123") or slug for every item's transcode. Empty:
+  // the app's default hosted ABR ladder, the same one CreateFromUrl uses when
+  // no preset is given.
+  string preset = 2 [(buf.validate.field).string.max_len = 128];
+
+  // Generate AI captions for every item, as CreateFromUrl.auto_captions.
+  // Default false.
+  bool auto_captions = 3;
+
+  // Translate the AI captions into these languages (ISO 639-2, at most 10,
+  // distinct), as CreateFromUrl.auto_translations. Requires auto_captions.
+  repeated string auto_translations = 4 [
+    (buf.validate.field).repeated = {
+      max_items: 10,
+      unique: true,
+      items: {string: {pattern: "^[a-z]{3}$"}}
+    }
+  ];
+
+  // Tags for every created video (at most 20). An item with its own
+  // non-empty tags uses those instead.
+  repeated string tags = 5 [
+    (buf.validate.field).repeated = {
+      max_items: 20,
+      items: {string: {max_len: 100}}
+    }
+  ];
+}
+
+// A caption or subtitle file to attach to an item's video.
+//
+// Accepted and returned on the item, but not ingested yet: an item with text
+// tracks carries the warning `text_tracks_not_ingested`. Once the item has a
+// video_id, attach each file to that video with VideoService.CreateTextTrack.
+message ImportTextTrackInput {
+  // http(s) URL of the caption file.
+  string url = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.max_len = 2048,
+    (buf.validate.field).string.pattern = "^https?://.*$"
+  ];
+
+  // Language of the track (e.g. "en" or "eng").
+  string language = 2 [(buf.validate.field).string.max_len = 35];
+
+  // Track role: "subtitles", "captions", "chapters" or "descriptions".
+  // Empty: "subtitles".
+  string kind = 3 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string = {
+      in: ["subtitles", "captions", "chapters", "descriptions"]
+    }
+  ];
+}
+
+// One source to import, as submitted.
+message ImportItemInput {
+  // Publicly reachable http(s) URL of the source video. Fetched by the worker
+  // when the item is dispatched, never by the API; private and internal
+  // addresses are refused up front and again at fetch time.
+  string url = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.max_len = 2048,
+    (buf.validate.field).string.pattern = "^https?://.*$"
+  ];
+
+  // Your own identifier for this source (e.g. a lesson id), unique within
+  // the app among items that are pending, running or succeeded. The dedupe
+  // key: an item whose external_id is already held is recorded as `skipped`.
+  // Empty: no deduplication for this item.
+  string external_id = 2 [(buf.validate.field).string.max_len = 255];
+
+  // Title of the created video (at most 255 characters).
+  string title = 3 [(buf.validate.field).string.max_len = 255];
+
+  // Description of the created video (at most 2,000 characters).
+  string description = 4 [(buf.validate.field).string.max_len = 2000];
+
+  // Tags of the created video (at most 20). Empty: defaults.tags.
+  repeated string tags = 5 [
+    (buf.validate.field).repeated = {
+      max_items: 20,
+      items: {string: {max_len: 100}}
+    }
+  ];
+
+  // Source duration in seconds, if you know it. Used only for the quote and
+  // the spend-cap reservation; the encode is billed on the real duration.
+  // Items without it are counted in quote.unknown_duration_items and not
+  // priced in the quote.
+  optional double duration_seconds = 6 [
+    (buf.validate.field).double = {gt: 0, lte: 604800}
+  ];
+
+  // Visibility of this item's video: "public", "unlisted" or "private".
+  // Empty: defaults.visibility.
+  string visibility = 7 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string = {
+      in: ["public", "unlisted", "private"]
+    }
+  ];
+
+  // Caption files for this item (at most 20). Not ingested yet; see
+  // ImportTextTrackInput.
+  repeated ImportTextTrackInput text_tracks = 8 [
+    (buf.validate.field).repeated = {max_items: 20}
+  ];
+}
+
+// What an import is expected to cost, computed from the live rate card for the
+// app with the same pricing the encode is billed with. Recomputed on every
+// Create and AddItems. An estimate, not a charge: encodes are billed on the
+// real source duration.
+message ImportQuote {
+  // Number of items that will be dispatched (pending items). Skipped
+  // duplicates are not counted.
+  int32 item_count = 1;
+
+  // Sum of duration_seconds over the counted items that gave one.
+  double known_duration_seconds = 2;
+
+  // Counted items that gave no duration_seconds. They are not priced below.
+  int32 unknown_duration_items = 3;
+
+  // Estimated encode cost of the items with a known duration, in EUR,
+  // including the per-video processing fee and any caption translation fees
+  // the defaults ask for.
+  double estimated_encode_eur = 4;
+
+  // Estimated monthly cost of storing the encoded renditions of the items
+  // with a known duration, in EUR per month. Delivery is billed separately,
+  // on what viewers watch.
+  double estimated_storage_eur_per_month = 5;
+
+  // Currency of all amounts in the quote. Always "EUR".
+  string currency = 6;
+
+  // Source seconds whose encode charge a free-import allowance covers. 0
+  // unless such an allowance is enabled for your account.
+  double free_encode_seconds_applied = 7;
+}
+
+// Number of an import's items in each status.
+message ImportCounts {
+  // Items not dispatched yet.
+  int32 pending = 1;
+
+  // Items dispatched and not finished.
+  int32 running = 2;
+
+  // Items whose video is ready.
+  int32 succeeded = 3;
+
+  // Items that failed.
+  int32 failed = 4;
+
+  // Duplicate items that were not imported.
+  int32 skipped = 5;
+
+  // Items canceled before dispatch.
+  int32 canceled = 6;
+}
+
+// Import is one bulk import.
+message Import {
+  // Import ID, e.g. "imp_a1b2c3d4e5f6".
+  string id = 1;
+
+  // App the videos are created in.
+  string app_id = 2;
+
+  // Lifecycle state.
+  ImportStatus status = 3;
+
+  // Why the import is paused. Present only while status is `paused`.
+  optional ImportPauseReason pause_reason = 4;
+
+  // Where the items come from.
+  ImportSource source = 5;
+
+  // Settings applied to every item unless the item overrides them.
+  ImportDefaults defaults = 6;
+
+  // Spend cap in EUR. Required to start. No item is started while its
+  // estimate would take spent_eur + reserved_eur over the cap; the import
+  // pauses instead. Videos already encoding finish, and a video whose length
+  // was not known in advance is counted at an estimate until it is measured,
+  // so the final spend can exceed the cap by up to the cost of the videos in
+  // flight. It is in addition to the app's monthly spend limit; whichever is
+  // reached first stops dispatch.
+  optional double max_spend_eur = 7;
+
+  // Actual cost, in EUR, of the items that have finished.
+  double spent_eur = 8;
+
+  // Estimated cost, in EUR, of the items dispatched and not finished yet. It
+  // moves into spent_eur, as the actual cost, as each item finishes.
+  double reserved_eur = 9;
+
+  // The quote for the items submitted so far.
+  ImportQuote quote = 10;
+
+  // Number of items in each status.
+  ImportCounts counts = 11;
+
+  // When the import was created.
+  google.protobuf.Timestamp created_at = 12;
+
+  // When the import was last changed.
+  google.protobuf.Timestamp updated_at = 13;
+
+  // When the import was started.
+  optional google.protobuf.Timestamp started_at = 14;
+
+  // When the import completed.
+  optional google.protobuf.Timestamp completed_at = 15;
+
+  // When the import was canceled.
+  optional google.protobuf.Timestamp canceled_at = 16;
+}
+
+// Why an import item failed.
+message ImportItemError {
+  // Standard API error code, e.g. "input_not_found" or "invalid_input_url".
+  string code = 1;
+
+  // Plain-language explanation and how to fix it.
+  string message = 2;
+}
+
+// Something about an import item worth knowing that did not stop it.
+message ImportItemWarning {
+  // Machine-readable code, e.g. "text_tracks_not_ingested".
+  string code = 1;
+
+  // Plain-language explanation.
+  string message = 2;
+}
+
+// ImportItem is one source of an import and what became of it.
+message ImportItem {
+  // Item ID, e.g. "imi_a1b2c3d4e5f6g7".
+  string id = 1;
+
+  // Import the item belongs to.
+  string import_id = 2;
+
+  // App the video is created in.
+  string app_id = 3;
+
+  // State of the item.
+  ImportItemStatus status = 4;
+
+  // Source URL, as submitted.
+  string url = 5;
+
+  // Your identifier for the source, as submitted. Empty when none was given.
+  string external_id = 6;
+
+  // Title, as submitted.
+  string title = 7;
+
+  // Description, as submitted.
+  string description = 8;
+
+  // Tags, as submitted.
+  repeated string tags = 9;
+
+  // Source duration hint, as submitted.
+  optional double duration_seconds = 10;
+
+  // Caption files, as submitted. Not ingested yet.
+  repeated ImportTextTrackInput text_tracks = 11;
+
+  // The video this item created. Empty until the item is dispatched.
+  string video_id = 12;
+
+  // Why the item failed. Present only when status is `failed`.
+  optional ImportItemError error = 13;
+
+  // The item that holds this item's external_id. Set only when status is
+  // `skipped`.
+  string duplicate_of_item_id = 14;
+
+  // Warnings that did not stop the item, e.g. `text_tracks_not_ingested`.
+  repeated ImportItemWarning warnings = 15;
+
+  // Estimated cost of this item in EUR: from duration_seconds when given,
+  // else 0 until the item is dispatched.
+  double estimated_cost_eur = 16;
+
+  // Actual cost of this item in EUR. Present once the item has finished.
+  optional double cost_eur = 17;
+
+  // Visibility override, as submitted. Empty: the import's defaults.
+  string visibility = 18;
+
+  // When the item was submitted.
+  google.protobuf.Timestamp created_at = 19;
+
+  // When the item last changed.
+  google.protobuf.Timestamp updated_at = 20;
+}
+
+// =============================================================================
+// Requests and responses
+// =============================================================================
+
+// Request to create an import.
+message CreateImportRequest {
+  // App to import into. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to import into a specific app in their org;
+  // omitted selects the org's first active app.
+  string app_id = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Where the items come from: {"type": "urls"}.
+  ImportSource source = 2 [(buf.validate.field).required = true];
+
+  // Settings for every item. Omitted: visibility from the app's default,
+  // the app's default hosted ladder, no captions, no tags.
+  ImportDefaults defaults = 3;
+
+  // The first batch of items, 1 to 1,000. Append more with AddItems.
+  repeated ImportItemInput items = 4 [
+    (buf.validate.field).repeated = {min_items: 1, max_items: 1000}
+  ];
+
+  // Spend cap in EUR (greater than 0). Optional here; required by Start.
+  optional double max_spend_eur = 5 [
+    (buf.validate.field).double = {gt: 0, lte: 99999999}
+  ];
+}
+
+// Response from creating an import.
+message CreateImportResponse {
+  // The new import, in `draft`, with its quote.
+  Import import = 1;
+}
+
+// Request to append items to a draft import.
+message AddImportItemsRequest {
+  // ID of the import.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^imp_[a-zA-Z0-9_-]+$"
+  ];
+
+  // App of the import. API-key callers may omit it or pass their own app.
+  string app_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Items to append, 1 to 1,000. An import holds at most 10,000 items;
+  // a call that would exceed that is refused with `invalid_argument` and
+  // appends nothing.
+  repeated ImportItemInput items = 3 [
+    (buf.validate.field).repeated = {min_items: 1, max_items: 1000}
+  ];
+}
+
+// Response from appending items.
+message AddImportItemsResponse {
+  // The import with its recomputed quote and counts.
+  Import import = 1;
+}
+
+// Request to get an import.
+message GetImportRequest {
+  // ID of the import.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^imp_[a-zA-Z0-9_-]+$"
+  ];
+
+  // App of the import. API-key callers may omit it or pass their own app.
+  string app_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from getting an import.
+message GetImportResponse {
+  // The requested import.
+  Import import = 1;
+}
+
+// Request to list imports.
+message ListImportsRequest {
+  // Optional app filter. API-key callers may omit it (their key's app is used)
+  // or pass their own app; a different app is rejected with PermissionDenied.
+  // Portal/JWT callers pass it to list a specific app in their org; omitted
+  // returns imports across all apps in the org.
+  string app_id = 1 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Only imports in this status.
+  optional ImportStatus status = 2 [
+    (buf.validate.field).enum = {defined_only: true, not_in: [0]}
+  ];
+
+  // Pagination parameters (default 20 per page, at most 100).
+  PaginationRequest pagination = 3;
+}
+
+// Response from listing imports.
+message ListImportsResponse {
+  // The imports, newest first.
+  repeated Import imports = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}
+
+// Request to start an import.
+message StartImportRequest {
+  // ID of the import.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^imp_[a-zA-Z0-9_-]+$"
+  ];
+
+  // App of the import. API-key callers may omit it or pass their own app.
+  string app_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Spend cap in EUR (greater than 0). Replaces any cap set before. Required
+  // unless the import already has one; refused with `invalid_argument` on
+  // max_spend_eur when neither is set.
+  optional double max_spend_eur = 3 [
+    (buf.validate.field).double = {gt: 0, lte: 99999999}
+  ];
+}
+
+// Response from starting an import.
+message StartImportResponse {
+  // The import, now `running`.
+  Import import = 1;
+}
+
+// Request to change an import's spend cap.
+message UpdateImportRequest {
+  // ID of the import.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^imp_[a-zA-Z0-9_-]+$"
+  ];
+
+  // App of the import. API-key callers may omit it or pass their own app.
+  string app_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // New spend cap in EUR (greater than 0). Lowering it below what is already
+  // spent and reserved stops further dispatch; items already dispatched
+  // finish. A `paused` import with pause_reason `spend_cap_reached` resumes
+  // only when the new cap is above spent_eur + reserved_eur; otherwise the
+  // cap is updated and the import stays paused.
+  double max_spend_eur = 3 [
+    (buf.validate.field).double = {gt: 0, lte: 99999999}
+  ];
+}
+
+// Response from changing an import's spend cap.
+message UpdateImportResponse {
+  // The updated import.
+  Import import = 1;
+}
+
+// Request to pause an import.
+message PauseImportRequest {
+  // ID of the import.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^imp_[a-zA-Z0-9_-]+$"
+  ];
+
+  // App of the import. API-key callers may omit it or pass their own app.
+  string app_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from pausing an import.
+message PauseImportResponse {
+  // The import, now `paused` with pause_reason `manual`.
+  Import import = 1;
+}
+
+// Request to resume an import.
+message ResumeImportRequest {
+  // ID of the import.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^imp_[a-zA-Z0-9_-]+$"
+  ];
+
+  // App of the import. API-key callers may omit it or pass their own app.
+  string app_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from resuming an import.
+message ResumeImportResponse {
+  // The import, now `running`.
+  Import import = 1;
+}
+
+// Request to cancel an import.
+message CancelImportRequest {
+  // ID of the import.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^imp_[a-zA-Z0-9_-]+$"
+  ];
+
+  // App of the import. API-key callers may omit it or pass their own app.
+  string app_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Response from canceling an import.
+message CancelImportResponse {
+  // The import, now `canceled`.
+  Import import = 1;
+}
+
+// Request to list an import's items.
+message ListImportItemsRequest {
+  // ID of the import.
+  string id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.pattern = "^imp_[a-zA-Z0-9_-]+$"
+  ];
+
+  // App of the import. API-key callers may omit it or pass their own app.
+  string app_id = 2 [
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE,
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+
+  // Only items in this status (e.g. `failed` for a retry list).
+  optional ImportItemStatus status = 3 [
+    (buf.validate.field).enum = {defined_only: true, not_in: [0]}
+  ];
+
+  // Pagination parameters (default 20 per page, at most 100).
+  PaginationRequest pagination = 4;
+}
+
+// Response from listing an import's items.
+message ListImportItemsResponse {
+  // The items, in submission order.
+  repeated ImportItem items = 1;
+
+  // Pagination metadata.
+  PaginationResponse pagination = 2;
+}

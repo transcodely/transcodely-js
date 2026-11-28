@@ -1,0 +1,159 @@
+// Caption files a customer attaches to a hosted video (VideoService
+// CreateTextTrack, CompleteTextTrackUpload, DeleteTextTrack).
+syntax = "proto3";
+
+package transcodely.v1;
+
+import "buf/validate/validate.proto";
+
+// Lifecycle of a video text track. Lowercase on the wire: "processing",
+// "ready", "failed".
+enum VideoTextTrackStatus {
+  // Default value, should not be used.
+  VIDEO_TEXT_TRACK_STATUS_UNSPECIFIED = 0;
+
+  // An uploaded caption file is awaited: the track was created with
+  // source.upload and CompleteTextTrackUpload has not succeeded yet. Not
+  // playable, not listed in the player or the stream.
+  VIDEO_TEXT_TRACK_STATUS_PROCESSING = 1;
+
+  // The track is attached and served.
+  VIDEO_TEXT_TRACK_STATUS_READY = 2;
+
+  // The uploaded file was refused or could not be read (see
+  // VideoTextTrack.failure_message). Not served. Create the track again to
+  // retry.
+  VIDEO_TEXT_TRACK_STATUS_FAILED = 3;
+}
+
+// Where an uploaded caption file comes from. Exactly one of url or upload.
+message TextTrackSource {
+  oneof source {
+    option (buf.validate.oneof).required = true;
+
+    // A public http(s) URL of the file. Transcodely downloads it during the
+    // call (at most 5 MB, within about 15 seconds), so the track is "ready"
+    // in the response. URLs that resolve to private or internal addresses
+    // are refused.
+    string url = 1 [
+      (buf.validate.field).string.max_len = 2048,
+      (buf.validate.field).string.pattern = "^https?://.+$"
+    ];
+
+    // Upload the file yourself: the response carries a presigned upload_url.
+    // PUT the file's bytes to it (exactly size_bytes of them) before
+    // upload_url_expires_at, then call CompleteTextTrackUpload.
+    TextTrackUploadSource upload = 2;
+  }
+}
+
+// A caption file the client uploads itself (TextTrackSource.upload).
+message TextTrackUploadSource {
+  // The file's exact size in bytes, at most 5 MB (5000000). The upload URL
+  // is signed for this length: a PUT of any other length is refused by
+  // storage.
+  int64 size_bytes = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).int64 = {gt: 0, lte: 5000000}
+  ];
+}
+
+// Request to attach a caption file to a hosted video.
+//
+// The file must be SubRip (.srt) or WebVTT (.vtt), UTF-8 (a byte-order mark
+// is accepted), at most 5 MB, with cue start times in order and no cue
+// ending more than 5 seconds after the end of the video. Overlapping cues
+// are accepted. The format is detected from the content, not from a file
+// name. The track is stored as WebVTT.
+message CreateTextTrackRequest {
+  // The hosted video to attach the track to.
+  string video_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // Language of the captions: an ISO 639-1 ("en"), ISO 639-2 ("eng", "deu"
+  // or "ger") or BCP 47 ("en-US") code. Stored and echoed as ISO 639-2/B
+  // ("eng"); a region subtag is not kept. A language outside the supported
+  // set is refused with parameter_invalid.
+  string language = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 2, max_len: 35, pattern: "^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$"}
+  ];
+
+  // Track role: "subtitles" (the default) or "captions" (subtitles for the
+  // deaf and hard of hearing, which also describe sounds; marked as such in
+  // the HLS stream).
+  optional string kind = 3 [(buf.validate.field).string = {
+    in: [
+      "subtitles",
+      "captions"
+    ]
+  }];
+
+  // Human-readable name shown in the player's caption menu (e.g. "English
+  // (CC)"). When omitted, the label is the language's English name
+  // ("English") and the stream's menu shows the language's own name
+  // ("Deutsch"), followed by " (CC)" for captions. When another rendition
+  // of the stream already has that name (AI captions of the same language),
+  // the stream's menu adds " (uploaded)". At most 64 characters, in any
+  // script; no comma, equals sign, double quote or control character.
+  optional string label = 4 [
+    (buf.validate.field).string.max_len = 64,
+    (buf.validate.field).string.pattern = "^[^,=\"\\x00-\\x1f\\x7f]*$"
+  ];
+
+  // A video holds one uploaded track per language and kind. With replace
+  // false (the default) a second one is refused with already_exists; with
+  // replace true it replaces the existing one: the new track gets a new id
+  // and the old one is removed once the new one is ready.
+  bool replace = 5;
+
+  // Where the file comes from.
+  TextTrackSource source = 6 [(buf.validate.field).required = true];
+
+  // Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+  optional string app_id = 7 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Request to finish an uploaded caption file (source.upload).
+message CompleteTextTrackUploadRequest {
+  // The hosted video.
+  string video_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // The track CreateTextTrack returned (trk_…).
+  string text_track_id = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^trk_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+  optional string app_id = 3 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
+
+// Request to remove an uploaded caption track.
+message DeleteTextTrackRequest {
+  // The hosted video.
+  string video_id = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^vid_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // The uploaded track to remove (trk_…).
+  string text_track_id = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string = {min_len: 1, max_len: 32, pattern: "^trk_[a-zA-Z0-9_-]+$"}
+  ];
+
+  // Optional app the video belongs to. Same rules as GenerateInsightsRequest.app_id.
+  optional string app_id = 3 [
+    (buf.validate.field).string.pattern = "^app_[a-zA-Z0-9_-]+$"
+  ];
+}
