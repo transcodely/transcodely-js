@@ -4,6 +4,14 @@ All notable changes to the Transcodely JavaScript / TypeScript SDK will be docum
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are allowed on minor bumps until 1.0.0.
 
+## [0.3.25](https://github.com/transcodely/transcodely-js/compare/v0.3.24...v0.3.25) (2026-11-28)
+
+
+### Features
+
+* **cli:** ship the command-line tool inside @transcodely/sdk as transcodely-sdk ([#109](https://github.com/transcodely/transcodely-js/issues/109)) ([4048fdd](https://github.com/transcodely/transcodely-js/commit/4048fdd0a72fac7d9b36fa24eb34c6f5d65e4110))
+* **upload:** resumable browser uploads and a react upload component ([#112](https://github.com/transcodely/transcodely-js/issues/112)) ([1fd868d](https://github.com/transcodely/transcodely-js/commit/1fd868d78628ca66b4c4cbe557f88065f8187450))
+
 ## [0.3.24](https://github.com/transcodely/transcodely-js/compare/v0.3.23...v0.3.24) (2026-11-23)
 
 
