@@ -325,3 +325,96 @@ describe("<TranscodelyUploader> uploading", () => {
     expect((backend.calls[0]!.body.file as { name: string }).name).toBe("dropped.mp4");
   });
 });
+
+describe("<TranscodelyUploader> server-side limits", () => {
+  it("shows the handler's own 413 message instead of restating the component's limit", async () => {
+    const backend = fakeBackend({
+      respond: (action) =>
+        action === "create"
+          ? json(413, { error: { code: "file_too_large", message: "This file is 3 GB. The largest file you can upload is 2 GB." } })
+          : undefined,
+    });
+    const view = await render(uploader(backend));
+    await choose(view, video(1000));
+    await waitFor(() => expect(view.part("error")).not.toBeNull());
+    expect(view.part("error")!.textContent).toBe("This file is 3 GB. The largest file you can upload is 2 GB.");
+  });
+
+  it("shows the handler's own 415 message", async () => {
+    const backend = fakeBackend({
+      respond: (action) =>
+        action === "create"
+          ? json(415, { error: { code: "file_type_not_accepted", message: "talk.mp4 is not a type of file this uploader accepts (video/webm)." } })
+          : undefined,
+    });
+    const view = await render(uploader(backend));
+    await choose(view, video(1000));
+    await waitFor(() => expect(view.part("error")).not.toBeNull());
+    expect(view.part("error")!.textContent).toContain("(video/webm)");
+  });
+});
+
+describe("<TranscodelyUploader> keyboard focus", () => {
+  const focused = () => document.activeElement?.getAttribute("data-part");
+
+  async function uploading() {
+    const backend = fakeBackend({ holdParts: true });
+    const view = await render(uploader(backend));
+    (view.part("input") as HTMLInputElement).focus();
+    await choose(view, video(1000));
+    await waitFor(() => expect(view.root().getAttribute("data-state")).toBe("uploading"));
+    return { backend, view };
+  }
+
+  it("moves focus off the file input when it is disabled by the upload starting", async () => {
+    const { view } = await uploading();
+    expect((view.part("input") as HTMLInputElement).disabled).toBe(true);
+    expect(focused()).toBe("cancel");
+  });
+
+  it("keeps focus on the toggle: Pause moves it to Resume, Resume back to Pause", async () => {
+    const { view } = await uploading();
+    view.part("pause")!.focus();
+    await click(view.part("pause"));
+    expect(view.root().getAttribute("data-state")).toBe("paused");
+    expect(focused()).toBe("resume");
+    await click(view.part("resume"));
+    await waitFor(() => expect(view.root().getAttribute("data-state")).toBe("uploading"));
+    expect(focused()).toBe("pause");
+  });
+
+  it("Cancel moves focus back to the file input", async () => {
+    const { view } = await uploading();
+    view.part("cancel")!.focus();
+    await click(view.part("cancel"));
+    await waitFor(() => expect(view.root().getAttribute("data-state")).toBe("canceled"));
+    expect(focused()).toBe("input");
+  });
+
+  it("Retry moves focus to the control that replaces it", async () => {
+    let failing = true;
+    const backend = fakeBackend({
+      respond: (action) => (action === "create" && failing ? json(500, { error: { code: "boom", message: "Boom." } }) : undefined),
+      holdParts: true,
+    });
+    const view = await render(uploader(backend));
+    await choose(view, video(1000));
+    await waitFor(() => expect(view.part("retry")).not.toBeNull());
+    failing = false;
+    view.part("retry")!.focus();
+    await click(view.part("retry"));
+    await waitFor(() => expect(view.root().getAttribute("data-state")).toBe("uploading"));
+    expect(focused()).toBe("cancel");
+  });
+
+  it("does not take focus from elsewhere on the page", async () => {
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    const backend = fakeBackend({ holdParts: true });
+    const view = await render(uploader(backend));
+    outside.focus();
+    await choose(view, video(1000));
+    await waitFor(() => expect(view.root().getAttribute("data-state")).toBe("uploading"));
+    expect(document.activeElement).toBe(outside);
+  });
+});

@@ -1,6 +1,6 @@
-import { useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 
-import { MAX_FILE_SIZE, type TranscodelyUploadError, type UploadState } from "../browser-upload/index.js";
+import { MAX_FILE_SIZE, formatBytes, type TranscodelyUploadError, type UploadState } from "../browser-upload/index.js";
 import { useTranscodelyUpload, type UseTranscodelyUploadOptions } from "./use-upload.js";
 
 /** Every piece of text the component shows. Pass any subset as `messages` to replace it. */
@@ -52,24 +52,16 @@ export interface TranscodelyUploaderProps extends UseTranscodelyUploadOptions {
   messages?: Partial<Messages>;
 }
 
-const UNITS = ["bytes", "KB", "MB", "GB", "TB"];
-
-/** 12.3 MB, 100 MB, 5 GB: binary multiples, at most one decimal. */
-export function formatBytes(n: number): string {
-  let i = 0;
-  while (n >= 1024 && i < UNITS.length - 1) {
-    n /= 1024;
-    i++;
-  }
-  return `${i ? Math.round(n * 10) / 10 : n} ${UNITS[i]}`;
-}
+export { formatBytes };
 
 function errorText(error: TranscodelyUploadError, m: Messages, maxFileSize: number | undefined): string {
   switch (error.code) {
+    // A status means the server refused, with its own limit: say what it said.
+    // Only the component's own pre-check uses the component's own text.
     case "file_too_large":
-      return m.tooLarge(formatBytes(Math.min(maxFileSize ?? MAX_FILE_SIZE, MAX_FILE_SIZE)));
+      return error.status ? error.message : m.tooLarge(formatBytes(Math.min(maxFileSize ?? MAX_FILE_SIZE, MAX_FILE_SIZE)));
     case "file_type_not_accepted":
-      return m.wrongType;
+      return error.status ? error.message : m.wrongType;
     case "file_empty":
       return m.empty;
     case "forbidden":
@@ -81,6 +73,9 @@ function errorText(error: TranscodelyUploadError, m: Messages, maxFileSize: numb
       return error.message || m.failed;
   }
 }
+
+/** useLayoutEffect warns during server rendering on React 18; there is no focus to keep there. */
+const useClientLayoutEffect = typeof document === "undefined" ? useEffect : useLayoutEffect;
 
 /** Errors about the file itself: retrying the same file cannot help. */
 const FINAL = ["file_empty", "file_too_large", "file_type_not_accepted"];
@@ -124,6 +119,24 @@ export function TranscodelyUploader({ className, disabled, messages, ...options 
     pick(e.dataTransfer.files[0]);
   };
 
+  // Keep keyboard focus when the focused control is removed or disabled
+  // (Pause becomes Resume, Retry and Cancel disappear, the input disables):
+  // move it to the control that took its place, else to the drop zone. Focus
+  // is sampled while rendering, before React commits the change.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const el = rootRef.current;
+  const focusWasInside = useRef(false);
+  focusWasInside.current = !!el && typeof document !== "undefined" && el.contains(document.activeElement);
+  useClientLayoutEffect(() => {
+    const root = rootRef.current;
+    const active = document.activeElement as HTMLInputElement | null;
+    if (!root || !focusWasInside.current || (root.contains(active) && !active?.disabled)) return;
+    const next = (["resume", "pause", "retry", "cancel", "input", "dropzone"] as const)
+      .map((p) => root.querySelector<HTMLInputElement>(`[data-part="${p}"]`))
+      .find((c) => c && !c.disabled);
+    next?.focus();
+  });
+
   const status =
     state === "uploading" ? `${m.status.uploading} ${Math.floor(progress.percent / 10) * 10}%` : m.status[state];
   const button = (part: "pause" | "resume" | "cancel" | "retry", onClick: () => unknown) => (
@@ -133,9 +146,10 @@ export function TranscodelyUploader({ className, disabled, messages, ...options 
   );
 
   return (
-    <div data-transcodely-uploader="" data-state={state} className={className}>
+    <div ref={rootRef} data-transcodely-uploader="" data-state={state} className={className}>
       <label
         data-part="dropzone"
+        tabIndex={-1}
         data-dragging={dragging || undefined}
         data-disabled={off || undefined}
         onDragOver={(e) => onDrag(e, true)}
