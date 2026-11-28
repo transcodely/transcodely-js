@@ -104,6 +104,7 @@
     "@types/react-18": "npm:@types/react@^18.3.32",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
+    "fake-indexeddb": "^6.2.8",
     "happy-dom": "^21.0.4",
     "husky": "^9.1.7",
     "react": "^19.3.1",
